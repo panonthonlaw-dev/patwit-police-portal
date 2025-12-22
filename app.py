@@ -7,30 +7,27 @@ import json, os, pytz
 from datetime import datetime
 
 # --- CONFIG ---
-st.set_page_config(page_title="ระบบเจ้าหน้าที่ส่วนกลาง", page_icon="👮‍♂️", layout="wide")
+st.set_page_config(page_title="ระบบส่วนกลาง (Safe Mode)", page_icon="👮‍♂️", layout="wide")
 
-# Initialize Session State
 if "logged_in" not in st.session_state: st.session_state.logged_in = False
 if "user_info" not in st.session_state: st.session_state.user_info = {}
 if "current_dept" not in st.session_state: st.session_state.current_dept = None
 
-# Helper functions
 def fix_key(key): return key.strip().replace("\\n", "\n") if key else ""
 
-# --- MODULE: INVESTIGATION (สอบสวน) ---
+# --- MODULE: INVESTIGATION (อ่านอย่างเดียว) ---
 def investigation_module():
     st.sidebar.button("⬅️ กลับหน้าเลือกแผนก", on_click=lambda: setattr(st.session_state, 'current_dept', None), width='stretch')
     st.title("📂 ระบบงานสอบสวน")
     try:
-        # ใช้ระบบ st.connection ดึงจาก [connections.gsheets]
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(ttl="0")
-        st.success("✅ เชื่อมต่อฐานข้อมูลสอบสวนสำเร็จ")
+        st.success("✅ เชื่อมต่อสำเร็จ (โหมดอ่านอย่างเดียว)")
         st.dataframe(df.tail(15), use_container_width=True)
     except Exception as e:
-        st.error(f"❌ ระบบสอบสวนขัดข้อง: {str(e)}")
+        st.error(f"❌ ขัดข้อง: {str(e)}")
 
-# --- MODULE: TRAFFIC (จราจร) ---
+# --- MODULE: TRAFFIC (อ่านอย่างเดียว + ซ่อมชื่อคอลัมน์ในแอป) ---
 def traffic_module():
     st.sidebar.button("⬅️ กลับหน้าเลือกแผนก", on_click=lambda: setattr(st.session_state, 'current_dept', None), width='stretch')
     st.title("🚦 ระบบงานจราจร")
@@ -44,20 +41,27 @@ def traffic_module():
         client = gspread.authorize(creds)
         sheet = client.open("Motorcycle_DB").sheet1
         
-        st.success("✅ เชื่อมต่อฐานข้อมูลจราจรสำเร็จ")
-        if st.button("🔄 ดึงข้อมูลทะเบียนรถ"):
-            # แก้ไขตรงนี้: ใช้ get_all_values แทนเพื่อเลี่ยงปัญหา Header ซ้ำ
+        if st.button("🔄 ดึงข้อมูลทะเบียนรถ (ไม่มีการแก้ไขไฟล์ต้นฉบับ)"):
+            # อ่านข้อมูลทั้งหมดมาเก็บใน RAM ของแอป
             data = sheet.get_all_values()
             if data:
-                # แปลงข้อมูลแถวแรกเป็นหัวตาราง และแถวที่เหลือเป็นข้อมูล
-                df = pd.DataFrame(data[1:], columns=data[0])
+                header = data[0]
+                clean_header = []
+                # วนลูปซ่อมชื่อคอลัมน์ "เฉพาะในแอปนี้เท่านั้น"
+                for i, name in enumerate(header):
+                    new_name = name.strip() or f"Column_{i}"
+                    if new_name in clean_header:
+                        new_name = f"{new_name}_dup_{i}"
+                    clean_header.append(new_name)
+                
+                # สร้างตารางแสดงผลจากข้อมูลที่ซ่อมชื่อแล้ว
+                df = pd.DataFrame(data[1:], columns=clean_header)
+                st.success("✅ ดึงข้อมูลสำเร็จ")
                 st.dataframe(df, use_container_width=True)
-            else:
-                st.warning("⚠️ ไม่พบข้อมูลในแผ่นงาน")
     except Exception as e:
-        st.error(f"❌ ระบบจราจรขัดข้อง: {str(e)}")
+        st.error(f"❌ ขัดข้อง: {str(e)}")
 
-# --- MAIN APP GATEWAY ---
+# --- GATEWAY ---
 def main():
     if not st.session_state.logged_in:
         _, col, _ = st.columns([1, 1.2, 1])
@@ -72,30 +76,23 @@ def main():
                         st.session_state.logged_in = True
                         st.session_state.user_info = accounts[pwd_input]
                         st.rerun()
-                    else:
-                        st.error("❌ รหัสผ่านไม่ถูกต้อง")
+                    else: st.error("❌ รหัสผ่านไม่ถูกต้อง")
     else:
-        # Sidebar
         user = st.session_state.user_info
         st.sidebar.markdown(f"### 👤 {user.get('name', 'เจ้าหน้าที่')}")
         if st.sidebar.button("🚪 ออกจากระบบ", width='stretch'):
             st.session_state.clear()
             st.rerun()
 
-        # Department Selection
         if st.session_state.current_dept is None:
             st.title("🏢 เลือกแผนกปฏิบัติงาน")
             c1, c2 = st.columns(2)
             with c1:
-                with st.container(border=True):
-                    st.subheader("🕵️ งานสอบสวน")
-                    if st.button("เข้าใช้งานสอบสวน", width='stretch', type='primary'):
-                        st.session_state.current_dept = "inv"; st.rerun()
+                if st.button("🕵️ เข้าใช้งานสอบสวน", use_container_width=True):
+                    st.session_state.current_dept = "inv"; st.rerun()
             with c2:
-                with st.container(border=True):
-                    st.subheader("🚦 งานจราจร")
-                    if st.button("เข้าใช้งานจราจร", width='stretch', type='primary'):
-                        st.session_state.current_dept = "tra"; st.rerun()
+                if st.button("🚦 เข้าใช้งานจราจร", use_container_width=True):
+                    st.session_state.current_dept = "tra"; st.rerun()
         else:
             if st.session_state.current_dept == "inv": investigation_module()
             else: traffic_module()
