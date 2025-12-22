@@ -24,35 +24,33 @@ import plotly.express as px
 # ==========================================
 st.set_page_config(page_title="ระบบเจ้าหน้าที่ส่วนกลาง", page_icon="👮‍♂️", layout="wide")
 
-# แก้ปัญหา AttributeError: ตั้งค่า Session State ตั้งแต่บรรทัดแรกๆ
+# ป้องกัน AttributeError
 if "logged_in" not in st.session_state: st.session_state.logged_in = False
 if "user_info" not in st.session_state: st.session_state.user_info = {}
 if "current_dept" not in st.session_state: st.session_state.current_dept = None
 
-# Helper functions
-def get_now_th(): return datetime.now(pytz.timezone('Asia/Bangkok'))
 def fix_key(key): return key.strip().replace("\\n", "\n") if key else ""
 
 # ==========================================
-# 2. MODULE: INVESTIGATION (สอบสวน)
+# 2. MODULE: INVESTIGATION (งานสอบสวน)
 # ==========================================
 def investigation_module():
     st.sidebar.button("⬅️ กลับหน้าเลือกแผนก", on_click=lambda: setattr(st.session_state, 'current_dept', None), width='stretch')
-    st.title("📂 งานสอบสวน")
+    st.title("📂 ระบบงานสอบสวน")
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(ttl="0")
         st.success("✅ เชื่อมต่อฐานข้อมูลสอบสวนสำเร็จ")
         st.dataframe(df.tail(10), use_container_width=True)
     except Exception as e:
-        st.error(f"ระบบสอบสวนขัดข้อง: {e}")
+        st.error(f"❌ ระบบสอบสวนขัดข้อง: {e}")
 
 # ==========================================
-# 3. MODULE: TRAFFIC (จราจร)
+# 3. MODULE: TRAFFIC (งานจราจร)
 # ==========================================
 def traffic_module():
     st.sidebar.button("⬅️ กลับหน้าเลือกแผนก", on_click=lambda: setattr(st.session_state, 'current_dept', None), width='stretch')
-    st.title("🚦 งานจราจร")
+    st.title("🚦 ระบบงานจราจร")
     try:
         raw_json = st.secrets["textkey"]["json_content"].strip()
         info = json.loads(raw_json)
@@ -65,10 +63,10 @@ def traffic_module():
         if st.button("🔄 โหลดข้อมูลจราจร"):
             st.dataframe(pd.DataFrame(sheet.get_all_records()), use_container_width=True)
     except Exception as e:
-        st.error(f"ระบบจราจรขัดข้อง: {e}")
+        st.error(f"❌ ระบบจราจรขัดข้อง: {e}")
 
 # ==========================================
-# 4. MAIN GATEWAY & LOGIN (จุดที่แก้ไขเรื่องรหัส)
+# 4. MAIN GATEWAY & LOGIN (แก้ไขระบบดึงบัญชี)
 # ==========================================
 def main():
     if not st.session_state.logged_in:
@@ -80,22 +78,24 @@ def main():
                 pwd_input = st.text_input("รหัสผ่านเจ้าหน้าที่", type="password")
                 
                 if st.button("เข้าสู่ระบบ", width='stretch', type='primary'):
-                    # ดึงข้อมูลจาก [OFFICER_ACCOUNTS] ใน Secrets
-                    try:
-                        accounts = st.secrets["OFFICER_ACCOUNTS"]
-                        # ตรวจสอบว่ารหัสที่กรอก (pwd_input) มีอยู่ในรายชื่อบัญชีหรือไม่
+                    # ดึงข้อมูลบัญชี (รองรับทั้งชื่อตัวเล็กและตัวใหญ่)
+                    # พยายามหา OFFICER_ACCOUNTS ก่อน ถ้าไม่มีหา officer_accounts
+                    accounts = st.secrets.get("OFFICER_ACCOUNTS") or st.secrets.get("officer_accounts")
+                    
+                    if accounts:
                         if pwd_input in accounts:
                             st.session_state.logged_in = True
                             st.session_state.user_info = accounts[pwd_input]
                             st.rerun()
                         else:
                             st.error("❌ รหัสผ่านไม่ถูกต้อง")
-                    except KeyError:
-                        st.error("❌ ไม่พบข้อมูลรายชื่อเจ้าหน้าที่ในระบบ (Secrets)")
+                    else:
+                        st.error("❌ ไม่พบการตั้งค่าบัญชีในระบบ (Secrets)")
+                        st.info("กรุณาตรวจสอบว่าในหน้า Secrets มีหัวข้อ [OFFICER_ACCOUNTS] แล้วหรือยัง")
     else:
         # แสดงชื่อ Sidebar
         user = st.session_state.user_info
-        name = user.get('name', 'เจ้าหน้าที่')
+        name = user.get('name', 'เจ้าหน้าที่') if isinstance(user, dict) else "เจ้าหน้าที่"
         st.sidebar.markdown(f"### 👤 {name}")
         
         if st.sidebar.button("🚪 ออกจากระบบ", width='stretch'):
