@@ -181,10 +181,13 @@ def main():
         if st.session_state.current_dept is None:
             st.title("🏢 เลือกแผนกปฏิบัติงาน")
             col1, col2 = st.columns(2)
-            if col1.button("🕵️ งานสอบสวน", use_container_width=True, height=100):
-                st.session_state.current_dept = "inv"; st.rerun()
-            if col2.button("🚦 งานจราจร", use_container_width=True, height=100):
-                st.session_state.current_dept = "traffic"; st.rerun()
+            # ลบ height=100 ออกเพื่อให้รองรับ Streamlit ทุกเวอร์ชัน
+            if col1.button("🕵️ งานสอบสวน", use_container_width=True):
+                st.session_state.current_dept = "inv"
+                st.rerun()
+            if col2.button("🚦 งานจราจร", use_container_width=True):
+                st.session_state.current_dept = "traffic"
+                st.rerun()
         else:
             if st.sidebar.button("🔄 สลับแผนก"):
                 st.session_state.current_dept = None; st.rerun()
