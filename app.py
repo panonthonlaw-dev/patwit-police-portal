@@ -2,14 +2,15 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime
-import pytz, os, base64, io, qrcode, glob, math, time
+import pytz, random, os, base64, io, qrcode, glob, math, json, time, re
 from PIL import Image
 
 # PDF Libraries
 try:
     from weasyprint import HTML
     from weasyprint.text.fonts import FontConfiguration
-except: pass
+except:
+    pass
 
 # ==========================================
 # 1. INITIAL SETTINGS
@@ -17,13 +18,14 @@ except: pass
 st.set_page_config(page_title="ระบบเจ้าหน้าที่ส่วนกลาง", page_icon="👮‍♂️", layout="wide")
 
 # Session States ครบถ้วนตามระบบเดิม
-states = {
-    'logged_in': False, 'user_info': {}, 'current_dept': None,
-    'view_mode': 'list', 'selected_case_id': None, 'unlock_password': "",
-    'page_pending': 1, 'page_finished': 1
-}
-for key, val in states.items():
-    if key not in st.session_state: st.session_state[key] = val
+if 'logged_in' not in st.session_state: st.session_state.logged_in = False
+if 'user_info' not in st.session_state: st.session_state.user_info = {}
+if 'current_dept' not in st.session_state: st.session_state.current_dept = None
+if 'view_mode' not in st.session_state: st.session_state.view_mode = "list"
+if 'selected_case_id' not in st.session_state: st.session_state.selected_case_id = None
+if 'unlock_password' not in st.session_state: st.session_state.unlock_password = ""
+if 'page_pending' not in st.session_state: st.session_state.page_pending = 1
+if 'page_finished' not in st.session_state: st.session_state.page_finished = 1
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FONT_FILE = os.path.join(BASE_DIR, "THSarabunNew.ttf")
@@ -52,32 +54,25 @@ def process_image(img_file):
         return base64.b64encode(buffer.getvalue()).decode()
     except: return ""
 
-# --- ฟังก์ชันสร้าง PDF (แก้ไขให้ดึงรูปภาพใส่ใน PDF ด้วย) ---
+# ==========================================
+# 2. PDF SYSTEM (ปรับขนาดรูปให้พอดี)
+# ==========================================
 def create_pdf(row):
     rid = str(row.get('Report_ID', ''))
     qr = qrcode.make(rid)
     qr_buffer = io.BytesIO(); qr.save(qr_buffer, format="PNG")
     qr_base64 = base64.b64encode(qr_buffer.getvalue()).decode()
-    
     logo_html = f'<img style="width:60px;" src="data:image/png;base64,{LOGO_BASE64}">' if LOGO_BASE64 else ""
     
-    # ดึงรูปภาพหลักฐาน (ถ้ามี) เพื่อใส่ใน PDF
     img_data_b64 = clean_val(row.get('Image_Data'))
     evidence_img_b64 = clean_val(row.get('Evidence_Image'))
     
     image_section_html = ""
-    # ถ้ามีรูปจากผู้แจ้ง
+    # จำกัดขนาดรูปภาพใน PDF ไม่ให้เกินหน้ากระดาษ
     if img_data_b64:
-        image_section_html += f"""
-        <p><b>รูปภาพหลักฐานจากผู้แจ้งเหตุ:</b></p>
-        <div style="text-align:center;"><img src="data:image/jpeg;base64,{img_data_b64}" style="max-width: 400px; max-height: 300px; border: 1px solid #ccc;"></div>
-        """
-    # ถ้ามีรูปหลักฐานเพิ่มเติมจากผู้สอบสวน
+        image_section_html += f'<div style="text-align:center; margin-top:10px;"><p><b>รูปภาพหลักฐาน:</b></p><img src="data:image/jpeg;base64,{img_data_b64}" style="max-width: 400px; max-height: 250px; object-fit: contain; border: 1px solid #ccc;"></div>'
     if evidence_img_b64:
-        image_section_html += f"""
-        <p><b>รูปภาพหลักฐานเพิ่มเติมจากการสอบสวน:</b></p>
-        <div style="text-align:center;"><img src="data:image/jpeg;base64,{evidence_img_b64}" style="max-width: 400px; max-height: 300px; border: 1px solid #ccc;"></div>
-        """
+        image_section_html += f'<div style="text-align:center; margin-top:10px;"><p><b>รูปหลักฐานเพิ่มเติม:</b></p><img src="data:image/jpeg;base64,{evidence_img_b64}" style="max-width: 400px; max-height: 250px; object-fit: contain; border: 1px solid #ccc;"></div>'
 
     html_content = f"""
     <html>
@@ -87,8 +82,7 @@ def create_pdf(row):
             body {{ font-family: 'THSarabunNew'; font-size: 16pt; line-height: 1.3; padding: 20px; }}
             .header {{ text-align: center; position: relative; }}
             .qr {{ position: absolute; top: 0; right: 0; width: 60px; }}
-            .box {{ border: 1px solid #000; padding: 10px; margin-bottom: 10px; min-height: 80px; white-space: pre-wrap; }}
-            img {{ display: block; margin: 10px auto; }}
+            .box {{ border: 1px solid #000; padding: 10px; margin-bottom: 5px; min-height: 70px; white-space: pre-wrap; }}
         </style>
     </head>
     <body>
@@ -101,46 +95,38 @@ def create_pdf(row):
         <hr>
         <p><b>เลขที่รับแจ้ง:</b> {rid} | <b>วันที่แจ้ง:</b> {row.get('Timestamp','-')}</p>
         <p><b>ผู้แจ้ง:</b> {row.get('Reporter','-')} | <b>ประเภทเหตุ:</b> {row.get('Incident_Type','-')} | <b>สถานที่:</b> {row.get('Location','-')}</p>
-        
-        <p><b>รายละเอียดเหตุการณ์:</b></p>
-        <div class="box">{row.get('Details','-')}</div>
-        
-        <p><b>ผลการดำเนินการสอบสวน:</b></p>
-        <div class="box">{row.get('Statement','-')}</div>
-        
-        {image_section_html}  <br>
-        <table style="width:100%; text-align:center; margin-top: 20px;">
+        <p><b>รายละเอียดเหตุการณ์:</b></p><div class="box">{row.get('Details','-')}</div>
+        <p><b>ผลการดำเนินการสอบสวน:</b></p><div class="box">{row.get('Statement','-')}</div>
+        {image_section_html}
+        <br>
+        <table style="width:100%; text-align:center;">
             <tr>
                 <td>ลงชื่อ.........................................<br>({row.get('Victim','-')})<br>ผู้เสียหาย</td>
                 <td>ลงชื่อ.........................................<br>({row.get('Accused','-')})<br>ผู้ถูกกล่าวหา</td>
             </tr>
         </table>
-        <div style="text-align:center; margin-top: 20px;">
-            ลงชื่อ.........................................<br>({row.get('Teacher_Investigator', '-')})<br>ครูผู้สอบสวน
-        </div>
     </body>
     </html>
     """
-    return HTML(string=html_content, base_url=BASE_DIR).write_pdf(font_config=FontConfiguration())
+    font_config = FontConfiguration()
+    return HTML(string=html_content, base_url=BASE_DIR).write_pdf(font_config=font_config)
 
 # ==========================================
-# 2. MODULE: INVESTIGATION
+# 3. MODULE: INVESTIGATION
 # ==========================================
 def investigation_module():
     user = st.session_state.user_info
     st.sidebar.button("⬅️ กลับหน้าเลือกแผนก", on_click=lambda: st.session_state.update({'current_dept': None, 'view_mode': 'list'}), width='stretch')
-    
     conn = st.connection("gsheets", type=GSheetsConnection)
+    
     try:
         df_raw = conn.read(ttl="0")
         df_display = df_raw.copy().fillna("")
-        # แปลง Report_ID เป็น String ป้องกันความผิดพลาดในการค้นหา
         df_display['Report_ID'] = df_display['Report_ID'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
 
         if st.session_state.view_mode == "list":
             st.title(f"🏢 ระบบสอบสวน คุณ{user['name']}")
             tab_list, tab_dash = st.tabs(["📋 รายการแจ้งเหตุ", "📊 แดชบอร์ดสถิติ"])
-            
             with tab_list:
                 df_pending = df_display[df_display['Status'].isin(["รอดำเนินการ", "อยู่ระหว่างการดำเนินการ"])][::-1]
                 df_finished = df_display[df_display['Status'] == "ดำเนินการเรียบร้อย"][::-1]
@@ -167,62 +153,47 @@ def investigation_module():
             if not sel.empty:
                 idx_raw = sel.index[0]
                 row = sel.iloc[0]
-                
-                # --- ส่วนแสดงรายละเอียดและรูปภาพ (จุดสำคัญที่เคยหายไป) ---
                 st.markdown(f"### 📝 เลขที่รับแจ้ง: {sid}")
                 with st.container(border=True):
                     st.write(f"**ผู้แจ้ง:** {row['Reporter']} | **สถานที่:** {row['Location']}")
                     st.info(f"**รายละเอียด:** {row['Details']}")
-                    
-                    # การดึงรูปภาพ Image_Data (จากฐานข้อมูล)
-                    img_data = clean_val(row['Image_Data'])
-                    if img_data:
-                        try:
-                            st.image(base64.b64decode(img_data), width=500, caption="📸 รูปภาพประกอบจากผู้แจ้ง")
-                        except: st.warning("ไม่สามารถแสดงรูปภาพหลักฐานได้")
+                    # ปรับขนาดรูปหน้าเว็บไม่ให้ใหญ่ล้น
+                    if clean_val(row['Image_Data']):
+                        st.image(base64.b64decode(row['Image_Data']), width=500, caption="รูปจากผู้แจ้ง")
 
-                # ระบบล็อกการแก้ไข
                 is_admin = user.get('role') == 'admin'
                 is_locked = (clean_val(row['Status']) == "ดำเนินการเรียบร้อย" and st.session_state.unlock_password != "Patwit1510")
                 if not is_admin: is_locked = True
 
                 if is_locked and clean_val(row['Status']) == "ดำเนินการเรียบร้อย" and is_admin:
-                    pwd = st.text_input("ปลดล็อกการแก้ไข (Patwit1510)", type="password")
+                    pwd = st.text_input("รหัสปลดล็อก (Patwit1510)", type="password")
                     if st.button("🔓 ปลดล็อก"):
                         if pwd == "Patwit1510": st.session_state.unlock_password = "Patwit1510"; st.rerun()
 
-                # ฟอร์มบันทึกผลการสอบสวน
-                with st.form("edit_case_form"):
-                    c1, c2 = st.columns(2)
-                    v_vic = c1.text_input("ผู้เสียหาย *", value=clean_val(row['Victim']), disabled=is_locked)
-                    v_acc = c2.text_input("ผู้ถูกกล่าวหา *", value=clean_val(row['Accused']), disabled=is_locked)
-                    v_wit = c1.text_input("พยาน", value=clean_val(row['Witness']), disabled=is_locked)
-                    v_tea = c2.text_input("ครูผู้สอบสวน *", value=clean_val(row['Teacher_Investigator']), disabled=is_locked)
-                    v_stu = c1.text_input("ตำรวจนักเรียน *", value=clean_val(row['Student_Police_Investigator']), disabled=is_locked)
-                    v_sta = c2.selectbox("สถานะ", ["รอดำเนินการ", "ดำเนินการเรียบร้อย", "ยกเลิก"], index=0, disabled=is_locked)
+                with st.form("edit_form"):
+                    v_vic = st.text_input("ผู้เสียหาย *", value=clean_val(row['Victim']), disabled=is_locked)
+                    v_acc = st.text_input("ผู้ถูกกล่าวหา *", value=clean_val(row['Accused']), disabled=is_locked)
                     v_stmt = st.text_area("ผลการสอบสวน *", value=clean_val(row['Statement']), disabled=is_locked)
-                    ev_img = st.file_uploader("📸 แนบรูปหลักฐานเพิ่ม", type=['jpg','png'], disabled=is_locked)
+                    v_sta = st.selectbox("สถานะ", ["รอดำเนินการ", "ดำเนินการเรียบร้อย"], index=0, disabled=is_locked)
+                    ev_img = st.file_uploader("📸 แนบหลักฐานเพิ่ม", type=['jpg','png'], disabled=is_locked)
 
-                    if st.form_submit_button("💾 บันทึกข้อมูล") and not is_locked:
-                        df_raw.at[idx_raw, 'Victim'] = v_vic
-                        df_raw.at[idx_raw, 'Accused'] = v_acc
-                        df_raw.at[idx_raw, 'Statement'] = v_stmt
-                        df_raw.at[idx_raw, 'Status'] = v_sta
+                    if st.form_submit_button("💾 บันทึก") and not is_locked:
+                        df_raw.at[idx_raw, 'Victim'] = v_vic; df_raw.at[idx_raw, 'Accused'] = v_acc
+                        df_raw.at[idx_raw, 'Statement'] = v_stmt; df_raw.at[idx_raw, 'Status'] = v_sta
                         if ev_img: df_raw.at[idx_raw, 'Evidence_Image'] = process_image(ev_img)
                         conn.update(data=df_raw.fillna(""))
-                        st.success("บันทึกข้อมูลเรียบร้อย!"); time.sleep(1); st.rerun()
+                        st.success("บันทึกสำเร็จ!"); st.rerun()
 
-                # ปุ่มสร้าง PDF (เพิ่มเข้าไปโดยไม่กระทบส่วนอื่น)
-                st.divider()
+                # ระบบ PDF
                 try:
                     pdf_data = create_pdf(row)
-                    st.download_button(label="📥 ดาวน์โหลดใบสรุปคดี (PDF)", data=pdf_data, file_name=f"Report_{sid}.pdf", mime="application/pdf", use_container_width=True, type="primary")
-                except: st.error("ไม่สามารถสร้าง PDF ได้ในขณะนี้")
+                    st.download_button(label="📥 ดาวน์โหลด PDF", data=pdf_data, file_name=f"Report_{sid}.pdf", mime="application/pdf", use_container_width=True, type="primary")
+                except: st.error("สร้าง PDF ไม่ได้")
 
     except Exception as e: st.error(f"Error: {e}")
 
 # ==========================================
-# 3. MAIN GATEWAY
+# 4. MAIN GATEWAY
 # ==========================================
 def main():
     if not st.session_state.logged_in:
@@ -235,9 +206,7 @@ def main():
                 if st.button("เข้าสู่ระบบ", width='stretch', type='primary'):
                     accs = st.secrets.get("OFFICER_ACCOUNTS", {})
                     if pwd in accs:
-                        st.session_state.logged_in = True
-                        st.session_state.user_info = accs[pwd]
-                        st.rerun()
+                        st.session_state.logged_in = True; st.session_state.user_info = accs[pwd]; st.rerun()
                     else: st.error("❌ รหัสผิด")
     else:
         if st.session_state.current_dept is None:
