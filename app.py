@@ -12,43 +12,35 @@ import io
 import os
 import glob
 
-# --- 1. การตั้งค่าหน้าจอและไฟล์ ---
+# --- 1. CONFIG & INITIALIZATION ---
 st.set_page_config(page_title="ศูนย์ปฏิบัติการตำรวจพัทวิทย์", page_icon="👮‍♂️", layout="wide")
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-FONT_FILE = os.path.join(BASE_DIR, "THSarabunNew.ttf")
-LOGO_PATH = next((f for f in glob.glob(os.path.join(BASE_DIR, "school_logo*")) if f.lower().endswith(('.png','.jpg','.jpeg'))), None)
-
-# Initialize Session States
+# ป้องกัน AttributeError โดยการเช็คและสร้าง Key ที่จำเป็นใน Session State
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
+if 'user_info' not in st.session_state: st.session_state.user_info = None
 if 'current_dept' not in st.session_state: st.session_state.current_dept = None
 if 'traffic_df' not in st.session_state: st.session_state.traffic_df = None
 
-# --- 2. ฟังก์ชันดึงรูปภาพ (FIXED: แก้ Error ValueError) ---
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+LOGO_PATH = next((f for f in glob.glob(os.path.join(BASE_DIR, "school_logo*")) if f.lower().endswith(('.png','.jpg','.jpeg'))), None)
+
+# --- 2. ฟังก์ชันดึงรูปภาพ (Private Access) ---
 def load_drive_image(url_input, creds):
-    # ตรวจสอบค่าว่างแบบปลอดภัยสำหรับ Pandas
     url = str(url_input).strip() if pd.notna(url_input) else ""
-    if not url or url.lower() == "nan" or url == "":
+    if not url or url.lower() == "nan":
         return "https://via.placeholder.com/150"
-    
     try:
-        file_id = None
         match = re.search(r'/d/([a-zA-Z0-9_-]+)|id=([a-zA-Z0-9_-]+)', url)
-        if match:
-            file_id = match.group(1) or match.group(2)
-        
+        file_id = match.group(1) or match.group(2)
         if file_id:
             if not creds.access_token or creds.access_token_expired:
                 creds.refresh(requests.Request())
-            
             headers = {"Authorization": f"Bearer {creds.access_token}"}
             api_url = f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media"
             res = requests.get(api_url, headers=headers, timeout=10)
-            
             if res.status_code == 200:
                 return res.content
-    except:
-        pass
+    except: pass
     return "https://via.placeholder.com/150"
 
 # --- 3. ส่วนเชื่อมต่อฐานข้อมูล ---
@@ -69,95 +61,92 @@ def load_traffic_data():
         st.error(f"โหลดข้อมูลจราจรไม่สำเร็จ: {e}")
     return None
 
-# --- 4. [MODULE] งานสอบสวน (Investigation) ---
-def investigation_module():
-    st.header("🕵️ ระบบบริหารงานสืบสวนและรับแจ้งเหตุ")
-    # เชื่อมต่อผ่าน GSheetsConnection (พารามิเตอร์จาก Secrets [connections.gsheets])
-    conn = st.connection("gsheets", type=GSheetsConnection)
-    try:
-        df_inv = conn.read(ttl="0")
-        st.success("✅ เชื่อมต่อฐานข้อมูลสืบสวนสำเร็จ")
-        
-        # แสดงรายการแจ้งเหตุล่าสุด
-        st.subheader("📋 รายการแจ้งเหตุล่าสุด")
-        st.dataframe(df_inv.tail(10), use_container_width=True)
-        
-        # (เพิ่มปุ่มดูรายละเอียดเคสได้ที่นี่)
-    except Exception as e:
-        st.error(f"เกิดข้อผิดพลาดงานสอบสวน: {e}")
-
-# --- 5. [MODULE] งานจราจร (Traffic) ---
+# --- 4. [MODULE] งานจราจร (Traffic) ---
 def traffic_module():
-    st.header("🚦 ระบบบริหารงานจราจร (ทะเบียนรถ)")
+    st.header("🚦 ระบบบริหารงานจราจร")
     client, creds = get_traffic_client()
-    
     if st.session_state.traffic_df is None:
         st.session_state.traffic_df = load_traffic_data()
     
     df = st.session_state.traffic_df
     if df is not None:
-        search_q = st.text_input("🔍 ค้นหา (ชื่อ / รหัส / ทะเบียน)", placeholder="พิมพ์ข้อมูลที่ต้องการหา...")
-        
+        search_q = st.text_input("🔍 ค้นหาทะเบียน/ชื่อ/รหัส", placeholder="พิมพ์เพื่อค้นหา...")
         if search_q:
-            results = df[df.apply(lambda row: row.astype(str).str.contains(search_q, case=False).any(), axis=1)]
-            if not results.empty:
-                for idx, row in results.iterrows():
-                    with st.expander(f"🏍️ {row['ทะเบียน']} | {row['ชื่อ-สกุล']}"):
-                        c1, c2 = st.columns([1, 2])
-                        with c1:
-                            # ดึงรูปเจ้าของรถ (คอลัมน์ชื่อ 'รูปภาพ1' หรือปรับตามจริง)
-                            img_col = 'รูปภาพ1' if 'รูปภาพ1' in row else df.columns[14]
-                            img_data = load_drive_image(row[img_col], creds)
-                            st.image(img_data, use_container_width=True)
-                        with c2:
-                            st.write(f"**รหัส:** {row.iloc[2]} | **ชั้น:** {row.iloc[3]}")
-                            st.write(f"**คะแนนคงเหลือ:** {row.iloc[13]}")
-                            # (ปุ่มหักแต้ม/เพิ่มแต้ม ใส่ตาม Logic เดิม)
-            else:
-                st.warning("ไม่พบข้อมูล")
+            results = df[df.apply(lambda r: r.astype(str).str.contains(search_q, case=False).any(), axis=1)]
+            for idx, row in results.iterrows():
+                with st.expander(f"🏍️ {row.iloc[6]} | {row.iloc[1]}"):
+                    c1, c2 = st.columns([1, 2])
+                    with c1:
+                        img_data = load_drive_image(row.iloc[14], creds)
+                        st.image(img_data, use_container_width=True)
+                    with c2:
+                        st.write(f"**รหัส:** {row.iloc[2]} | **คะแนน:** {row.iloc[13]}")
+                        # ส่วนหักแต้ม/เพิ่มแต้ม (ตาม Logic ที่เคยทำ)
+                        with st.form(f"score_{idx}"):
+                            pts = st.number_input("แต้ม", 1, 50, 5)
+                            note = st.text_input("เหตุผล")
+                            if st.form_submit_button("บันทึกแต้ม"):
+                                sheet = client.open("Motorcycle_DB").sheet1
+                                cell = sheet.find(str(row.iloc[2]))
+                                new_score = max(0, int(row.iloc[13]) - pts)
+                                sheet.update(f'N{cell.row}', [[str(new_score)]])
+                                st.success("อัปเดตแล้ว!"); st.session_state.traffic_df = None; st.rerun()
 
-# --- 6. หน้าหลักและการเข้าสู่ระบบ ---
+# --- 5. [MODULE] งานสอบสวน (Investigation) ---
+def investigation_module():
+    st.header("🕵️ ระบบงานสอบสวน")
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    try:
+        df_inv = conn.read(ttl="0")
+        st.dataframe(df_inv, use_container_width=True)
+    except Exception as e:
+        st.error(f"โหลดข้อมูลสอบสวนไม่สำเร็จ: {e}")
+
+# --- 6. MAIN NAVIGATION & LOGIN ---
 def main():
     if not st.session_state.logged_in:
-        # --- หน้าแรกสำหรับนักเรียนและ Login ---
+        # หน้าแรก & Login
         if LOGO_PATH:
             c1, c2, c3 = st.columns([5, 1, 5])
             c2.image(LOGO_PATH, width=100)
-        st.markdown("<h1 style='text-align: center;'>👮‍♂️ ศูนย์ปฏิบัติการตำรวจโรงเรียนโพนทองพัฒนาวิทยา</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center;'>👮‍♂️ ศูนย์ปฏิบัติการสถานีตำรวจโรงเรียนโพนทองพัฒนาวิทยา</h1>", unsafe_allow_html=True)
         
-        t1, t2 = st.tabs(["📝 สำหรับนักเรียน", "🔐 สำหรับเจ้าหน้าที่"])
-        with t1:
-            st.info("นักเรียนสามารถแจ้งเหตุหรือตรวจสอบทะเบียนรถได้ที่นี่ (กำลังพัฒนาฟอร์ม)")
-        with t2:
-            with st.form("login_form"):
-                pwd = st.text_input("รหัสผ่านเจ้าหน้าที่", type="password")
-                if st.form_submit_button("เข้าสู่ระบบ"):
-                    accounts = st.secrets.get("OFFICER_ACCOUNTS", {})
-                    if pwd in accounts:
-                        st.session_state.logged_in = True
-                        st.session_state.user_info = accounts[pwd]
-                        st.rerun()
-                    else: st.error("รหัสผ่านไม่ถูกต้อง")
+        with st.container(border=True):
+            st.subheader("🔐 เข้าสู่ระบบเจ้าหน้าที่")
+            pwd = st.text_input("รหัสผ่าน", type="password")
+            if st.button("Login", use_container_width=True):
+                accounts = st.secrets.get("OFFICER_ACCOUNTS", {})
+                if pwd in accounts:
+                    st.session_state.logged_in = True
+                    st.session_state.user_info = accounts[pwd]
+                    st.rerun()
+                else: st.error("รหัสผ่านไม่ถูกต้อง")
     else:
-        # --- หน้าปฏิบัติการเจ้าหน้าที่ ---
-        st.sidebar.title(f"สวัสดี, {st.session_state.user_info['name']}")
-        if st.sidebar.button("Logout"):
+        # ส่วนป้องกัน AttributeError: ตรวจสอบว่ามี user_info หรือไม่
+        if st.session_state.user_info is None:
             st.session_state.logged_in = False
             st.rerun()
-        
+
+        # แสดง Sidebar
+        st.sidebar.title(f"สวัสดี, {st.session_state.user_info['name']}")
+        if st.sidebar.button("🚪 Logout"):
+            st.session_state.logged_in = False
+            st.session_state.current_dept = None
+            st.rerun()
+
         if st.session_state.current_dept is None:
-            st.title("🏢 กรุณาเลือกแผนกที่ต้องการปฏิบัติงาน")
+            st.title("🏢 เลือกแผนกปฏิบัติงาน")
             c1, c2 = st.columns(2)
-            if c1.button("🕵️ งานสอบสวน/แจ้งเหตุ", use_container_width=True):
+            if c1.button("🕵️ งานสอบสวน", use_container_width=True):
                 st.session_state.current_dept = "inv"; st.rerun()
-            if c2.button("🚦 งานจราจร/ทะเบียนรถ", use_container_width=True):
+            if c2.button("🚦 งานจราจร", use_container_width=True):
                 st.session_state.current_dept = "traffic"; st.rerun()
         else:
-            if st.sidebar.button("🔄 สลับแผนกงาน"):
+            if st.sidebar.button("🔄 สลับแผนก"):
                 st.session_state.current_dept = None; st.rerun()
             
             if st.session_state.current_dept == "inv": investigation_module()
-            else: traffic_department_module = traffic_module()
+            else: traffic_module()
 
 if __name__ == "__main__":
     main()
