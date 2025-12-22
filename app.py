@@ -7,7 +7,7 @@ from datetime import datetime
 import pytz, random, os, base64, io, qrcode, glob, math, json, requests, re, textwrap, time
 from PIL import Image
 
-# PDF Libraries
+# PDF & Visualization Libraries
 try:
     from weasyprint import HTML, CSS
     from weasyprint.text.fonts import FontConfiguration
@@ -25,14 +25,15 @@ import plotly.express as px
 # ==========================================
 st.set_page_config(page_title="ระบบรวมศูนย์สถานีตำรวจนักเรียน", page_icon="👮‍♂️", layout="wide")
 
-# ป้องกัน Error: Initialize Session State
-if "logged_in" not in st.session_state: st.session_state.logged_in = False
-if "current_user" not in st.session_state: st.session_state.current_user = None
-if "current_dept" not in st.session_state: st.session_state.current_dept = None
-if "view_mode" not in st.session_state: st.session_state.view_mode = "list"
-if "selected_case_id" not in st.session_state: st.session_state.selected_case_id = None
-if "page_pending" not in st.session_state: st.session_state.page_pending = 1
-if "page_finished" not in st.session_state: st.session_state.page_finished = 1
+# Initialize Session States เพื่อป้องกัน AttributeError
+init_states = {
+    'logged_in': False, 'user_info': None, 'current_dept': None,
+    'view_mode': 'list', 'selected_case_id': None, 'search_results_df': None,
+    'page_pending': 1, 'page_finished': 1, 'reset_count': 0
+}
+for key, val in init_states.items():
+    if key not in st.session_state:
+        st.session_state[key] = val
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FONT_FILE = os.path.join(BASE_DIR, "THSarabunNew.ttf")
@@ -59,30 +60,35 @@ def get_base64_image(image_path):
     with open(image_path, "rb") as f: return base64.b64encode(f.read()).decode()
 
 # ==========================================
-# 3. INVESTIGATION MODULE (งานสอบสวน)
+# 3. INVESTIGATION MODULE (ระบบสอบสวน)
 # ==========================================
 def investigation_module():
     st.sidebar.button("⬅️ กลับหน้าเมนูหลัก", width='stretch', on_click=lambda: setattr(st.session_state, 'current_dept', None))
-    st.title("📂 ระบบบริหารจัดการงานสอบสวน")
+    st.title("📂 ระบบงานสอบสวน")
     
     try:
-        # ใช้ดึงค่า secrets โดยตรงเพื่อความชัวร์
         conn = st.connection("gsheets", type=GSheetsConnection)
         df_raw = conn.read(ttl="0")
+        
+        # แสดงข้อมูลตัวอย่าง
         st.success("เชื่อมต่อฐานข้อมูลสอบสวนสำเร็จ")
-        st.dataframe(df_raw.head())
+        st.write("รายการแจ้งเหตุล่าสุด:")
+        st.dataframe(df_raw.tail(10), width='stretch')
+        
+        # --- คุณสามารถนำ Logic การจัดการเคส (List/Detail) มาวางต่อที่นี่ ---
+        
     except Exception as e:
-        st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อสอบสวน: {str(e)}")
-        st.info("คำแนะนำ: ตรวจสอบ Private Key ในหน้า Secrets ว่าใส่เครื่องหมายคำพูดคร่อมครบหรือไม่")
+        st.error(f"เกิดข้อผิดพลาดในระบบสอบสวน: {str(e)}")
 
 # ==========================================
-# 4. TRAFFIC MODULE (งานจราจร)
+# 4. TRAFFIC MODULE (ระบบจราจร)
 # ==========================================
 def traffic_module():
     st.sidebar.button("⬅️ กลับหน้าเมนูหลัก", width='stretch', on_click=lambda: setattr(st.session_state, 'current_dept', None))
-    st.title("🚦 ระบบบริหารจัดการงานจราจร")
+    st.title("🚦 ระบบงานจราจร")
     
     def connect_traffic():
+        # แก้ไข Error: JSON Decoding
         key_content = st.secrets["textkey"]["json_content"]
         key_dict = json.loads(key_content.replace('\n', '\\n'), strict=False)
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -92,9 +98,17 @@ def traffic_module():
     try:
         sheet = connect_traffic()
         st.success("เชื่อมต่อฐานข้อมูลจราจรสำเร็จ")
-        # ... (ใส่ส่วนค้นหาทะเบียน/ตัดคะแนนเดิมของคุณ) ...
+        
+        if st.button("🔄 โหลดข้อมูลรถทั้งหมด"):
+            vals = sheet.get_all_values()
+            st.session_state.search_results_df = pd.DataFrame(vals[1:], columns=vals[0])
+            st.rerun()
+            
+        if st.session_state.search_results_df is not None:
+            st.dataframe(st.session_state.search_results_df, width='stretch')
+            
     except Exception as e:
-        st.error(f"ไม่สามารถโหลดข้อมูลจราจรได้: {e}")
+        st.error(f"เกิดข้อผิดพลาดในระบบจราจร: {str(e)}")
 
 # ==========================================
 # 5. MAIN GATEWAY (หน้า LOGIN & PORTAL)
@@ -105,20 +119,20 @@ def main():
         _, col, _ = st.columns([1, 1.2, 1])
         with col:
             with st.container(border=True):
-                st.header("🔐 Central Login")
+                st.markdown("<h2 style='text-align:center;'>👮‍♂️ Central Portal</h2>", unsafe_allow_html=True)
                 pwd = st.text_input("รหัสผ่านเจ้าหน้าที่", type="password")
-                if st.button("เข้าสู่ระบบ", width='stretch', type='primary'):
+                if st.button("Login", width='stretch', type='primary'):
                     accounts = st.secrets.get("officer_accounts", {})
                     if pwd in accounts:
                         st.session_state.logged_in = True
-                        st.session_state.current_user = accounts[pwd]
+                        st.session_state.user_info = accounts[pwd]
                         st.rerun()
                     else:
                         st.error("รหัสผ่านไม่ถูกต้อง")
     else:
-        # Sidebar หลัง Login
-        user_info = st.session_state.current_user
-        name = user_info['name'] if isinstance(user_info, dict) else str(user_info)
+        # Sidebar Management
+        user = st.session_state.user_info
+        name = user['name'] if isinstance(user, dict) else str(user)
         st.sidebar.write(f"👤 **{name}**")
         
         if st.sidebar.button("🚪 ออกจากระบบ", width='stretch'):
@@ -126,25 +140,27 @@ def main():
             st.rerun()
 
         if st.session_state.current_dept is None:
-            st.title("🏢 เลือกแผนกปฏิบัติงาน")
-            st.write("กรุณาเลือกฝ่ายที่ต้องการเข้าปฏิบัติงาน")
-            
+            st.title("🏢 เลือกฝ่ายปฏิบัติงาน")
             c1, c2 = st.columns(2)
             with c1:
                 with st.container(border=True):
                     st.subheader("🕵️ งานสอบสวน")
-                    if st.button("เข้าใช้งานสอบสวน", width='stretch'):
+                    st.write("จัดการเคสและสรุปสำนวน")
+                    if st.button("เลือกงานสอบสวน", width='stretch', type='primary'):
                         st.session_state.current_dept = "inv"
                         st.rerun()
             with c2:
                 with st.container(border=True):
                     st.subheader("🚦 งานจราจร")
-                    if st.button("เข้าใช้งานจราจร", width='stretch'):
+                    st.write("ตรวจสอบรถและวินัยจราจร")
+                    if st.button("เลือกงานจราจร", width='stretch', type='primary'):
                         st.session_state.current_dept = "tra"
                         st.rerun()
         else:
-            if st.session_state.current_dept == "inv": investigation_module()
-            else: traffic_module()
+            if st.session_state.current_dept == "inv": 
+                investigation_module()
+            else: 
+                traffic_module()
 
 if __name__ == "__main__":
     main()
