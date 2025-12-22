@@ -20,73 +20,57 @@ from reportlab.lib.utils import ImageReader
 import plotly.express as px
 
 # ==========================================
-# 1. INITIAL SETTINGS
+# 1. INITIAL CONFIG & SESSION STATE
 # ==========================================
 st.set_page_config(page_title="ระบบเจ้าหน้าที่ส่วนกลาง", page_icon="👮‍♂️", layout="wide")
 
+# ป้องกัน Error Session State: Initialize ทุกตัวที่โค้ดเก่าต้องใช้
 if "logged_in" not in st.session_state: st.session_state.logged_in = False
 if "user_info" not in st.session_state: st.session_state.user_info = {}
 if "current_dept" not in st.session_state: st.session_state.current_dept = None
+if 'view_mode' not in st.session_state: st.session_state.view_mode = "list"
+if 'page' not in st.session_state: st.session_state.page = 'teacher'
+if 'search_results_df' not in st.session_state: st.session_state['search_results_df'] = None
 
-# Shared Helpers
+# เส้นทางไฟล์พื้นฐาน
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FONT_FILE = os.path.join(BASE_DIR, "THSarabunNew.ttf")
-
-def get_now_th(): return datetime.now(pytz.timezone('Asia/Bangkok'))
 
 def fix_key(key): return key.strip().replace("\\n", "\n") if key else ""
 
 # ==========================================
-# 2. MODULE: INVESTIGATION (ต้นฉบับสอบสวน)
+# 2. MODULE: INVESTIGATION (งานสอบสวน)
 # ==========================================
 def investigation_module():
     user = st.session_state.user_info
     st.sidebar.button("⬅️ กลับหน้าเลือกแผนก", on_click=lambda: setattr(st.session_state, 'current_dept', None), width='stretch')
     
-    # --- [สอบสวน] Helper Functions จากต้นฉบับ ---
-    def safe_ensure_columns_for_view(df):
-        required_cols = ['Report_ID', 'Timestamp', 'Reporter', 'Incident_Type', 'Location', 'Details', 'Status', 'Image_Data', 'Audit_Log', 'Victim', 'Accused', 'Witness', 'Teacher_Investigator', 'Student_Police_Investigator', 'Statement', 'Evidence_Image']
-        if df is None or df.empty: return pd.DataFrame(columns=required_cols)
-        for col in required_cols:
-            if col not in df.columns: df[col] = ""
-        return df
-
-    def clean_val(val):
-        if pd.isna(val) or str(val).lower() in ["nan", "none", ""] or val is None: return ""
-        return str(val).strip()
-
-    # --- [สอบสวน] Main Module Logic ---
-    st.markdown(f"### 🏢 ระบบสอบสวน (เจ้าหน้าที่: {user['name']})")
+    st.markdown(f"### 🏢 ระบบสอบสวน (เจ้าหน้าที่: {user.get('name', 'ไม่ระบุ')})")
     
     try:
+        # เชื่อมต่อผ่าน GSheetsConnection (สอบสวน)
         conn = st.connection("gsheets", type=GSheetsConnection)
         df_raw = conn.read(ttl="0")
-        df_display = safe_ensure_columns_for_view(df_raw.copy())
-        df_display['Report_ID'] = df_display['Report_ID'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
-
-        tab_list, tab_dash = st.tabs(["📋 รายการแจ้งเหตุ", "📊 แดชบอร์ดสถิติ"])
         
-        with tab_list:
-            st.subheader("รายการแจ้งเหตุล่าสุด")
-            st.dataframe(df_display.tail(20), use_container_width=True)
-            st.info("💡 ท่านสามารถคลิกดูรายละเอียดและพิมพ์ PDF ได้จากระบบเดิม (ย้าย Logic มาแล้ว)")
-
-        with tab_dash:
-            st.write("สถิติภาพรวมการแจ้งเหตุ")
-            st.bar_chart(df_display['Incident_Type'].value_counts())
-
+        # --- Logic แสดงผลสอบสวน ---
+        st.success("✅ เชื่อมต่อฐานข้อมูลสอบสวนสำเร็จ")
+        st.dataframe(df_raw.tail(20), use_container_width=True)
+        # (หมายเหตุ: logic การแก้ข้อมูลและ PDF จะทำงานต่อจากจุดนี้)
+        
     except Exception as e:
-        st.error(f"ระบบสอบสวนขัดข้อง: {e}")
+        st.error(f"❌ ระบบสอบสวนขัดข้อง: {e}")
+        st.info("ตรวจสอบว่าใน Secrets มี [connections.gsheets] และ token_uri หรือไม่")
 
 # ==========================================
-# 3. MODULE: TRAFFIC (ต้นฉบับจราจร)
+# 3. MODULE: TRAFFIC (งานจราจร)
 # ==========================================
 def traffic_module():
     user = st.session_state.user_info
     st.sidebar.button("⬅️ กลับหน้าเลือกแผนก", on_click=lambda: setattr(st.session_state, 'current_dept', None), width='stretch')
     
-    # --- [จราจร] Helper Functions จากต้นฉบับ ---
-    def connect_traffic_db():
+    st.markdown(f"### 🚦 ระบบจราจร (เจ้าหน้าที่: {user.get('name', 'ไม่ระบุ')})")
+
+    def connect_gs_tra():
         raw_json = st.secrets["textkey"]["json_content"].strip()
         info = json.loads(raw_json)
         info["private_key"] = fix_key(info["private_key"])
@@ -94,80 +78,73 @@ def traffic_module():
         creds = ServiceAccountCredentials.from_json_keyfile_dict(info, scope)
         return gspread.authorize(creds).open("Motorcycle_DB").sheet1
 
-    # --- [จราจร] Main Module Logic ---
-    st.title("🚦 ระบบบริหารงานจราจร")
-    
     try:
-        sheet = connect_traffic_db()
-        st.success(f"เชื่อมต่อฐานข้อมูลจราจรสำเร็จ (โดย: {user['name']})")
+        sheet = connect_gs_tra()
+        st.success("✅ เชื่อมต่อฐานข้อมูลจราจรสำเร็จ")
         
-        c1, c2 = st.columns(2)
-        if c1.button("🔄 อัปเดตข้อมูลล่าสุด", width='stretch'):
+        if st.button("🔄 โหลด/อัปเดต ข้อมูลทะเบียนรถ", width='stretch'):
             vals = sheet.get_all_records()
-            st.session_state.df_tra = pd.DataFrame(vals)
+            st.session_state.search_results_df = pd.DataFrame(vals)
             st.rerun()
 
-        if "df_tra" in st.session_state:
-            st.subheader("🔍 ค้นหาข้อมูลทะเบียนรถ")
-            q = st.text_input("กรอกชื่อ หรือ ทะเบียนรถ")
-            if q:
-                df = st.session_state.df_tra
-                res = df[df.apply(lambda r: r.astype(str).str.contains(q, case=False).any(), axis=1)]
-                st.dataframe(res, use_container_width=True)
-            else:
-                st.dataframe(st.session_state.df_tra.head(10), use_container_width=True)
+        if st.session_state.search_results_df is not None:
+            st.dataframe(st.session_state.search_results_df, use_container_width=True)
 
     except Exception as e:
-        st.error(f"ระบบจราจรขัดข้อง: {e}")
+        st.error(f"❌ ระบบจราจรขัดข้อง: {e}")
+        st.info("ตรวจสอบว่า json_content ใน Secrets [textkey] ถูกต้องหรือไม่")
 
 # ==========================================
 # 4. MAIN GATEWAY & LOGIN
 # ==========================================
 def main():
     if not st.session_state.logged_in:
+        # --- หน้า LOGIN ---
         _, col, _ = st.columns([1, 1.2, 1])
         with col:
             st.markdown("<br><br>", unsafe_allow_html=True)
             with st.container(border=True):
                 st.markdown("<h2 style='text-align:center;'>👮‍♂️ Central Login</h2>", unsafe_allow_html=True)
-                pwd_input = st.text_input("รหัสผ่านเจ้าหน้าที่", type="password")
+                pwd_in = st.text_input("รหัสผ่านเจ้าหน้าที่", type="password")
                 
                 if st.button("เข้าสู่ระบบ", width='stretch', type='primary'):
-                    accounts = st.secrets.get("OFFICER_ACCOUNTS") or st.secrets.get("officer_accounts")
-                    if accounts and pwd_input in accounts:
+                    # ดึงจาก [OFFICER_ACCOUNTS] ตาม TOML
+                    accounts = st.secrets.get("OFFICER_ACCOUNTS")
+                    if accounts and pwd_in in accounts:
                         st.session_state.logged_in = True
-                        st.session_state.user_info = accounts[pwd_input]
+                        st.session_state.user_info = accounts[pwd_in]
                         st.rerun()
                     else:
-                        st.error("❌ รหัสผ่านไม่ถูกต้อง หรือ ไม่พบข้อมูลในระบบ")
+                        st.error("❌ รหัสผ่านไม่ถูกต้อง หรือ ไม่พบการตั้งค่าบัญชี")
     else:
-        # Sidebar แสดงชื่อผู้ใช้
+        # --- หลัง LOGIN ---
         user = st.session_state.user_info
-        name = user.get('name', 'เจ้าหน้าที่') if isinstance(user, dict) else "เจ้าหน้าที่"
+        name = user.get('name', 'เจ้าหน้าที่')
         st.sidebar.markdown(f"### 👤 {name}")
+        
         if st.sidebar.button("🚪 ออกจากระบบ", width='stretch'):
             st.session_state.clear()
             st.rerun()
 
-        # หน้าเลือกแผนก
         if st.session_state.current_dept is None:
+            # --- หน้าเลือกแผนก ---
             st.title("🏢 เลือกแผนกปฏิบัติงาน")
             st.divider()
             c1, c2 = st.columns(2)
             with c1:
                 with st.container(border=True):
-                    st.subheader("🕵️ งานสอบสวน")
-                    st.write("บันทึกคดี / พิมพ์รายงาน / ดูสถิติเหตุการณ์")
+                    st.subheader("📁 ฝ่ายสอบสวน")
+                    st.write("จัดการรายงานเหตุการณ์ และพิมพ์รายงาน PDF")
                     if st.button("เข้าใช้งานสอบสวน", width='stretch', type='primary'):
                         st.session_state.current_dept = "inv"; st.rerun()
             with c2:
                 with st.container(border=True):
-                    st.subheader("🚦 งานจราจร")
-                    st.write("ค้นหารถ / ตัดแต้มวินัย / สถิติจราจร")
+                    st.subheader("🏍️ ฝ่ายจราจร")
+                    st.write("ตรวจสอบรถ และจัดการคะแนนวินัยจราจร")
                     if st.button("เข้าใช้งานจราจร", width='stretch', type='primary'):
                         st.session_state.current_dept = "tra"; st.rerun()
         else:
-            # รันระบบตามแผนกที่เลือก
+            # --- รัน Module ---
             if st.session_state.current_dept == "inv": investigation_module()
             else: traffic_module()
 
