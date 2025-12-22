@@ -1,0 +1,13 @@
+streamlit
+pandas
+streamlit-gsheets
+gspread
+oauth2client
+requests
+Pillow
+qrcode
+xlsxwriter
+WeasyPrint
+reportlab
+plotly
+pytz
