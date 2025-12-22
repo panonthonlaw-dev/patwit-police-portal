@@ -24,15 +24,13 @@ import plotly.express as px
 # ==========================================
 st.set_page_config(page_title="ระบบเจ้าหน้าที่ส่วนกลาง", page_icon="👮‍♂️", layout="wide")
 
-# ป้องกัน AttributeError (สร้าง State ให้ครบตามโค้ดเดิมทั้ง 2 ชุด)
-states = {
-    "logged_in": False, "user_info": {}, "current_dept": None,
-    "view_mode": "list", "selected_case_id": None, "unlock_password": "",
-    "search_results_df": None, "edit_data": None, "reset_count": 0,
-    "page_pending": 1, "page_finished": 1
-}
-for key, val in states.items():
-    if key not in st.session_state: st.session_state[key] = val
+# ป้องกัน AttributeError ด้วยการสร้าง State เริ่มต้นให้ครบตามโค้ดเดิมทั้ง 2 แผนก
+if "logged_in" not in st.session_state: st.session_state.logged_in = False
+if "user_info" not in st.session_state: st.session_state.user_info = {}
+if "current_dept" not in st.session_state: st.session_state.current_dept = None
+if 'view_mode' not in st.session_state: st.session_state.view_mode = "list"
+if 'search_results_df' not in st.session_state: st.session_state.search_results_df = None
+if 'selected_case_id' not in st.session_state: st.session_state.selected_case_id = None
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FONT_FILE = os.path.join(BASE_DIR, "THSarabunNew.ttf")
@@ -46,43 +44,36 @@ def get_img_link(url):
     return f"https://drive.google.com/thumbnail?id={file_id}&sz=w800" if file_id else url
 
 # ==========================================
-# 2. MODULE: INVESTIGATION (งานสอบสวน - ยกมาเป๊ะๆ)
+# 2. MODULE: INVESTIGATION (งานสอบสวน)
 # ==========================================
 def investigation_module():
     st.sidebar.button("⬅️ กลับหน้าเลือกแผนก", on_click=lambda: setattr(st.session_state, 'current_dept', None), width='stretch')
     user = st.session_state.user_info
-
-    # --- ใส่ Logic สอบสวนเดิมของคุณที่นี่ ---
-    def safe_ensure_columns_for_view(df):
-        cols = ['Report_ID', 'Timestamp', 'Reporter', 'Incident_Type', 'Location', 'Details', 'Status', 'Image_Data', 'Audit_Log', 'Victim', 'Accused', 'Witness', 'Teacher_Investigator', 'Student_Police_Investigator', 'Statement', 'Evidence_Image']
-        df_new = df.copy()
-        for c in cols:
-            if c not in df_new.columns: df_new[c] = ""
-        return df_new
-
+    st.title("📂 ระบบงานสอบสวน")
+    
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df_raw = conn.read(ttl="0")
-        df_display = safe_ensure_columns_for_view(df_raw)
-        df_display['Report_ID'] = df_display['Report_ID'].astype(str).str.replace(r'\.0$', '', regex=True)
-
-        st.title("📂 ระบบงานสอบสวน")
         
-        # --- แสดงรายการแบบ Expander / Pagination ตามโค้ดเดิม ---
-        # (ส่วนนี้คุณสามารถ Copy แผง Dashboard และ Loop แสดงผลจากโค้ดเดิมมาวางได้เลย)
-        st.subheader("รายการแจ้งเหตุ")
-        st.dataframe(df_display.tail(20), use_container_width=True)
+        # แสดง Metric สรุปเหมือน Dashboard เดิม
+        m1, m2, m3 = st.columns(3)
+        m1.metric("แจ้งเหตุทั้งหมด", len(df_raw))
+        m2.metric("รอดำเนินการ", len(df_raw[df_raw['Status'] == "รอดำเนินการ"]))
+        m3.metric("เสร็จสิ้น", len(df_raw[df_raw['Status'] == "ดำเนินการเรียบร้อย"]))
         
+        st.subheader("📋 รายการแจ้งเหตุล่าสุด")
+        st.dataframe(df_raw.tail(20), use_container_width=True)
+        
+        # เพิ่มเติม: ส่วนรายละเอียดเคส (Copy Logic แสดงรายละเอียดเดิมมาวางที่นี่ได้)
     except Exception as e:
         st.error(f"ระบบสอบสวนขัดข้อง: {e}")
 
 # ==========================================
-# 3. MODULE: TRAFFIC (งานจราจร - ยกมาเป๊ะๆ)
+# 3. MODULE: TRAFFIC (งานจราจร)
 # ==========================================
 def traffic_module():
     st.sidebar.button("⬅️ กลับหน้าเลือกแผนก", on_click=lambda: setattr(st.session_state, 'current_dept', None), width='stretch')
     user = st.session_state.user_info
-    
     st.title("🚦 ระบบงานจราจร")
 
     def connect_traffic():
@@ -94,12 +85,10 @@ def traffic_module():
 
     try:
         sheet = connect_traffic()
-        
-        # --- UI ส่วนบน (Metric Cards) ---
-        if st.button("🔄 อัปเดตข้อมูลล่าสุด", use_container_width=True):
+        if st.button("🔄 อัปเดตข้อมูลทะเบียนรถ", use_container_width=True):
             data = sheet.get_all_values()
-            # จัดการ Column ซ้ำใน App
             header = data[0]
+            # จัดการชื่อคอลัมน์ซ้ำในแอป (เช่น รูปภาพ1)
             clean_header = []
             for i, name in enumerate(header):
                 n = name.strip() or f"Col_{i}"
@@ -108,23 +97,29 @@ def traffic_module():
             st.session_state.search_results_df = pd.DataFrame(data[1:], columns=clean_header)
             st.rerun()
 
-        # --- ค้นหาและแสดงผลแบบ Card/Expander ตามโค้ดจราจรเดิม ---
-        q = st.text_input("🔍 ค้นหา (ชื่อ/รหัส/ทะเบียน)")
         if st.session_state.search_results_df is not None:
             df = st.session_state.search_results_df
+            q = st.text_input("🔍 ค้นหา (ชื่อ/รหัส/ทะเบียน)")
             if q:
                 df = df[df.apply(lambda r: r.astype(str).str.contains(q, case=False).any(), axis=1)]
             
+            st.write(f"พบข้อมูล {len(df)} รายการ")
             for i, row in df.iterrows():
-                with st.expander(f"📍 {row['ทะเบียน']} | {row['ชื่อ-สกุล']}"):
-                    st.write(f"คะแนนปัจจุบัน: {row['คะแนน']}")
-                    # ปุ่มดาวน์โหลด PDF / แก้ไขคะแนน ใส่ตรงนี้ได้เลย
+                with st.expander(f"🏍️ {row.get('ทะเบียน', 'ไม่ระบุ')} | {row.get('ชื่อ-สกุล', 'ไม่ระบุ')}"):
+                    c1, c2 = st.columns(2)
+                    c1.write(f"**รหัสประจำตัว:** {row.get('เลขประจำตัว')}")
+                    c1.write(f"**ยี่ห้อ/สี:** {row.get('ยี่ห้อ')} - {row.get('สี')}")
+                    c2.write(f"**แต้มวินัยคงเหลือ:** {row.get('คะแนน')}")
                     
+                    # Logic หักแต้ม (ปุ่มกดหักแต้มจะอยู่ตรงนี้)
+                    if user['role'] == 'admin':
+                        st.button("🔴 หักคะแนนวินัย", key=f"btn_{i}")
+
     except Exception as e:
         st.error(f"ระบบจราจรขัดข้อง: {e}")
 
 # ==========================================
-# 4. MAIN GATEWAY & LOGIN
+# 4. MAIN LOGIN & GATEWAY
 # ==========================================
 def main():
     if not st.session_state.logged_in:
@@ -142,25 +137,28 @@ def main():
                         st.rerun()
                     else: st.error("❌ รหัสผิด")
     else:
-        # Sidebar
+        # ส่วนแสดงชื่อเจ้าหน้าที่และปุ่ม Logout ใน Sidebar
         user = st.session_state.user_info
         st.sidebar.markdown(f"### 👤 {user.get('name')}")
+        st.sidebar.caption(f"ตำแหน่ง: {user.get('role')}")
         if st.sidebar.button("🚪 ออกจากระบบ", width='stretch'):
             st.session_state.clear()
             st.rerun()
 
+        # หน้าเลือกแผนก
         if st.session_state.current_dept is None:
             st.title("🏢 เลือกแผนกปฏิบัติงาน")
+            st.divider()
             c1, c2 = st.columns(2)
             with c1:
                 with st.container(border=True):
-                    st.subheader("🕵️ งานสอบสวน")
-                    if st.button("เข้าใช้งานสอบสวน", width='stretch', type='primary'):
+                    st.subheader("🕵️ ฝ่ายสอบสวน")
+                    if st.button("เข้าสู่ระบบสอบสวน", use_container_width=True, type="primary"):
                         st.session_state.current_dept = "inv"; st.rerun()
             with c2:
                 with st.container(border=True):
-                    st.subheader("🚦 งานจราจร")
-                    if st.button("เข้าใช้งานจราจร", width='stretch', type='primary'):
+                    st.subheader("🚦 ฝ่ายจราจร")
+                    if st.button("เข้าสู่ระบบจราจร", use_container_width=True, type="primary"):
                         st.session_state.current_dept = "tra"; st.rerun()
         else:
             if st.session_state.current_dept == "inv": investigation_module()
