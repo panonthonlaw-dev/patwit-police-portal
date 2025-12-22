@@ -19,24 +19,14 @@ import textwrap
 import requests
 import plotly.express as px
 
-# PDF Libraries
-from weasyprint import HTML, CSS
-from reportlab.pdfgen import canvas
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.utils import ImageReader
-from PIL import Image
-
-# --- 1. ตั้งค่าพื้นฐาน ---
+# --- 1. ตั้งค่าพื้นฐานและตรวจสอบไฟล์ ---
 st.set_page_config(page_title="ศูนย์ปฏิบัติการตำรวจพัทวิทย์", page_icon="👮‍♂️", layout="wide")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FONT_FILE = os.path.join(BASE_DIR, "THSarabunNew.ttf")
-FONT_BOLD_FILE = os.path.join(BASE_DIR, "THSarabunNewBold.ttf")
 LOGO_PATH = next((f for f in glob.glob(os.path.join(BASE_DIR, "school_logo*")) if f.lower().endswith(('.png','.jpg','.jpeg'))), None)
 
-# ตรวจสอบไฟล์ฟอนต์ (กันจอขาวจาก FileNotFoundError)
+# ป้องกันจอขาวจากไฟล์ฟอนต์หาย
 if not os.path.exists(FONT_FILE):
     st.error(f"❌ ไม่พบไฟล์ฟอนต์: {FONT_FILE} กรุณาอัปโหลดขึ้น GitHub")
     st.stop()
@@ -44,44 +34,59 @@ if not os.path.exists(FONT_FILE):
 # Initialize Session State
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'current_dept' not in st.session_state: st.session_state.current_dept = None
+if 'traffic_page' not in st.session_state: st.session_state.traffic_page = 'search'
 
-# --- 2. ฟังก์ชันช่วย ---
+# --- 2. ฟังก์ชันช่วย (Common Helpers) ---
+def get_now_th(): return datetime.now(pytz.timezone('Asia/Bangkok'))
+
 def get_base64_image(image_path):
     if not image_path or not os.path.exists(image_path): return ""
     with open(image_path, "rb") as f: return base64.b64encode(f.read()).decode()
 
 LOGO_BASE64 = get_base64_image(LOGO_PATH) if LOGO_PATH else ""
 
-# --- 3. [Module] งานสืบสวน (ใส่โค้ดจัดการเดิมของคุณที่นี่) ---
-def investigation_department():
-    st.header("🕵️ ระบบบริหารงานสืบสวน")
+# --- 3. [Module: Investigation] ระบบงานสืบสวน ---
+def investigation_module():
+    st.markdown("### 🕵️ ระบบบริหารงานสืบสวนและรับแจ้งเหตุ")
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(ttl="0")
-        st.success("เชื่อมต่อฐานข้อมูลสืบสวนสำเร็จ")
-        st.dataframe(df.head()) # โชว์ข้อมูล 5 แถวแรกเพื่อทดสอบ
+        st.success("✅ เชื่อมต่อฐานข้อมูลสืบสวนสำเร็จ")
+        
+        # --- ท่านสามารถวาง Logic แสดงตารางรายการแจ้งเหตุเดิมของท่านตรงนี้ ---
+        st.info("ใช้สำหรับ: ตรวจสอบรายการแจ้งเหตุ / บันทึกผลสอบสวน / พิมพ์รายงาน PDF")
+        st.dataframe(df.tail(10), use_container_width=True) # ตัวอย่างการโชว์ข้อมูล
+        
     except Exception as e:
-        st.error(f"การเชื่อมต่อสืบสวนผิดพลาด: {e}")
+        st.error(f"❌ การเชื่อมต่อสืบสวนผิดพลาด: {e}")
 
-# --- 4. [Module] งานจราจร (ใส่โค้ดจราจรเดิมของคุณที่นี่) ---
-def traffic_department():
-    st.header("🚦 ระบบบริหารงานจราจร")
+# --- 4. [Module: Traffic] ระบบงานจราจร ---
+def traffic_module():
+    st.markdown("### 🚦 ระบบบริหารงานจราจร (ทะเบียนรถนักเรียน)")
     try:
-        key_content = st.secrets["textkey"]["json_content"]
-        key_dict = json.loads(key_content)
+        # ดึง JSON จาก Secrets และล้างตัวอักษรควบคุม
+        key_content = st.secrets["textkey"]["json_content"].strip()
+        key_dict = json.loads(key_content, strict=False)
+        
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         creds = ServiceAccountCredentials.from_json_keyfile_dict(key_dict, scope)
         client = gspread.authorize(creds)
+        
+        # เปิด Sheet จราจร
         sheet = client.open("Motorcycle_DB").sheet1
-        st.success("เชื่อมต่อฐานข้อมูลจราจรสำเร็จ")
-        st.write(f"จำนวนรถในระบบ: {len(sheet.get_all_values()) - 1} คัน")
+        st.success("✅ เชื่อมต่อฐานข้อมูลจราจรสำเร็จ")
+        
+        # --- ท่านสามารถวาง Logic ค้นหาทะเบียน / ตัดคะแนน เดิมของท่านตรงนี้ ---
+        st.info("ใช้สำหรับ: ค้นหาทะเบียนรถ / ตรวจสอบแต้มวินัย / ออกบัตรอนุญาต")
+        
     except Exception as e:
-        st.error(f"การเชื่อมต่อจราจรผิดพลาด: {e}")
+        st.error(f"❌ การเชื่อมต่อจราจรผิดพลาด: {e}")
 
-# --- 5. OFFICER PORTAL ---
+# --- 5. OFFICER PORTAL (หน้าเลือกแผนก) ---
 def officer_portal():
     user = st.session_state.current_user_data
     
+    # Header ส่วนเจ้าหน้าที่
     h1, h2, h3 = st.columns([1, 5, 1])
     with h1: 
         if LOGO_PATH: st.image(LOGO_PATH, width=80)
@@ -95,48 +100,60 @@ def officer_portal():
 
     st.markdown("---")
 
+    # ส่วนเลือกแผนก (Department Selection)
     if st.session_state.current_dept is None:
         st.markdown("<h2 style='text-align:center;'>กรุณาเลือกหมวดหมู่การปฏิบัติงาน</h2>", unsafe_allow_html=True)
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("🔎 เข้าสู่งานสืบสวน (จัดการเคส)", use_container_width=True):
-                st.session_state.current_dept = "inv"; st.rerun()
+            if st.button("🔎 เข้าสู่งานสืบสวน (จัดการเคสรับแจ้งเหตุ)", use_container_width=True):
+                st.session_state.current_dept = "inv"
+                st.rerun()
         with col2:
-            if st.button("🚦 เข้าสู่งานจราจร (ทะเบียนรถ)", use_container_width=True):
-                st.session_state.current_dept = "traffic"; st.rerun()
+            if st.button("🚦 เข้าสู่งานจราจร (ทะเบียนรถ/ตัดคะแนน)", use_container_width=True):
+                st.session_state.current_dept = "traffic"
+                st.rerun()
     else:
+        # ปุ่มย้อนกลับมาหน้าเลือกแผนก
         if st.button("🔄 สลับแผนกงาน", use_container_width=True):
-            st.session_state.current_dept = None; st.rerun()
-        
+            st.session_state.current_dept = None
+            st.rerun()
+            
         st.markdown("---")
-        if st.session_state.current_dept == "inv": investigation_department()
-        else: traffic_department()
+        if st.session_state.current_dept == "inv":
+            investigation_module()
+        elif st.session_state.current_dept == "traffic":
+            traffic_module()
 
-# --- 6. LANDING PAGE ---
+# --- 6. PUBLIC LANDING (หน้าแรกสำหรับนักเรียน) ---
 def public_landing():
     if LOGO_PATH:
         c1, c2, c3 = st.columns([5, 1, 5])
         c2.image(LOGO_PATH, width=100)
     st.markdown("<h1 style='text-align: center; color: #1E3A8A;'>👮‍♂️ สถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</h1>", unsafe_allow_html=True)
     
-    t1, t2 = st.tabs(["📝 แจ้งเหตุ (งานสืบสวน)", "🏍️ ทะเบียนรถ (งานจราจร)"])
-    with t1:
-        st.info("ระบบรับแจ้งเหตุออนไลน์")
-    with t2:
-        st.info("ระบบทะเบียนรถจักรยานยนต์")
+    tab_inv, tab_traffic = st.tabs(["📝 แจ้งเหตุด่วน (งานสืบสวน)", "🏍️ ทะเบียนรถ (งานจราจร)"])
+    
+    with tab_inv:
+        st.info("ระบบรับแจ้งเหตุด่วนเหตุร้ายภายในโรงเรียน")
+        # (ท่านสามารถวางฟอร์มรับแจ้งเหตุที่มี Placeholder ของท่านตรงนี้)
+
+    with tab_traffic:
+        st.info("ระบบตรวจสอบทะเบียนรถและวินัยจราจร")
+        # (ท่านสามารถวางปุ่ม Student Portal หรือ ลงทะเบียนรถ เดิมตรงนี้)
 
     st.markdown("---")
     with st.expander("🔐 สำหรับเจ้าหน้าที่ (Login)"):
-        pwd = st.text_input("รหัสผ่านเจ้าหน้าที่", type="password")
-        if st.button("Login"):
+        pwd = st.text_input("รหัสผ่านประจำตัวเจ้าหน้าที่", type="password")
+        if st.button("เข้าสู่ระบบ"):
             accounts = st.secrets.get("OFFICER_ACCOUNTS", {})
             if pwd in accounts:
                 st.session_state.logged_in = True
                 st.session_state.current_user_data = accounts[pwd]
                 st.rerun()
-            else: st.error("รหัสผ่านไม่ถูกต้อง")
+            else:
+                st.error("รหัสผ่านไม่ถูกต้อง")
 
-# --- 7. RUN ---
+# --- 7. RUN APP ---
 if st.session_state.logged_in:
     officer_portal()
 else:
