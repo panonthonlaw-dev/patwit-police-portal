@@ -20,57 +20,49 @@ from reportlab.lib.utils import ImageReader
 import plotly.express as px
 
 # ==========================================
-# 1. INITIAL CONFIG & SESSION STATE
+# 1. INITIAL SETTINGS & SESSION STATE
 # ==========================================
 st.set_page_config(page_title="ระบบรวมศูนย์สถานีตำรวจนักเรียน", page_icon="👮‍♂️", layout="wide")
 
-# ป้องกัน Error Session State
-if "logged_in" not in st.session_state: st.session_state.logged_in = False
-if "user_info" not in st.session_state: st.session_state.user_info = None
-if "current_dept" not in st.session_state: st.session_state.current_dept = None
+# แก้ปัญหา AttributeError โดยการสร้างค่าเริ่มต้นทุกครั้งที่รันแอป
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "user_info" not in st.session_state:
+    st.session_state.user_info = {} # กำหนดเป็น dict ว่างไว้ก่อน
+if "current_dept" not in st.session_state:
+    st.session_state.current_dept = None
 
-# ฟังก์ชันทำความสะอาดคีย์เพื่อแก้ Incorrect padding
+# ฟังก์ชันล้างคีย์ขยะ (ป้องกัน Incorrect padding)
 def fix_private_key(key):
     if not key: return ""
     return key.strip().replace("\\n", "\n")
 
 # ==========================================
-# 2. MODULE: INVESTIGATION (ยกโค้ดสอบสวนมาทั้งหมด)
+# 2. MODULE: INVESTIGATION (งานสอบสวน)
 # ==========================================
 def investigation_module():
-    # Helper functions ของสอบสวน
-    def safe_ensure_columns_for_view(df):
-        required_cols = ['Report_ID', 'Timestamp', 'Reporter', 'Incident_Type', 'Location', 'Details', 'Status', 'Image_Data', 'Audit_Log', 'Victim', 'Accused', 'Witness', 'Teacher_Investigator', 'Student_Police_Investigator', 'Statement', 'Evidence_Image']
-        if df is None or df.empty: return pd.DataFrame(columns=required_cols)
-        for col in required_cols:
-            if col not in df.columns: df[col] = ""
-        return df
-
     st.sidebar.button("⬅️ กลับหน้าเลือกแผนก", on_click=lambda: setattr(st.session_state, 'current_dept', None), width='stretch')
+    st.title("📂 ระบบงานสอบสวน")
     
-    # --- เริ่มต้นดึงข้อมูลสอบสวน ---
     try:
+        # เชื่อมต่อ GSheets (จะดึงค่าจาก [connections.gsheets] ใน Secrets อัตโนมัติ)
         conn = st.connection("gsheets", type=GSheetsConnection)
-        df_raw = conn.read(ttl="0")
-        df_display = safe_ensure_columns_for_view(df_raw.copy())
+        df_inv = conn.read(ttl="0")
+        st.success("✅ เชื่อมต่อฐานข้อมูลสอบสวนสำเร็จ")
         
-        st.title("📂 ระบบงานสอบสวน")
-        st.success("เชื่อมต่อฐานข้อมูลสอบสวนสำเร็จ")
-        
-        # แสดงรายการเหมือนโค้ดต้นฉบับของคุณ
-        st.subheader("รายการแจ้งเหตุ")
-        st.dataframe(df_display.tail(10), width='stretch')
-        # (หมายเหตุ: คุณสามารถเอา Logic Dashboard/PDF ของสอบสวนมาใส่ต่อตรงนี้ได้เลย)
+        # แสดงตารางข้อมูลเบื้องต้น (คุณสามารถยกโค้ดแสดงผลเดิมมาใส่ตรงนี้ได้เลย)
+        st.dataframe(df_inv.tail(10), use_container_width=True)
         
     except Exception as e:
         st.error(f"ระบบสอบสวนขัดข้อง: {e}")
 
 # ==========================================
-# 3. MODULE: TRAFFIC (ยกโค้ดจราจรมาทั้งหมด)
+# 3. MODULE: TRAFFIC (งานจราจร)
 # ==========================================
 def traffic_module():
     st.sidebar.button("⬅️ กลับหน้าเลือกแผนก", on_click=lambda: setattr(st.session_state, 'current_dept', None), width='stretch')
-    
+    st.title("🚦 ระบบงานจราจร")
+
     def connect_traffic():
         raw_json = st.secrets["textkey"]["json_content"].strip()
         info = json.loads(raw_json)
@@ -79,25 +71,28 @@ def traffic_module():
         creds = ServiceAccountCredentials.from_json_keyfile_dict(info, scope)
         return gspread.authorize(creds).open("Motorcycle_DB").sheet1
 
-    st.title("🚦 ระบบงานจราจร")
     try:
         sheet = connect_traffic()
-        st.success("เชื่อมต่อฐานข้อมูลจราจรสำเร็จ")
+        st.success("✅ เชื่อมต่อฐานข้อมูลจราจรสำเร็จ")
         
-        # ส่วนแสดงผลงานจราจร
-        if st.button("🔄 โหลดข้อมูลรถจักรยานยนต์"):
+        # ปุ่มโหลดข้อมูล (ตัวอย่างการใช้งาน)
+        if st.button("🔄 ดึงข้อมูลทะเบียนรถ"):
             vals = sheet.get_all_records()
-            st.dataframe(pd.DataFrame(vals), width='stretch')
+            st.session_state.df_traffic = pd.DataFrame(vals)
+            st.rerun()
+            
+        if "df_traffic" in st.session_state:
+            st.dataframe(st.session_state.df_traffic, use_container_width=True)
             
     except Exception as e:
         st.error(f"ระบบจราจรขัดข้อง: {e}")
 
 # ==========================================
-# 4. MAIN GATEWAY
+# 4. MAIN GATEWAY (หน้า Login & เลือกแผนก)
 # ==========================================
 def main():
     if not st.session_state.logged_in:
-        # หน้า Login
+        # --- หน้า Login ---
         _, col, _ = st.columns([1, 1.2, 1])
         with col:
             st.markdown("<br><br>", unsafe_allow_html=True)
@@ -110,32 +105,49 @@ def main():
                         st.session_state.logged_in = True
                         st.session_state.user_info = accounts[pwd]
                         st.rerun()
-                    else: st.error("รหัสผ่านไม่ถูกต้อง")
+                    else:
+                        st.error("❌ รหัสผ่านไม่ถูกต้อง")
     else:
-        # แสดงชื่อ Sidebar
-        name = st.session_state.user_info.get('name', 'เจ้าหน้าที่')
-        st.sidebar.write(f"👤 **{name}**")
-        if st.sidebar.button("🚪 ออกจากระบบ"):
-            st.session_state.clear()
+        # --- หลัง Login สำเร็จ ---
+        # การดึงชื่อแบบปลอดภัย (Defensive Programming)
+        user = st.session_state.get('user_info', {})
+        # เช็คว่าเป็น dictionary หรือไม่ และมี key 'name' หรือไม่
+        if isinstance(user, dict):
+            name = user.get('name', 'เจ้าหน้าที่')
+        else:
+            name = "เจ้าหน้าที่"
+        
+        st.sidebar.markdown(f"### 👤 {name}")
+        if st.sidebar.button("🚪 ออกจากระบบ", width='stretch'):
+            st.session_state.clear() # ล้างทุกอย่างรวมถึง logged_in
             st.rerun()
 
         if st.session_state.current_dept is None:
-            # หน้าเลือกแผนก
+            # --- หน้าเลือกแผนก ---
             st.title("🏢 เลือกแผนกปฏิบัติงาน")
+            st.write("ยินดีต้อนรับสู่ศูนย์รวมระบบบริหารจัดการ")
+            
             c1, c2 = st.columns(2)
             with c1:
                 with st.container(border=True):
                     st.subheader("🕵️ งานสอบสวน")
-                    if st.button("เลือกงานสอบสวน", width='stretch'):
-                        st.session_state.current_dept = "inv"; st.rerun()
+                    st.write("จัดการเคส, สรุปสำนวน และพิมพ์รายงาน PDF")
+                    if st.button("เข้าใช้งานสอบสวน", width='stretch', type='primary'):
+                        st.session_state.current_dept = "inv"
+                        st.rerun()
             with c2:
                 with st.container(border=True):
                     st.subheader("🚦 งานจราจร")
-                    if st.button("เลือกงานจราจร", width='stretch'):
-                        st.session_state.current_dept = "tra"; st.rerun()
+                    st.write("ตรวจสอบทะเบียนรถ, ตัดแต้ม และดูสถิติจราจร")
+                    if st.button("เข้าใช้งานจราจร", width='stretch', type='primary'):
+                        st.session_state.current_dept = "tra"
+                        st.rerun()
         else:
-            if st.session_state.current_dept == "inv": investigation_module()
-            else: traffic_module()
+            # --- เข้าสู่แต่ละแผนก ---
+            if st.session_state.current_dept == "inv": 
+                investigation_module()
+            elif st.session_state.current_dept == "tra": 
+                traffic_module()
 
 if __name__ == "__main__":
     main()
