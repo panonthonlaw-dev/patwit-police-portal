@@ -1,5 +1,5 @@
 streamlit
-streamlit-gsheets_connection
+streamlit-gsheets-connection
 pandas
 pytz
 qrcode
@@ -10,3 +10,4 @@ oauth2client
 requests
 plotly
 reportlab
+xlsxwriter
