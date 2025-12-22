@@ -18,7 +18,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
 
-# --- 1. การตั้งค่าเบื้องต้นและ Session ---
+# --- 1. CONFIG & SESSION ---
 st.set_page_config(page_title="ศูนย์ปฏิบัติการตำรวจพัทวิทย์", page_icon="👮‍♂️", layout="wide")
 
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
@@ -32,16 +32,20 @@ FONT_FILE = os.path.join(BASE_DIR, "THSarabunNew.ttf")
 FONT_BOLD_FILE = os.path.join(BASE_DIR, "THSarabunNewBold.ttf")
 LOGO_PATH = next((f for f in glob.glob(os.path.join(BASE_DIR, "school_logo*")) if f.lower().endswith(('.png','.jpg','.jpeg'))), None)
 
-# --- 2. ฟังก์ชันช่วย (Helpers) ---
+# --- 2. ฟังก์ชันช่วย (FIXED: แก้ Error ValueError) ---
 def get_now_th(): return datetime.now(pytz.timezone('Asia/Bangkok'))
 
-def get_img_link_drive(url):
-    if not url or str(url) == "nan": return "https://via.placeholder.com/150"
-    match = re.search(r'/d/([a-zA-Z0-9_-]+)|id=([a-zA-Z0-9_-]+)', str(url))
+def get_img_link_drive(url_input):
+    # ปรับปรุงการเช็คค่าว่างให้ปลอดภัยสำหรับ Pandas
+    url = str(url_input).strip() if pd.notna(url_input) else ""
+    if not url or url.lower() == "nan" or url == "":
+        return "https://via.placeholder.com/150"
+    
+    match = re.search(r'/d/([a-zA-Z0-9_-]+)|id=([a-zA-Z0-9_-]+)', url)
     file_id = match.group(1) or match.group(2) if match else None
-    return f"https://drive.google.com/thumbnail?id={file_id}&sz=w800" if file_id else url
+    return f"https://drive.google.com/thumbnail?id={file_id}&sz=w800" if file_id else "https://via.placeholder.com/150"
 
-# --- 3. การเชื่อมต่อฐานข้อมูลจราจร ---
+# --- 3. ฐานข้อมูลจราจร ---
 def get_traffic_client():
     creds_dict = dict(st.secrets["traffic_creds"])
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -54,13 +58,12 @@ def load_traffic_data():
         sheet = client.open("Motorcycle_DB").sheet1
         data = sheet.get_all_values()
         if len(data) > 1:
-            # ใช้ Header จริงจาก Sheet เพื่อความถูกต้อง
             return pd.DataFrame(data[1:], columns=data[0])
     except Exception as e:
-        st.error(f"โหลดข้อมูลจราจรไม่สำเร็จ: {e}")
+        st.error(f"โหลดข้อมูลไม่สำเร็จ: {e}")
     return None
 
-# --- 4. ฟังก์ชัน PDF จราจร ---
+# --- 4. ฟังก์ชัน PDF ---
 def create_traffic_pdf(row, printed_by):
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
@@ -71,30 +74,19 @@ def create_traffic_pdf(row, printed_by):
         f_reg, f_bold = 'Thai', 'ThaiBold'
     else: f_reg, f_bold = 'Helvetica', 'Helvetica-Bold'
     
-    # วาดข้อมูล PDF
     c.setFont(f_bold, 22); c.drawCentredString(width/2, height - 50, "แบบทะเบียนประวัติรถจักรยานยนต์นักเรียน")
     c.setFont(f_reg, 18); c.drawCentredString(width/2, height - 70, "โรงเรียนโพนทองพัฒนาวิทยา")
-    
     c.setFont(f_reg, 16)
-    c.drawString(60, height - 120, f"ชื่อ-นามสกุล: {row['ชื่อ-สกุล']}")
-    c.drawString(300, height - 120, f"รหัสนักเรียน: {row['เลขประจำตัว']}")
-    c.drawString(60, height - 140, f"ระดับชั้น: {row['ชั้น']}")
-    c.drawString(300, height - 140, f"ทะเบียนรถ: {row['ทะเบียน']}")
-    c.drawString(60, height - 170, f"แต้มวินัยจราจรคงเหลือ: {row['คะแนน']} คะแนน")
-    
-    # ประวัติบันทึก
-    c.drawString(60, height - 200, "ประวัติการทำผิดวินัย:")
-    text_obj = c.beginText(70, height - 220)
-    text_obj.setFont(f_reg, 14)
-    for line in str(row['ประวัติ']).split('\n'):
-        for wrap_line in textwrap.wrap(line, width=80): text_obj.textLine(wrap_line)
-    c.drawText(text_obj)
+    c.drawString(60, height - 120, f"ชื่อ-นามสกุล: {row.get('ชื่อ-สกุล', '-')}")
+    c.drawString(300, height - 120, f"รหัสนักเรียน: {row.get('เลขประจำตัว', '-')}")
+    c.drawString(60, height - 140, f"ทะเบียนรถ: {row.get('ทะเบียน', '-')}")
+    c.drawString(60, height - 170, f"แต้มวินัยจราจรคงเหลือ: {row.get('คะแนน', '100')} คะแนน")
     
     c.save(); buffer.seek(0); return buffer
 
 # --- 5. [MODULE] งานจราจร (Traffic) ---
 def traffic_module():
-    st.header("🚦 ระบบบริหารงานจราจรและวินัยนักเรียน")
+    st.header("🚦 ระบบบริหารงานจราจร")
     client, creds = get_traffic_client()
     
     if st.session_state.traffic_df is None:
@@ -102,46 +94,41 @@ def traffic_module():
     
     df = st.session_state.traffic_df
     if df is not None:
-        q = st.text_input("🔍 ค้นหา (ชื่อ / รหัส / ทะเบียน)", placeholder="พิมพ์ข้อมูลที่ต้องการหา...")
+        q = st.text_input("🔍 ค้นหา (ชื่อ / รหัส / ทะเบียน)", placeholder="ระบุข้อมูลที่ต้องการค้นหา...")
         if q:
             st.session_state.search_results = df[df.apply(lambda r: r.astype(str).str.contains(q, case=False).any(), axis=1)]
 
         if st.session_state.search_results is not None:
             for idx, row in st.session_state.search_results.iterrows():
-                with st.expander(f"🏍️ {row['ทะเบียน']} | {row['ชื่อ-สกุล']} (แต้ม: {row['คะแนน']})", expanded=True):
+                with st.expander(f"🏍️ {row.get('ทะเบียน','-')} | {row.get('ชื่อ-สกุล','-')} (แต้ม: {row.get('คะแนน','100')})"):
                     c1, c2 = st.columns([1, 2])
                     with c1:
-                        # แสดงภาพจาก Google Drive
-                        st.image(get_img_link_drive(row['รูปภาพ1']), caption="รูปเจ้าของรถ", use_container_width=True)
+                        # ดึงรูปภาพแบบ Safe
+                        img_url = get_img_link_drive(row.get('รูปภาพ1', ''))
+                        st.image(img_url, use_container_width=True)
                     with c2:
-                        st.markdown(f"**รหัส:** {row['เลขประจำตัว']} | **ชั้น:** {row['ชั้น']}")
-                        st.markdown(f"**สถานะ:** ใบขับขี่: {row['ใบขับขี่']} | ภาษี: {row['พรบ_ภาษี']}")
+                        st.write(f"**รหัส:** {row.get('เลขประจำตัว','-')} | **ชั้น:** {row.get('ชั้น','-')}")
                         
-                        # --- ระบบแก้ไข/จัดการแต้ม ---
-                        with st.form(f"action_{idx}"):
-                            pts = st.number_input("จำนวนแต้มที่ปรับ", 1, 50, 5)
-                            note = st.text_input("เหตุผลการปรับคะแนน")
+                        # ฟอร์มจัดการแต้ม
+                        with st.form(f"score_{idx}"):
+                            pts = st.number_input("แต้ม", 1, 50, 5)
+                            note = st.text_input("เหตุผล")
                             col_b1, col_b2 = st.columns(2)
-                            deduct = col_b1.form_submit_button("🔴 หักแต้ม", use_container_width=True)
-                            add = col_b2.form_submit_button("🟢 เพิ่มแต้ม", use_container_width=True)
-                            
-                            if (deduct or add) and note:
+                            if col_b1.form_submit_button("🔴 หักแต้ม", use_container_width=True):
                                 sheet = client.open("Motorcycle_DB").sheet1
                                 cell = sheet.find(str(row['เลขประจำตัว']))
-                                old_score = int(row['คะแนน'])
-                                new_score = max(0, min(100, old_score - pts if deduct else old_score + pts))
-                                
-                                log_time = get_now_th().strftime('%d/%m/%Y %H:%M')
-                                action = "หัก" if deduct else "เพิ่ม"
-                                new_history = f"{row['ประวัติ']}\n[{log_time}] {action} {pts} แต้ม: {note}"
-                                
-                                # อัปเดตลง Sheet (M=ประวัติ, N=คะแนน)
-                                sheet.update(f'M{cell.row}:N{cell.row}', [[new_history, str(new_score)]])
-                                st.success("อัปเดตข้อมูลสำเร็จ!"); st.session_state.traffic_df = None; time.sleep(1); st.rerun()
-
-                        # --- ปุ่มพิมพ์ PDF ---
+                                ns = max(0, int(row['คะแนน']) - pts)
+                                sheet.update(f'M{cell.row}:N{cell.row}', [[f"{row['ประวัติ']}\nหัก {pts}: {note}", str(ns)]])
+                                st.success("บันทึกแล้ว!"); st.session_state.traffic_df = None; st.rerun()
+                            if col_b2.form_submit_button("🟢 เพิ่มแต้ม", use_container_width=True):
+                                sheet = client.open("Motorcycle_DB").sheet1
+                                cell = sheet.find(str(row['เลขประจำตัว']))
+                                ns = min(100, int(row['คะแนน']) + pts)
+                                sheet.update(f'M{cell.row}:N{cell.row}', [[f"{row['ประวัติ']}\nเพิ่ม {pts}: {note}", str(ns)]])
+                                st.success("บันทึกแล้ว!"); st.session_state.traffic_df = None; st.rerun()
+                        
                         pdf_data = create_traffic_pdf(row, st.session_state.user_info['name'])
-                        st.download_button("🖨️ ดาวน์โหลดไฟล์ PDF", data=pdf_data, file_name=f"Report_{row['เลขประจำตัว']}.pdf", use_container_width=True)
+                        st.download_button("🖨️ พิมพ์ PDF", data=pdf_data, file_name=f"Report_{idx}.pdf", use_container_width=True)
 
 # --- 6. [MODULE] งานสอบสวน (Investigation) ---
 def investigation_module():
@@ -159,7 +146,6 @@ def main():
             c1, c2, c3 = st.columns([5, 1, 5])
             c2.image(LOGO_PATH, width=100)
         st.markdown("<h1 style='text-align: center;'>👮‍♂️ ศูนย์ปฏิบัติการตำรวจโรงเรียนโพนทองพัฒนาวิทยา</h1>", unsafe_allow_html=True)
-        
         with st.container(border=True):
             st.subheader("🔐 เข้าสู่ระบบเจ้าหน้าที่")
             pwd = st.text_input("รหัสผ่านประจำตัว", type="password")
@@ -181,13 +167,10 @@ def main():
         if st.session_state.current_dept is None:
             st.title("🏢 เลือกแผนกปฏิบัติงาน")
             col1, col2 = st.columns(2)
-            # ลบ height=100 ออกเพื่อให้รองรับ Streamlit ทุกเวอร์ชัน
             if col1.button("🕵️ งานสอบสวน", use_container_width=True):
-                st.session_state.current_dept = "inv"
-                st.rerun()
+                st.session_state.current_dept = "inv"; st.rerun()
             if col2.button("🚦 งานจราจร", use_container_width=True):
-                st.session_state.current_dept = "traffic"
-                st.rerun()
+                st.session_state.current_dept = "traffic"; st.rerun()
         else:
             if st.sidebar.button("🔄 สลับแผนก"):
                 st.session_state.current_dept = None; st.rerun()
