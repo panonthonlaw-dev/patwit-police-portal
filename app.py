@@ -27,6 +27,25 @@ for key, val in states.items():
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FONT_FILE = os.path.join(BASE_DIR, "THSarabunNew.ttf")
 
+# --- ระบบค้นหาโลโก้โรงเรียน ---
+LOGO_PATH = None
+LOGO_MIME = "image/png"
+target_file = os.path.join(BASE_DIR, "school_logo")
+if os.path.exists(target_file):
+    LOGO_PATH = target_file
+else:
+    possible_logos = glob.glob(os.path.join(BASE_DIR, "school_logo*"))
+    for f in possible_logos:
+        if os.path.isfile(f):
+            LOGO_PATH = f; break
+
+def get_base64_image(image_path):
+    if not image_path or not os.path.exists(image_path): return ""
+    with open(image_path, "rb") as img_file:
+        return base64.b64encode(img_file.read()).decode('utf-8')
+
+LOGO_BASE64 = get_base64_image(LOGO_PATH) if LOGO_PATH else ""
+
 # Helpers
 def get_now_th(): return datetime.now(pytz.timezone('Asia/Bangkok'))
 def clean_val(val):
@@ -51,6 +70,83 @@ def safe_ensure_columns_for_view(df):
         if col not in df_new.columns: df_new[col] = ""
     return df_new
 
+# --- ฟังก์ชันสร้าง PDF (ยกมาทั้งก้อนจากโค้ดสอบสวนดั้งเดิม) ---
+def create_pdf(row):
+    rid = str(row.get('Report_ID', ''))
+    date_str = str(row.get('Timestamp', ''))
+    reporter = str(row.get('Reporter', '-'))
+    incident = str(row.get('Incident_Type', '-'))
+    location = str(row.get('Location', '-'))
+    details = str(row.get('Details', '-'))
+    statement = str(row.get('Statement', '-'))
+    
+    audit_log = str(row.get('Audit_Log', ''))
+    latest_date = "-"
+    if audit_log:
+        try:
+            lines = [line for line in audit_log.split('\n') if line.strip()]
+            if lines:
+                last_line = lines[-1]
+                if '[' in last_line and ']' in last_line:
+                    latest_date = last_line[last_line.find('[')+1 : last_line.find(']')]
+        except: pass
+
+    printer_name = st.session_state.user_info.get('name', 'System')
+    print_time = get_now_th().strftime("%d/%m/%Y %H:%M:%S")
+
+    qr = qrcode.make(rid)
+    qr_buffer = io.BytesIO()
+    qr.save(qr_buffer, format="PNG")
+    qr_base64 = base64.b64encode(qr_buffer.getvalue()).decode()
+
+    evidence_html = f"<div style='margin-top: 10px; page-break-inside: avoid;'><b>หลักฐานประกอบ:</b><br><img src='data:image/jpeg;base64,{row.get('Evidence_Image')}' style='max-height: 150px;'></div>" if row.get('Evidence_Image') else ""
+    logo_html = f'<img class="logo" src="data:image/png;base64,{LOGO_BASE64}">' if LOGO_BASE64 else ""
+
+    html_content = f"""
+    <html>
+    <head>
+        <style>
+            @font-face {{ font-family: 'THSarabunNew'; src: url('file://{FONT_FILE}'); }}
+            body {{ font-family: 'THSarabunNew'; font-size: 16pt; line-height: 1.3; margin: 20px; }}
+            .header {{ text-align: center; position: relative; min-height: 100px; }}
+            .logo {{ position: absolute; top: 0; left: 0; width: 60px; }}
+            .qr {{ position: absolute; top: 0; right: 0; width: 60px; }}
+            .title {{ font-size: 20pt; font-weight: bold; }}
+            .box {{ border: 1px solid #000; background-color: #f9f9f9; padding: 10px; margin-bottom: 10px; min-height: 80px; white-space: pre-wrap; }}
+            .sig-table {{ width: 100%; margin-top: 30px; text-align: center; }}
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            {logo_html}
+            <div class="title">สถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</div>
+            <div style="font-size: 18pt;">ใบสรุปรายงานเหตุการณ์และผลการดำเนินการสอบสวน</div>
+            <img class="qr" src="data:image/png;base64,{qr_base64}">
+        </div>
+        <hr>
+        <p><b>เลขที่รับแจ้ง:</b> {rid} | <b>วันที่แจ้ง:</b> {date_str} | <b>วันที่บันทึกผล:</b> {latest_date}</p>
+        <p><b>ผู้แจ้ง:</b> {reporter} | <b>ประเภทเหตุ:</b> {incident} | <b>สถานที่:</b> {location}</p>
+        <p><b>รายละเอียดเหตุการณ์:</b></p>
+        <div class="box">{details}</div>
+        <p><b>ผลการดำเนินการสอบสวน:</b></p>
+        <div class="box">{statement}</div>
+        {evidence_html}
+        <table class="sig-table">
+            <tr>
+                <td>ลงชื่อ.........................................<br>({row.get('Victim', '-')})<br>ผู้เสียหาย</td>
+                <td>ลงชื่อ.........................................<br>({row.get('Accused', '-')})<br>ผู้ถูกกล่าวหา</td>
+            </tr>
+        </table>
+        <div style="text-align:center; margin-top: 20px;">
+            ลงชื่อ.........................................<br>({row.get('Teacher_Investigator', '-')})<br>ครูผู้สอบสวน
+        </div>
+        <p style="font-size: 10pt; text-align: right; margin-top: 20px;">ผู้พิมพ์: {printer_name} | เวลา: {print_time}</p>
+    </body>
+    </html>
+    """
+    font_config = FontConfiguration()
+    return HTML(string=html_content, base_url=BASE_DIR).write_pdf(font_config=font_config)
+
 # ==========================================
 # 2. MODULE: INVESTIGATION
 # ==========================================
@@ -65,14 +161,12 @@ def investigation_module():
         df_display['Report_ID'] = df_display['Report_ID'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
 
         if st.session_state.view_mode == "list":
-            # --- หน้า LIST เหมือนเดิม ---
             st.title(f"🏢 ระบบสอบสวน คุณ{user['name']}")
             tab_list, tab_dash = st.tabs(["📋 รายการแจ้งเหตุ", "📊 แดชบอร์ดสถิติ"])
             with tab_list:
-                # (ส่วนของ Pagination และปุ่มกดรหัสเคส POL-XXX เหมือนโค้ดที่คุณส่งมา)
                 df_pending = df_display[df_display['Status'].isin(["รอดำเนินการ", "อยู่ระหว่างการดำเนินการ"])][::-1]
                 st.markdown("<h4 style='color:#1E3A8A; background-color:#f0f2f6; padding:10px; border-radius:5px;'>⏳ รายการที่รอการดำเนินการ</h4>", unsafe_allow_html=True)
-                for idx, row in df_pending.head(5).iterrows():
+                for idx, row in df_pending.head(10).iterrows():
                     raw_rid = row['Report_ID']
                     c1, c2, c3, c4 = st.columns([2.5, 2, 3, 1.5])
                     with c1: st.button(f"📝 {raw_rid}", key=f"p_{idx}", use_container_width=True, on_click=lambda r=raw_rid: (st.session_state.update({'selected_case_id': r, 'view_mode': 'detail'})))
@@ -80,8 +174,7 @@ def investigation_module():
                     st.divider()
 
         elif st.session_state.view_mode == "detail":
-            # --- หน้า DETAIL (จุดที่มีระบบป้องกัน) ---
-            st.button("⬅️ กลับหน้ารายการ", on_click=lambda: st.session_state.update({'view_mode': 'list'}), use_container_width=True)
+            st.button("⬅️ กลับหน้ารายการ", on_click=lambda: st.session_state.update({'view_mode': 'list', 'unlock_password': ""}), use_container_width=True)
             sid = st.session_state.selected_case_id
             sel = df_display[df_display['Report_ID'] == sid]
             
@@ -93,20 +186,19 @@ def investigation_module():
                 current_status = clean_val(row['Status'])
                 is_admin = user.get('role') == 'admin'
                 is_finished = (current_status == "ดำเนินการเรียบร้อย")
-                
-                # ตัวแปรควบคุมการ Lock
                 is_locked = True if (is_finished and st.session_state.unlock_password != "Patwit1510") else False
-                if not is_admin: is_locked = True # ถ้าไม่ใช่ Admin ล็อคถาวร
+                if not is_admin: is_locked = True 
 
                 st.markdown(f"### 📝 เลขที่รับแจ้ง: {sid}")
                 with st.container(border=True):
                     st.write(f"**ผู้แจ้ง:** {row['Reporter']} | **สถานที่:** {row['Location']}")
                     st.info(f"**รายละเอียด:** {row['Details']}")
+                    if clean_val(row['Image_Data']):
+                        st.image(base64.b64decode(row['Image_Data']), width=400, caption="หลักฐานจากผู้แจ้ง")
                 
                 st.divider()
                 st.write("#### ✍️ บันทึกผลการสอบสวน")
 
-                # แสดงช่องกรอกรหัสปลดล็อค (ถ้าเคสจบแล้ว)
                 if is_locked and is_finished and is_admin:
                     st.markdown("<div style='color:red; font-weight:bold;'>🔒 เคสนี้ดำเนินการเรียบร้อยแล้ว (ต้องปลดล็อคเพื่อแก้ไข)</div>", unsafe_allow_html=True)
                     col_p1, col_p2 = st.columns([3, 1])
@@ -117,7 +209,7 @@ def investigation_module():
                             st.rerun()
                         else: st.error("รหัสไม่ถูกต้อง")
 
-                # --- ฟิลด์ข้อมูล (กลับมาครบ 100%) ---
+                # --- ฟิลด์ข้อมูลและฟอร์มบันทึก ---
                 with st.form("investigation_form"):
                     c1, c2 = st.columns(2)
                     with c1:
@@ -148,6 +240,19 @@ def investigation_module():
                         df_raw.at[idx, 'Audit_Log'] = f"{clean_val(row['Audit_Log'])}\n[{get_now_th().strftime('%d/%m/%Y %H:%M')}] แก้ไขโดย {user['name']}"
                         conn.update(data=df_raw.fillna(""))
                         st.success("บันทึกสำเร็จ!"); time.sleep(1); st.rerun()
+
+                # --- ส่วนของ PDF (กลับมาแล้ว!) ---
+                st.markdown("---")
+                with st.container(border=True):
+                    st.markdown("#### 🖨️ เมนูพิมพ์รายงาน")
+                    col_pdf1, col_pdf2 = st.columns([3, 1])
+                    col_pdf1.caption("ดาวน์โหลดรายงานสรุปสำนวนคดีในรูปแบบ PDF เพื่อใช้เป็นหลักฐานและบันทึกประวัติ")
+                    try:
+                        pdf_data = create_pdf(row)
+                        col_pdf2.download_button(label="📥 ดาวน์โหลด PDF", data=pdf_data, file_name=f"Report_{sid}.pdf", mime="application/pdf", use_container_width=True, type="primary")
+                    except Exception as e:
+                        col_pdf2.error("สร้าง PDF ไม่สำเร็จ")
+                        st.caption(f"Error: {e}")
 
     except Exception as e: st.error(f"Error: {e}")
 
