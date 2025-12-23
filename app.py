@@ -67,7 +67,7 @@ def calculate_pagination(key, total_items, limit=5):
     return start_idx, end_idx, st.session_state[key], total_pages
 
 # ==========================================
-# 2. MODULE: INVESTIGATION (คงเดิม 100%)
+# 2. MODULE: INVESTIGATION (ยกมา 100% ห้ามแตะ)
 # ==========================================
 def create_pdf_inv(row):
     rid = str(row.get('Report_ID', '')); date_str = str(row.get('Timestamp', ''))
@@ -232,7 +232,7 @@ def investigation_module():
     except Exception as e: st.error(f"Error: {e}")
 
 # ==========================================
-# 3. MODULE: TRAFFIC (แก้เชื่อมต่อ: ใช้ st.connection เหมือนสอบสวน)
+# 3. MODULE: TRAFFIC (แก้การเชื่อมต่อ: Manual Parse Credentials)
 # ==========================================
 def traffic_module():
     user = st.session_state.user_info
@@ -245,17 +245,32 @@ def traffic_module():
 
     def load_tra_data():
         try:
-            # *** FIX: ใช้ st.connection แบบเดียวกับ Investigation ***
-            conn = st.connection("gsheets", type=GSheetsConnection)
-            # อ่านข้อมูล
-            df = conn.read(worksheet=SHEET_NAME_TRAFFIC, ttl="0")
-            # เปลี่ยนชื่อ Column ให้ตรงกับ Logic เดิม (C0, C1, ...)
-            df.columns = [f"C{i}" for i in range(len(df.columns))]
-            st.session_state.df_tra = df.astype(str).fillna("")
-            return True
+            # *** FIX: ดึง Key แบบ Raw Dict จาก connections.gsheets แล้วแปลงให้ Clean ***
+            # 1. เข้าถึง Object Secrets
+            conn_secrets = st.secrets["connections"]["gsheets"]
+            
+            # 2. แปลง AttrDict เป็น Python Dict ปกติ (สำคัญมาก)
+            creds_dict = {k: v for k, v in conn_secrets.items()}
+            
+            # 3. ตรวจสอบและแก้ไข Private Key (เผื่อมี \\n)
+            if "private_key" in creds_dict:
+                creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+
+            # 4. เชื่อมต่อ gspread
+            scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+            client = gspread.authorize(creds)
+            
+            # 5. เปิดไฟล์ตามชื่อ (SHEET_NAME_TRAFFIC = "Motorcycle_DB")
+            sheet = client.open(SHEET_NAME_TRAFFIC).sheet1
+            vals = sheet.get_all_values()
+            
+            if len(vals) > 1:
+                st.session_state.df_tra = pd.DataFrame(vals[1:], columns=[f"C{i}" for i, h in enumerate(vals[0])])
+                return True
         except Exception as e:
-            st.error(f"การเชื่อมต่อล้มเหลว: {e}")
-            return False
+            st.error(f"Traffic DB Connection Error: {e}")
+        return False
 
     def get_img_tra(url):
         m = re.search(r'/d/([a-zA-Z0-9_-]+)|id=([a-zA-Z0-9_-]+)', str(url)); fid = m.group(1) or m.group(2) if m else None
@@ -282,7 +297,7 @@ def traffic_module():
         draw_img(img_url1, 70, height - 415, 180, 180); draw_img(img_url2, 300, height - 415, 180, 180)
         c.save(); buffer.seek(0); return buffer
 
-    # Force Load
+    # บังคับโหลดจราจร
     if st.session_state.df_tra is None:
         with st.spinner("⏳ กำลังโหลดข้อมูลจราจร..."): 
             load_tra_data()
