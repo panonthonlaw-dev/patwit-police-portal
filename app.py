@@ -239,7 +239,7 @@ def investigation_module():
     except Exception as e: st.error(f"Error: {e}")
 
 # ==========================================
-# 3. MODULE: TRAFFIC (CODE สมบูรณ์ + Robust Connection + Fixed Key Priority)
+# 3. MODULE: TRAFFIC (CODE สมบูรณ์ + ค้นหาถึงโชว์ + ล้างค่าได้)
 # ==========================================
 def traffic_module():
     user = st.session_state.user_info
@@ -257,7 +257,6 @@ def traffic_module():
 
     # --- CONNECT (PRIORITY: Textkey First) ---
     def connect_gsheet_universal():
-        # Priority 1: textkey (ตามที่คุณให้มา)
         if "textkey" in st.secrets and "json_content" in st.secrets["textkey"]:
             try:
                 key_str = st.secrets["textkey"]["json_content"]
@@ -271,7 +270,6 @@ def traffic_module():
                 return gspread.authorize(creds).open(SHEET_NAME_TRAFFIC).sheet1
             except: pass
 
-        # Priority 2: connections.gsheets
         if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
             creds_dict = dict(st.secrets["connections"]["gsheets"])
             scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -303,6 +301,7 @@ def traffic_module():
         file_id = match.group(1) or match.group(2) if match else None
         return f"https://drive.google.com/thumbnail?id={file_id}&sz=w800" if file_id else url
 
+    # --- PDF Copy-Paste ---
     def create_pdf_tra(vals, img_url1, img_url2, face_url=None, printed_by="ระบบอัตโนมัติ"):
         buffer = io.BytesIO(); c = canvas.Canvas(buffer, pagesize=A4); width, height = A4
         if os.path.exists(FONT_FILE):
@@ -312,142 +311,171 @@ def traffic_module():
         else: fn, fb = 'Helvetica', 'Helvetica-Bold'
         logo = next((f for f in ["logo.png", "logo.jpg", "logo"] if os.path.exists(f)), None)
         if logo: c.drawImage(logo, 50, height - 85, width=50, height=50, mask='auto')
+        
         c.setFont(fb, 22); c.drawCentredString(width/2, height - 50, "แบบทะเบียนประวัติรถจักรยานยนต์นักเรียน")
         c.setFont(fn, 18); c.drawCentredString(width/2, height - 72, "โรงเรียนโพนทองพัฒนาวิทยา")
         c.line(50, height - 85, width - 50, height - 85)
+        
         name, std_id, classroom, brand, color, plate = str(vals[1]), str(vals[2]), str(vals[3]), str(vals[4]), str(vals[5]), str(vals[6])
         lic_s, tax_s, hel_s = str(vals[7]), str(vals[8]), str(vals[9])
         raw_note = str(vals[12]).strip() if len(vals) > 12 else ""
         note_text = raw_note if raw_note and raw_note.lower() != "nan" else "ไม่พบประวัติ"
         score = str(vals[13]) if len(vals) > 13 and str(vals[13]).lower() != "nan" else "100"
-        c.setFont(fn, 16); c.drawString(60, height - 115, f"ชื่อ-นามสกุล: {name}"); c.drawString(300, height - 115, f"ยี่ห้อรถ: {brand}")
+        
+        c.setFont(fn, 16)
+        c.drawString(60, height - 115, f"ชื่อ-นามสกุล: {name}"); c.drawString(300, height - 115, f"ยี่ห้อรถ: {brand}")
         c.drawString(60, height - 135, f"รหัสนักเรียน: {std_id}"); c.drawString(300, height - 135, f"สีรถ: {color}")
         c.drawString(60, height - 155, f"ระดับชั้น: {classroom}"); c.setFont(fb, 16); c.drawString(300, height - 155, f"ทะเบียน: {plate}")
+        
         c.setFont(fb, 18); color_val = (0.7, 0, 0) if int(score) < 80 else (0, 0.5, 0); c.setFillColorRGB(*color_val)
         c.drawString(60, height - 185, f"คะแนนความประพฤติจราจรคงเหลือ: {score} คะแนน"); c.setFillColorRGB(0, 0, 0)
         c.setFont(fn, 16); lm = "(/)" if "มี" in lic_s else "( )"; tm = "(/)" if "ปกติ" in tax_s or "✅" in tax_s else "( )"; hm = "(/)" if "มี" in hel_s else "( )"
         c.drawString(60, height - 210, f"สถานะเอกสาร:  {lm} ใบขับขี่    {tm} ภาษี/พรบ.    {hm} หมวกกันน็อค")
+        
         def draw_img(url, x, y, w, h):
             try:
                 if url:
                     res = requests.get(url, timeout=5); img_data = ImageReader(io.BytesIO(res.content))
                     c.drawImage(img_data, x, y, width=w, height=h, preserveAspectRatio=True, mask='auto'); c.rect(x, y, w, h)
             except: pass
-        draw_img(img_url1, 70, height - 415, 180, 180); draw_img(img_url2, 300, height - 415, 180, 180)
+
+        draw_img(img_url1, 70, height - 415, 180, 180)
+        draw_img(img_url2, 300, height - 415, 180, 180)
+
         note_y = height - 455; c.setFont(fb, 16); c.drawString(60, note_y, "ประวัติบันทึกการทำผิดวินัยจราจร:")
         c.setFont(fn, 15); text_obj = c.beginText(70, note_y - 25); text_obj.setLeading(20)
         for line in note_text.split('\n'):
             for w_line in textwrap.wrap(line, width=75): text_obj.textLine(w_line)
         c.drawText(text_obj)
+        
         sign_y = 180 
-        c.setFont(fn, 16); c.drawString(60, sign_y, "ลงชื่อ ......................................... เจ้าของรถ"); c.drawString(100, sign_y - 20, f"({name})")
+        c.setFont(fn, 16)
+        c.drawString(60, sign_y, "ลงชื่อ ......................................... เจ้าของรถ")
+        c.drawString(100, sign_y - 20, f"({name})")
+
         if face_url: draw_img(face_url, 450, height - 200, 90, 110)
-        c.drawString(320, sign_y, "ลงชื่อ ......................................... ครูผู้ตรวจสอบ"); c.drawString(340, sign_y - 20, "(.........................................)")
-        c.setFont(fn, 10); c.setFillColorRGB(0.5, 0.5, 0.5)
+
+        c.drawString(320, sign_y, "ลงชื่อ ......................................... ครูผู้ตรวจสอบ")
+        c.drawString(340, sign_y - 20, "(.........................................)")
+        
+        c.setFont(fn, 10)
+        c.setFillColorRGB(0.5, 0.5, 0.5)
         print_time = (datetime.now() + timedelta(hours=7)).strftime('%d/%m/%Y %H:%M')
         c.drawRightString(width - 30, 20, f"พิมพ์โดย: {printed_by} | เมื่อ: {print_time}")
         c.save(); buffer.seek(0); return buffer
 
-    # Logic Page Switching
-    if st.session_state.df_tra is None:
-        with st.spinner("⏳ โหลดข้อมูลจราจร..."): load_tra_data()
-
     if st.session_state.traffic_page == 'teacher':
-        if st.session_state.df_tra is not None:
-            df = st.session_state.df_tra
-            col_u, col_l = st.columns([3, 1])
-            col_u.info(f"👤 ผู้ใช้งาน: {st.session_state.officer_name}")
-            if col_l.button("🚪 ออกจากระบบ", key="tra_logout"): st.session_state.clear(); st.rerun()
+        col_u, col_l = st.columns([3, 1])
+        col_u.info(f"👤 ผู้ใช้งาน: {st.session_state.officer_name}")
+        if col_l.button("🚪 ออกจากระบบ", key="tra_logout"): st.session_state.clear(); st.rerun()
 
-            c1, c2 = st.columns(2)
-            if c1.button("🔄 ดึงข้อมูลล่าสุด"): load_tra_data(); st.rerun()
-            if c2.button("📊 รายงานสถิติ"): st.session_state.traffic_page = 'dash'; st.rerun()
+        c1, c2 = st.columns(2)
+        if c1.button("🔄 ดึงข้อมูลล่าสุด"): 
+            st.session_state.df_tra = None 
+            st.session_state.search_results_df = None
+            load_tra_data()
+            st.rerun()
+        if c2.button("📊 รายงานสถิติ"): 
+            if st.session_state.df_tra is None: load_tra_data()
+            st.session_state.traffic_page = 'dash'; st.rerun()
+        
+        st.markdown("---")
+        
+        # --- UI ค้นหา (Search First) ---
+        c_search, c_btn_search, c_btn_clear = st.columns([3, 1, 1])
+        q = c_search.text_input("🔍 ค้นหา (ชื่อ/รหัส/ทะเบียน)", key="tra_search_input")
+        
+        do_search = c_btn_search.button("ค้นหา", type="primary", use_container_width=True)
+        do_clear = c_btn_clear.button("ล้างค่า", type="secondary", use_container_width=True)
+
+        if do_clear:
+            st.session_state.search_results_df = None
+            st.session_state.df_tra = None # Optional: if you want to force reload next time
+            st.rerun()
+
+        if do_search and q:
+            if st.session_state.df_tra is None: 
+                with st.spinner("⏳ กำลังโหลดฐานข้อมูล..."):
+                    load_tra_data()
             
-            # Metrics
-            total = len(df); lok = df[df.iloc[:,7].str.contains("มี", na=False)].shape[0]; tok = df[df.iloc[:,8].str.contains("ปกติ|✅", na=False)].shape[0]; hok = df[df.iloc[:,9].str.contains("มี", na=False)].shape[0]
-            m1, m2, m3, m4 = st.columns(4)
-            with m1: st.markdown(f'<div class="metric-card"><div class="metric-value">{total}</div><div class="metric-percent">100%</div><div class="metric-label">รถทั้งหมด</div></div>', unsafe_allow_html=True)
-            with m2: p = (lok/total*100) if total else 0; st.markdown(f'<div class="metric-card"><div class="metric-value">{lok}</div><div class="metric-percent">{p:.1f}%</div><div class="metric-label">ใบขับขี่</div></div>', unsafe_allow_html=True)
-            with m3: p = (tok/total*100) if total else 0; st.markdown(f'<div class="metric-card"><div class="metric-value">{tok}</div><div class="metric-percent">{p:.1f}%</div><div class="metric-label">ภาษี</div></div>', unsafe_allow_html=True)
-            with m4: p = (hok/total*100) if total else 0; st.markdown(f'<div class="metric-card"><div class="metric-value">{hok}</div><div class="metric-percent">{p:.1f}%</div><div class="metric-label">หมวก</div></div>', unsafe_allow_html=True)
+            if st.session_state.df_tra is not None:
+                df = st.session_state.df_tra
+                res = df[df.iloc[:, [1, 2, 6]].apply(lambda r: r.astype(str).str.contains(q, case=False).any(), axis=1)]
+                st.session_state.search_results_df = res
+            else:
+                st.error("ไม่สามารถโหลดข้อมูลได้")
+
+        # --- Display Results ---
+        if st.session_state.search_results_df is not None:
+            target_df = st.session_state.search_results_df
             
-            st.markdown("---")
-            q = st.text_input("🔍 ค้นหา (ชื่อ/รหัส/ทะเบียน)", on_change=lambda: setattr(st.session_state, 'search_results_df', None))
-            
-            # Filters
-            col_f1, col_f2, col_f3 = st.columns(3)
-            f_risk = col_f1.selectbox("🚨 กรองกลุ่มปัญหา:", ["ทั้งหมด", "❌ ไม่มีใบขับขี่", "❌ ภาษีขาด", "❌ ไม่สวมหมวก"])
-            f_lv = col_f2.selectbox("📚 ระดับชั้น:", ["ทั้งหมด"] + sorted(list(set([str(x).split('/')[0] for x in df.iloc[:, 3].unique()]))))
-            f_br = col_f3.selectbox("🏍️ ยี่ห้อรถ:", ["ทั้งหมด"] + sorted(list(set(df.iloc[:, 4].unique()))))
-            
-            if st.button("⚡ กรองข้อมูลตามเงื่อนไข", use_container_width=True) or q:
-                fdf = df.copy()
-                if q: fdf = fdf[fdf.iloc[:, [1, 2, 6]].apply(lambda r: r.astype(str).str.contains(q, case=False).any(), axis=1)]
-                if f_risk != "ทั้งหมด": idx = 7 if "ใบขับขี่" in f_risk else (8 if "ภาษี" in f_risk else 9); fdf = fdf[fdf.iloc[:, idx].astype(str).str.contains("ไม่มี|ขาด")]
-                if f_lv != "ทั้งหมด": fdf = fdf[fdf.iloc[:, 3].astype(str).str.contains(f_lv)]
-                if f_br != "ทั้งหมด": fdf = fdf[fdf.iloc[:, 4] == f_br]
-                st.session_state.search_results_df = fdf
-            
-            # Display Result
-            target_df = st.session_state.search_results_df if st.session_state.search_results_df is not None else df.head(10)
-            if target_df.empty: st.warning("ไม่พบข้อมูล")
-            
-            for i, row in target_df.iterrows():
-                v = row.tolist(); sc = int(v[13]) if len(v)>13 and str(v[13]).isdigit() else 100
-                sc_color = "#22c55e" if sc >= 80 else ("#eab308" if sc >= 50 else "#ef4444")
-                with st.expander(f"📍 {v[6]} | {v[1]}"):
-                    c1, c2 = st.columns([1.5, 1])
-                    with c1: st.markdown(f"### 👤 {v[1]}"); st.caption(f"🆔 {v[2]} | {v[3]}")
-                    with c2: st.markdown(f"### 🏍️ {v[6]}")
-                    
-                    st.markdown(f"<div style='margin:10px 0;'><span style='font-size:1.2rem;font-weight:bold;color:{sc_color};'>คะแนน: {sc}/100</span></div>", unsafe_allow_html=True)
-                    st.progress(sc/100)
-                    
-                    c_img1, c_img2, c_img3 = st.columns(3)
-                    c_img1.image(get_img_link(v[14]), caption="เจ้าของ")
-                    c_img2.image(get_img_link(v[10]), caption="หลัง")
-                    c_img3.image(get_img_link(v[11]), caption="ข้าง")
-                    
-                    if st.session_state.officer_role == "admin":
-                        col_act1, col_act2 = st.columns(2)
-                        col_act1.download_button("📥 โหลด PDF", create_pdf_tra(v, get_img_link(v[10]), get_img_link(v[11]), get_img_link(v[14]), st.session_state.officer_name), f"{v[6]}.pdf", use_container_width=True)
-                        if col_act2.button("✏️ แก้ไขข้อมูล", key=f"ed_{i}", use_container_width=True): st.session_state.edit_data = v; st.session_state.traffic_page = 'edit'; st.rerun()
+            if target_df.empty:
+                st.warning("❌ ไม่พบข้อมูลที่ค้นหา")
+            else:
+                # Show Overview Metrics for the search result (Optional, but nice)
+                st.success(f"ค้นพบ {len(target_df)} รายการ")
+                
+                for i, row in target_df.iterrows():
+                    v = row.tolist(); sc = int(v[13]) if len(v)>13 and str(v[13]).isdigit() else 100
+                    sc_color = "#22c55e" if sc >= 80 else ("#eab308" if sc >= 50 else "#ef4444")
+                    with st.expander(f"📍 {v[6]} | {v[1]}"):
+                        c1, c2 = st.columns([1.5, 1])
+                        with c1: st.markdown(f"### 👤 {v[1]}"); st.caption(f"🆔 {v[2]} | {v[3]}")
+                        with c2: st.markdown(f"### 🏍️ {v[6]}")
                         
-                        st.write("---")
-                        with st.form(key=f"sc_form_{i}"):
-                            pts = st.number_input("แต้ม", 1, 50, 5); note = st.text_area("เหตุผล"); pwd = st.text_input("รหัสยืนยัน", type="password")
-                            c_sub1, c_sub2 = st.columns(2)
-                            deduct = c_sub1.form_submit_button("🔴 หักแต้ม", use_container_width=True)
-                            add = c_sub2.form_submit_button("🟢 เพิ่มแต้ม", use_container_width=True)
+                        st.markdown(f"<div style='margin:10px 0;'><span style='font-size:1.2rem;font-weight:bold;color:{sc_color};'>คะแนน: {sc}/100</span></div>", unsafe_allow_html=True)
+                        st.progress(sc/100)
+                        
+                        c_img1, c_img2, c_img3 = st.columns(3)
+                        c_img1.image(get_img_link(v[14]), caption="เจ้าของ")
+                        c_img2.image(get_img_link(v[10]), caption="หลัง")
+                        c_img3.image(get_img_link(v[11]), caption="ข้าง")
+                        
+                        if st.session_state.officer_role == "admin":
+                            col_act1, col_act2 = st.columns(2)
+                            col_act1.download_button("📥 โหลด PDF", create_pdf_tra(v, get_img_link(v[10]), get_img_link(v[11]), get_img_link(v[14]), st.session_state.officer_name), f"{v[6]}.pdf", use_container_width=True)
+                            if col_act2.button("✏️ แก้ไขข้อมูล", key=f"ed_{i}", use_container_width=True): st.session_state.edit_data = v; st.session_state.traffic_page = 'edit'; st.rerun()
                             
-                            if (deduct or add) and note and pwd == st.session_state.current_user_pwd:
-                                sheet = connect_gsheet_universal(); cell = sheet.find(str(v[2]))
-                                ns = max(0, sc-pts) if deduct else min(100, sc+pts)
-                                action = "หัก" if deduct else "เพิ่ม"
-                                tn = (datetime.now()+timedelta(hours=7)).strftime('%d/%m/%Y %H:%M')
-                                old_log = str(v[12]).strip() if str(v[12]).lower()!="nan" else ""
-                                new_log = f"{old_log}\n[{tn}] {action} {pts} คะแนน: {note} (โดย: {st.session_state.officer_name})"
-                                sheet.update(f'M{cell.row}:N{cell.row}', [[new_log, str(ns)]])
-                                st.success("บันทึกแล้ว"); load_tra_data(); st.rerun()
-                            elif (deduct or add): st.error("รหัสผิดหรือข้อมูลไม่ครบ")
-            
-            st.markdown("---")
-            if st.session_state.current_user_pwd == "Patwit1510":
-                with st.expander("⚙️ ระบบจัดการเลื่อนชั้นเรียน (Super Admin Only)"):
-                    st.warning("⚠️ คำเตือน: การเลื่อนชั้นจะปรับระดับชั้นของนักเรียนทุกคน และไม่สามารถย้อนกลับได้")
-                    up_pwd = st.text_input("รหัสเลื่อนชั้น (Patwitnext)", type="password", key="prom_pwd")
-                    if st.button("ยืนยันเลื่อนชั้น", use_container_width=True) and up_pwd == UPGRADE_PASSWORD:
-                        s = connect_gsheet_universal(); d = s.get_all_values(); h = d[0]; r = d[1:]; nr = []
-                        for row in r:
-                            ol = str(row[3]); nl = ol
-                            if "ม.1" in ol: nl=ol.replace("ม.1","ม.2")
-                            elif "ม.2" in ol: nl=ol.replace("ม.2","ม.3")
-                            elif "ม.3" in ol: nl="จบการศึกษา 🎓"
-                            elif "ม.4" in ol: nl=ol.replace("ม.4","ม.5")
-                            elif "ม.5" in ol: nl=ol.replace("ม.5","ม.6")
-                            elif "ม.6" in ol: nl="จบการศึกษา 🎓"
-                            row[3] = nl; nr.append(row)
-                        s.clear(); s.update('A1', [h] + nr); st.success("สำเร็จ!"); load_tra_data(); st.rerun()
+                            st.write("---")
+                            with st.form(key=f"sc_form_{i}"):
+                                pts = st.number_input("แต้ม", 1, 50, 5); note = st.text_area("เหตุผล"); pwd = st.text_input("รหัสยืนยัน", type="password")
+                                c_sub1, c_sub2 = st.columns(2)
+                                deduct = c_sub1.form_submit_button("🔴 หักแต้ม", use_container_width=True)
+                                add = c_sub2.form_submit_button("🟢 เพิ่มแต้ม", use_container_width=True)
+                                
+                                if (deduct or add) and note and pwd == st.session_state.current_user_pwd:
+                                    sheet = connect_gsheet_universal(); cell = sheet.find(str(v[2]))
+                                    ns = max(0, sc-pts) if deduct else min(100, sc+pts)
+                                    action = "หัก" if deduct else "เพิ่ม"
+                                    tn = (datetime.now()+timedelta(hours=7)).strftime('%d/%m/%Y %H:%M')
+                                    old_log = str(v[12]).strip() if str(v[12]).lower()!="nan" else ""
+                                    new_log = f"{old_log}\n[{tn}] {action} {pts} คะแนน: {note} (โดย: {st.session_state.officer_name})"
+                                    sheet.update(f'M{cell.row}:N{cell.row}', [[new_log, str(ns)]])
+                                    st.success("บันทึกแล้ว"); load_tra_data(); st.rerun()
+                                elif (deduct or add): st.error("รหัสผิดหรือข้อมูลไม่ครบ")
+        else:
+            st.info("ℹ️ กรุณากรอกคำค้นหาและกดปุ่ม 'ค้นหา' เพื่อแสดงข้อมูล")
+
+        # --- Filters (Optional: Show only if needed, or always show below) ---
+        # (ตัดส่วน Filters ออกตาม Concept 'No data until search' เพื่อความสะอาด)
+        
+        st.markdown("---")
+        if st.session_state.current_user_pwd == "Patwit1510":
+            with st.expander("⚙️ ระบบจัดการเลื่อนชั้นเรียน (Super Admin Only)"):
+                st.warning("⚠️ คำเตือน: การเลื่อนชั้นจะปรับระดับชั้นของนักเรียนทุกคน และไม่สามารถย้อนกลับได้")
+                up_pwd = st.text_input("รหัสเลื่อนชั้น (Patwitnext)", type="password", key="prom_pwd")
+                if st.button("ยืนยันเลื่อนชั้น", use_container_width=True) and up_pwd == UPGRADE_PASSWORD:
+                    s = connect_gsheet_universal(); d = s.get_all_values(); h = d[0]; r = d[1:]; nr = []
+                    for row in r:
+                        ol = str(row[3]); nl = ol
+                        if "ม.1" in ol: nl=ol.replace("ม.1","ม.2")
+                        elif "ม.2" in ol: nl=ol.replace("ม.2","ม.3")
+                        elif "ม.3" in ol: nl="จบการศึกษา 🎓"
+                        elif "ม.4" in ol: nl=ol.replace("ม.4","ม.5")
+                        elif "ม.5" in ol: nl=ol.replace("ม.5","ม.6")
+                        elif "ม.6" in ol: nl="จบการศึกษา 🎓"
+                        row[3] = nl; nr.append(row)
+                    s.clear(); s.update('A1', [h] + nr); st.success("สำเร็จ!"); load_tra_data(); st.rerun()
 
     elif st.session_state.traffic_page == 'edit':
         st.subheader("✏️ แก้ไขข้อมูล")
@@ -473,9 +501,15 @@ def traffic_module():
             with c1: st.plotly_chart(px.pie(df, names='Col_7', title="ใบขับขี่", hole=0.3), use_container_width=True)
             with c2: st.plotly_chart(px.pie(df, names='Col_8', title="ภาษี", hole=0.3), use_container_width=True)
             with c3: st.plotly_chart(px.pie(df, names='Col_9', title="หมวก", hole=0.3), use_container_width=True)
+            
+            # Global Metrics on Dash page
+            total = len(df); lok = df[df['Col_7'].str.contains("มี", na=False)].shape[0]
+            m1, m2 = st.columns(2)
+            with m1: st.markdown(f'<div class="metric-card"><div class="metric-value">{total}</div><div class="metric-label">รถทั้งหมด</div></div>', unsafe_allow_html=True)
+            with m2: st.markdown(f'<div class="metric-card"><div class="metric-value">{lok}</div><div class="metric-label">มีใบขับขี่</div></div>', unsafe_allow_html=True)
 
 # ==========================================
-# 4. MAIN ENTRY (แก้ไขจุดบั๊ก st.image)
+# 4. MAIN ENTRY (แก้ไขบั๊ก st.image)
 # ==========================================
 def main():
     if not st.session_state.logged_in:
