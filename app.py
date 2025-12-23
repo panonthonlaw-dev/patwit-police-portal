@@ -2,7 +2,7 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime, timedelta
-import pytz, random, os, base64, io, qrcode, glob, math, mimetypes, json, requests, re, textwrap, time
+import pytz, random, os, base64, io, qrcode, glob, math, mimetypes, json, requests, re, textwrap, time, ast
 from PIL import Image
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
@@ -233,7 +233,7 @@ def investigation_module():
     except Exception as e: st.error(f"Error: {e}")
 
 # ==========================================
-# 3. MODULE: TRAFFIC (แก้ Key Error: แปลง Secrets เป็น Dict)
+# 3. MODULE: TRAFFIC (แก้ Key Error: วนหา Credential ที่ถูกต้อง)
 # ==========================================
 def traffic_module():
     user = st.session_state.user_info
@@ -246,25 +246,32 @@ def traffic_module():
 
     def load_tra_data():
         try:
-            # *** FIX: ใช้ connection ที่สอบสวนใช้ แต่แปลงเป็น Dict ***
-            key_dict = None
+            # *** FIX: Robust Credential Loader ***
+            target_key = None
+            
+            # 1. เช็ค connections.gsheets (แบบ Dict หรือ AttrDict)
             if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
-                # แปลง AttrDict เป็น dict ปกติ
-                key_dict = dict(st.secrets["connections"]["gsheets"])
-            elif "textkey" in st.secrets:
-                # Fallback เผื่อใช้ textkey
-                key_dict = json.loads(st.secrets["textkey"]["json_content"], strict=False)
+                raw = st.secrets["connections"]["gsheets"]
+                # ถ้ามี client_id ใช้อันนี้เลย (แปลงเป็น dict ปกติ)
+                if "client_id" in raw:
+                    target_key = dict(raw)
+            
+            # 2. เช็ค textkey.json_content (แบบ String)
+            if not target_key and "textkey" in st.secrets and "json_content" in st.secrets["textkey"]:
+                try:
+                    target_key = json.loads(st.secrets["textkey"]["json_content"].replace('\n', '\\n'), strict=False)
+                except: pass
 
-            if key_dict:
+            if target_key and "client_id" in target_key:
                 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-                creds = ServiceAccountCredentials.from_json_keyfile_dict(key_dict, scope)
+                creds = ServiceAccountCredentials.from_json_keyfile_dict(target_key, scope)
                 sh = gspread.authorize(creds).open(SHEET_NAME_TRAFFIC).sheet1
                 vals = sh.get_all_values()
                 if len(vals) > 1:
                     st.session_state.df_tra = pd.DataFrame(vals[1:], columns=[f"C{i}" for i, h in enumerate(vals[0])])
                     return True
             else:
-                st.error("ไม่พบ Credentials ที่ถูกต้อง")
+                st.error("Error: ไม่พบ 'client_id' ใน secrets (ตรวจสอบ secrets.toml)")
         except Exception as e:
             st.error(f"Traffic Load Error: {e}")
         return False
