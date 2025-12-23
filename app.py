@@ -67,7 +67,7 @@ def calculate_pagination(key, total_items, limit=5):
     return start_idx, end_idx, st.session_state[key], total_pages
 
 # ==========================================
-# 2. MODULE: INVESTIGATION (ต้นฉบับ 100% ห้ามแก้)
+# 2. MODULE: INVESTIGATION (คงเดิม 100% ห้ามแก้)
 # ==========================================
 def create_pdf_inv(row):
     rid = str(row.get('Report_ID', '')); date_str = str(row.get('Timestamp', ''))
@@ -81,7 +81,6 @@ def create_pdf_inv(row):
     qr = qrcode.make(rid); qi = io.BytesIO(); qr.save(qi, format="PNG"); qr_b64 = base64.b64encode(qi.getvalue()).decode()
     
     img_html = ""
-    # เพิ่มข้อความพยานหลักฐานตามสั่ง
     if clean_val(row.get('Evidence_Image')):
         img_html += f"<div style='text-align:center;margin-top:10px;'><b>พยานหลักฐาน</b><br><img src='data:image/jpeg;base64,{row.get('Evidence_Image')}' style='max-width:380px;max-height:220px;object-fit:contain;border:1px solid #ccc;'></div>"
     if clean_val(row.get('Image_Data')):
@@ -140,6 +139,7 @@ def investigation_module():
                 df_f = filtered[filtered['Status'] == "ดำเนินการเรียบร้อย"][::-1]
 
                 st.markdown("<h4 style='color:#1E3A8A; background-color:#f0f2f6; padding:10px; border-radius:5px;'>⏳ รายการที่รอการดำเนินการ</h4>", unsafe_allow_html=True)
+                # ใช้ calculate_pagination ตัวเต็ม เพื่อให้ได้ end_p
                 start_p, end_p, cur_p, tot_p = calculate_pagination('page_pending', len(df_p), 5)
                 h1, h2, h3, h4 = st.columns([2.5, 2, 3, 1.5])
                 h1.markdown("**เลขที่รับแจ้ง**"); h2.markdown("**วันเวลา**"); h3.markdown("**ประเภทเหตุ**"); h4.markdown("**สถานะ**")
@@ -164,7 +164,7 @@ def investigation_module():
                     cc1, cc2, cc3, cc4 = st.columns([2.5, 2, 3, 1.5])
                     with cc1: st.button(f"✅ {row['Report_ID']}", key=f"f_{i}", use_container_width=True, on_click=lambda r=row['Report_ID']: st.session_state.update({'selected_case_id': r, 'view_mode': 'detail', 'unlock_password': ""}))
                     cc2.write(row['Timestamp']); cc3.write(row['Incident_Type'])
-                    cc4.markdown("<span style='color:green;font-weight:bold'>✅ เรียบร้อย</span>", unsafe_allow_html=True); st.divider()
+                    cc4.markdown(f"<span style='color:green;font-weight:bold'>✅ {row['Status']}</span>", unsafe_allow_html=True); st.divider()
 
             with tab_dash:
                 tc = len(df_display)
@@ -224,16 +224,16 @@ def investigation_module():
                         df_raw.at[idx_raw, 'Statement'] = v_stmt; df_raw.at[idx_raw, 'Status'] = v_sta
                         if ev_img: df_raw.at[idx_raw, 'Evidence_Image'] = process_image(ev_img)
                         df_raw.at[idx_raw, 'Audit_Log'] = f"{clean_val(row['Audit_Log'])}\n[{get_now_th().strftime('%d/%m/%Y %H:%M')}] แก้ไขโดย {user['name']}"
-                        conn.update(data=df_raw.fillna("")); st.success("บันทึกแล้ว!"); time.sleep(1); st.rerun()
+                        conn.update(data=df_raw.fillna("")); st.success("บันทึกเรียบร้อย!"); time.sleep(1); st.rerun()
                 st.divider()
                 try:
                     pdf_data = create_pdf_inv(row)
-                    st.download_button(label="📥 ดาวน์โหลด PDF", data=pdf_data, file_name=f"Report_{sid}.pdf", mime="application/pdf", use_container_width=True, type="primary")
+                    st.download_button(label="📥 ดาวน์โหลด PDF (สำนวนคดี)", data=pdf_data, file_name=f"Report_{sid}.pdf", mime="application/pdf", use_container_width=True, type="primary")
                 except: st.error("PDF ขัดข้อง")
     except Exception as e: st.error(f"Error: {e}")
 
 # ==========================================
-# 3. MODULE: TRAFFIC (เจ้าหน้าที่ 100% - แก้ปัญหาหน้าจอขาว)
+# 3. MODULE: TRAFFIC (เขียนการดึงข้อมูลใหม่ให้ตรงไปตรงมาที่สุด)
 # ==========================================
 def traffic_module():
     user = st.session_state.user_info
@@ -244,15 +244,36 @@ def traffic_module():
         .metric-value { font-size: 2.5rem; font-weight: 800; color: #1e293b; } .metric-percent { font-size: 1.1rem; color: #16a34a; font-weight: bold; }
     </style>""", unsafe_allow_html=True)
 
-    def load_tra_data():
+    # --- ส่วนการดึงข้อมูลจราจรแบบใหม่ (Direct Fetch) ---
+    def fetch_traffic_data():
         try:
-            kd = json.loads(st.secrets["textkey"]["json_content"].replace('\n', '\\n'), strict=False)
-            creds = ServiceAccountCredentials.from_json_keyfile_dict(kd, ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"])
-            sh = gspread.authorize(creds).open(SHEET_NAME_TRAFFIC).sheet1
-            vals = sh.get_all_values()
-            if len(vals) > 1: st.session_state.df_tra = pd.DataFrame(vals[1:], columns=[f"C{i}" for i, h in enumerate(vals[0])])
-            return True
-        except: return False
+            # 1. สร้าง Credentials
+            try:
+                # ลองโหลดจาก secrets.textkey.json_content ก่อน
+                key_content = st.secrets["textkey"]["json_content"]
+                # แก้ไข Newline ที่มักมีปัญหาใน Streamlit secrets
+                key_dict = json.loads(key_content.replace('\n', '\\n'), strict=False)
+            except:
+                # Fallback หรือแจ้ง Error ถ้าหา Key ไม่เจอ
+                st.error("ไม่พบ Credentials สำหรับจราจร (secrets.textkey)")
+                return None
+
+            scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(key_dict, scope)
+            client = gspread.authorize(creds)
+            
+            # 2. เปิด Sheet
+            sheet = client.open(SHEET_NAME_TRAFFIC).sheet1
+            
+            # 3. ดึงข้อมูล
+            data = sheet.get_all_values()
+            if len(data) > 1:
+                # สร้าง DataFrame
+                return pd.DataFrame(data[1:], columns=[f"C{i}" for i, h in enumerate(data[0])])
+            return None
+        except Exception as e:
+            st.error(f"เกิดข้อผิดพลาดในการดึงข้อมูลจราจร: {e}")
+            return None
 
     def get_img_tra(url):
         m = re.search(r'/d/([a-zA-Z0-9_-]+)|id=([a-zA-Z0-9_-]+)', str(url)); fid = m.group(1) or m.group(2) if m else None
@@ -279,13 +300,10 @@ def traffic_module():
         draw_img(img_url1, 70, height - 415, 180, 180); draw_img(img_url2, 300, height - 415, 180, 180)
         c.save(); buffer.seek(0); return buffer
 
-    # บังคับโหลดจราจร (แก้ไขจุดที่ข้อมูลไม่ขึ้น)
+    # --- LOGIC การโหลดข้อมูลจราจร (แก้ไขใหม่) ---
     if st.session_state.df_tra is None:
-        with st.spinner("⏳ กำลังโหลดข้อมูลจราจร..."):
-            success = load_tra_data()
-            if not success:
-                st.error("ไม่สามารถโหลดข้อมูลได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต")
-                if st.button("ลองโหลดใหม่อีกครั้ง"): st.rerun()
+        with st.spinner("⏳ กำลังโหลดฐานข้อมูลจราจร..."):
+            st.session_state.df_tra = fetch_traffic_data()
 
     if st.session_state.df_tra is not None:
         df = st.session_state.df_tra
@@ -293,29 +311,54 @@ def traffic_module():
         col_u.info(f"👤 ผู้ใช้งานจราจร: {user['name']} (สิทธิ์: {user['role']})")
         with col_l:
             if st.button("🚪 Logout", key="tra_logout"):
-                st.session_state.clear(); st.rerun()
+                st.session_state.clear()
+                st.rerun()
 
         if st.session_state.traffic_page == 'teacher':
             c1, c2 = st.columns(2)
-            if c1.button("🔄 ดึงข้อมูลล่าสุด"): load_tra_data(); st.rerun()
+            if c1.button("🔄 ดึงข้อมูลล่าสุด"): 
+                st.session_state.df_tra = fetch_traffic_data()
+                st.rerun()
             if c2.button("📊 รายงานสถิติ"): st.session_state.traffic_page = 'dash'; st.rerun()
-            total = len(df); lok = df[df.iloc[:,7].str.contains("มี", na=False)].shape[0]; tok = df[df.iloc[:,8].str.contains("ปกติ|✅", na=False)].shape[0]; hok = df[df.iloc[:,9].str.contains("มี", na=False)].shape[0]
+            
+            # คำนวณสถิติ
+            total = len(df)
+            lok = df[df.iloc[:,7].str.contains("มี", na=False)].shape[0]
+            tok = df[df.iloc[:,8].str.contains("ปกติ|✅", na=False)].shape[0]
+            hok = df[df.iloc[:,9].str.contains("มี", na=False)].shape[0]
+            
             m1, m2, m3, m4 = st.columns(4)
             m1.markdown(f'<div class="metric-card"><div class="metric-value">{total}</div><div class="metric-label">รถทั้งหมด</div></div>', unsafe_allow_html=True)
             m2.markdown(f'<div class="metric-card"><div class="metric-value">{lok}</div><div class="metric-percent">{(lok/total*100) if total else 0:.1f}%</div><div class="metric-label">ใบขับขี่</div></div>', unsafe_allow_html=True)
             m3.markdown(f'<div class="metric-card"><div class="metric-value">{tok}</div><div class="metric-percent">{(tok/total*100) if total else 0:.1f}%</div><div class="metric-label">ภาษี</div></div>', unsafe_allow_html=True)
             m4.markdown(f'<div class="metric-card"><div class="metric-value">{hok}</div><div class="metric-percent">{(hok/total*100) if total else 0:.1f}%</div><div class="metric-label">หมวก</div></div>', unsafe_allow_html=True)
-            st.markdown("---"); search_q = st.text_input("🔍 ค้นหา (ชื่อ/รหัส/ทะเบียน)", key="tra_search")
-            res_df = df[df.iloc[:, [1, 2, 6]].apply(lambda r: r.astype(str).str.contains(search_q, case=False).any(), axis=1)] if search_q else df.head(10)
+            
+            st.markdown("---")
+            search_q = st.text_input("🔍 ค้นหา (ชื่อ/รหัส/ทะเบียน)", key="tra_search")
+            if search_q:
+                # กรองข้อมูล
+                res_df = df[df.iloc[:, [1, 2, 6]].apply(lambda r: r.astype(str).str.contains(search_q, case=False).any(), axis=1)]
+            else:
+                res_df = df.head(10) # แสดง 10 รายการแรกถ้าไม่ค้นหา
+            
             for i, row in res_df.iterrows():
                 v = row.tolist()
                 with st.expander(f"📍 {v[6]} | {v[1]}"):
-                    st.markdown(f"### 👤 {v[1]} (รหัส: {v[2]})"); ci1, ci2, ci3 = st.columns(3)
-                    ci1.image(get_img_tra(v[14]), caption="เจ้าของรถ"); ci2.image(get_img_tra(v[10]), caption="หลังรถ"); ci3.image(get_img_tra(v[11]), caption="ข้างรถ")
+                    st.markdown(f"### 👤 {v[1]} (รหัส: {v[2]})")
+                    ci1, ci2, ci3 = st.columns(3)
+                    ci1.image(get_img_tra(v[14]), caption="เจ้าของรถ")
+                    ci2.image(get_img_tra(v[10]), caption="หลังรถ")
+                    ci3.image(get_img_tra(v[11]), caption="ข้างรถ")
                     st.download_button(f"📥 โหลด PDF {v[6]}", create_pdf_tra(v, get_img_tra(v[10]), get_img_tra(v[11]), get_img_tra(v[14]), user['name']), f"{v[6]}.pdf")
+        
         elif st.session_state.traffic_page == 'dash':
             if st.button("⬅️ กลับ"): st.session_state.traffic_page = 'teacher'; st.rerun()
             st.plotly_chart(px.pie(df, names=df.columns[7], title="สัดส่วนใบขับขี่"), use_container_width=True)
+    else:
+        st.error("ไม่สามารถโหลดข้อมูลจราจรได้ กรุณาตรวจสอบ Internet หรือติดต่อผู้ดูแล")
+        if st.button("ลองโหลดใหม่"):
+            st.session_state.df_tra = None
+            st.rerun()
 
 # ==========================================
 # 4. MAIN ENTRY
