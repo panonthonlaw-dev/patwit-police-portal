@@ -20,17 +20,50 @@ from reportlab.lib.utils import ImageReader
 import plotly.express as px
 
 # ==========================================
-# 1. INITIAL SETTINGS
+# 1. INITIAL SETTINGS & SESSION MANAGEMENT
 # ==========================================
-st.set_page_config(page_title="ศูนย์ปฏิบัติการกลางฯ", page_icon="👮‍♂️", layout="wide")
+st.set_page_config(page_title="ศูนย์ปฏิบัติการกลางฯ", page_icon="👮‍♂️", layout="wide", initial_sidebar_state="collapsed")
 
-# Session States
+# --- 1.1 CSS ซ่อน Sidebar & ตกแต่งปุ่ม ---
+st.markdown("""
+<style>
+    [data-testid="stSidebar"] {display: none;} /* ซ่อน Sidebar */
+    [data-testid="collapsedControl"] {display: none;} /* ซ่อนปุ่มลูกศร Sidebar */
+    
+    .metric-card { background: white; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .metric-value { font-size: 2.5rem; font-weight: 800; color: #1e293b; } 
+    .metric-label { font-size: 1rem; color: #64748b; }
+</style>
+""", unsafe_allow_html=True)
+
+# --- 1.2 Session & Timeout Logic (15 นาที) ---
+TIMEOUT_SECONDS = 15 * 60 
+
+def check_inactivity():
+    # ถ้ายังไม่เคยเก็บเวลา ให้เริ่มเก็บ
+    if 'last_active' not in st.session_state:
+        st.session_state.last_active = time.time()
+        return
+
+    # เช็คว่าเกินเวลาไหม
+    if time.time() - st.session_state.last_active > TIMEOUT_SECONDS:
+        st.session_state.clear() # ล้างค่าทั้งหมด
+        st.session_state.timeout_msg = "⏳ หมดเวลาการเชื่อมต่อ (15 นาที) กรุณาเข้าสู่ระบบใหม่"
+        st.rerun()
+    else:
+        # ถ้ายังไม่เกิน ให้อัปเดตเวลาล่าสุด
+        st.session_state.last_active = time.time()
+
+# เรียกใช้ฟังก์ชันเช็คเวลาทุกครั้งที่มีการกดปุ่มหรือรีเฟรช
+check_inactivity()
+
+# Session States Initialization
 states = {
     'logged_in': False, 'user_info': {}, 'current_dept': None, 'current_user': None,
     'view_mode': 'list', 'selected_case_id': None, 'unlock_password': "",
     'page_pending': 1, 'page_finished': 1, 'search_query_main': "",
     'traffic_page': 'teacher', 'df_tra': None, 'search_results_df': None, 
-    'current_user_pwd': "", 'last_active': time.time(), 'edit_data': None, 'reset_count': 0,
+    'current_user_pwd': "", 'edit_data': None, 'reset_count': 0,
     'preserve_search': False
 }
 for key, val in states.items():
@@ -73,7 +106,7 @@ def calculate_pagination(key, total_items, limit=5):
     return start_idx, end_idx, st.session_state[key], total_pages
 
 # ==========================================
-# 2. MODULE: INVESTIGATION (คงเดิม 100%)
+# 2. MODULE: INVESTIGATION (Navigation Modified)
 # ==========================================
 def create_pdf_inv(row):
     rid = str(row.get('Report_ID', '')); date_str = str(row.get('Timestamp', ''))
@@ -114,14 +147,20 @@ def create_pdf_inv(row):
 def investigation_module():
     st.session_state.current_user = st.session_state.user_info
     user = st.session_state.current_user
-    st.sidebar.button("⬅️ กลับหน้าหลัก", on_click=lambda: setattr(st.session_state, 'current_dept', None), width='stretch')
-    col_h1, col_h2, col_h3 = st.columns([1, 4, 1])
-    with col_h1:
-        if LOGO_PATH: st.image(LOGO_PATH, width=80)
-    with col_h2:
-        st.markdown(f"<div style='font-size: 26px; font-weight: bold; color: #1E3A8A; padding-top: 20px;'>🏢 ระบบสอบสวน คุณ{user['name']}</div>", unsafe_allow_html=True)
-    with col_h3:
-        if st.button("🔴 Logout", key="inv_logout", use_container_width=True): st.session_state.clear(); st.rerun()
+    
+    # --- Top Navigation Bar (No Sidebar) ---
+    c_back, c_title, c_logout = st.columns([1, 4, 1])
+    with c_back:
+        if st.button("⬅️ กลับหน้าหลัก", use_container_width=True):
+            setattr(st.session_state, 'current_dept', None)
+            st.rerun()
+    with c_title:
+        st.markdown(f"<div style='text-align:center; font-size: 20px; font-weight: bold; color: #1E3A8A;'>🏢 ระบบสอบสวน คุณ{user['name']}</div>", unsafe_allow_html=True)
+    with c_logout:
+        if st.button("🔴 Logout", key="inv_logout", use_container_width=True):
+            st.session_state.clear()
+            st.rerun()
+    st.markdown("---")
 
     conn = st.connection("gsheets", type=GSheetsConnection)
     try:
@@ -238,7 +277,7 @@ def investigation_module():
     except Exception as e: st.error(f"Error: {e}")
 
 # ==========================================
-# 3. MODULE: TRAFFIC (Fast & Clean + Robust Connect)
+# 3. MODULE: TRAFFIC (Navigation Modified)
 # ==========================================
 def traffic_module():
     user = st.session_state.user_info
@@ -246,11 +285,22 @@ def traffic_module():
     st.session_state.officer_role = user.get('role', 'teacher')
     st.session_state.current_user_pwd = st.session_state.current_user_pwd 
 
-    st.sidebar.button("⬅️ กลับหน้าหลัก", on_click=lambda: setattr(st.session_state, 'current_dept', None), width='stretch')
-    
-    # --- Connect Logic (Robust) ---
+    # --- Top Navigation Bar (No Sidebar) ---
+    c_back, c_title, c_logout = st.columns([1, 4, 1])
+    with c_back:
+        if st.button("⬅️ กลับหน้าหลัก", use_container_width=True, key="tra_back"):
+            setattr(st.session_state, 'current_dept', None)
+            st.rerun()
+    with c_title:
+        st.markdown(f"<div style='text-align:center; font-size: 20px; font-weight: bold; color: #1E3A8A;'>🚦 ระบบงานจราจร คุณ{st.session_state.officer_name}</div>", unsafe_allow_html=True)
+    with c_logout:
+        if st.button("🚪 Logout", key="tra_logout", use_container_width=True):
+            st.session_state.clear()
+            st.rerun()
+    st.markdown("---")
+
+    # --- CONNECT (PRIORITY: Textkey First) ---
     def connect_gsheet_universal():
-        # Priority 1: textkey
         if "textkey" in st.secrets and "json_content" in st.secrets["textkey"]:
             try:
                 key_str = st.secrets["textkey"]["json_content"]
@@ -263,13 +313,14 @@ def traffic_module():
                 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
                 return gspread.authorize(creds).open(SHEET_NAME_TRAFFIC).sheet1
             except: pass
-        # Priority 2: connections.gsheets
+
         if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
             creds_dict = dict(st.secrets["connections"]["gsheets"])
             scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
             creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
             return gspread.authorize(creds).open(SHEET_NAME_TRAFFIC).sheet1
-        raise Exception("Connect Error")
+            
+        raise Exception("ไม่สามารถอ่าน Credentials ได้")
 
     def load_tra_data():
         try:
@@ -345,10 +396,6 @@ def traffic_module():
         load_tra_data() # Silent load
 
     if st.session_state.traffic_page == 'teacher':
-        col_u, col_l = st.columns([3, 1])
-        col_u.info(f"👤 {st.session_state.officer_name}")
-        if col_l.button("🚪 ออกจากระบบ", key="tra_logout"): st.session_state.clear(); st.rerun()
-
         c1, c2 = st.columns(2)
         if c1.button("🔄 ดึงข้อมูลล่าสุด"): 
             st.session_state.df_tra = None 
@@ -359,7 +406,7 @@ def traffic_module():
             if st.session_state.df_tra is None: load_tra_data()
             st.session_state.traffic_page = 'dash'; st.rerun()
         
-        st.markdown("---")
+        st.write("")
         
         # UI ค้นหา
         c_search, c_btn_search, c_btn_clear = st.columns([3, 1, 1])
@@ -486,12 +533,18 @@ def traffic_module():
             with c2: st.plotly_chart(px.pie(df, names='Col_8', title="ภาษี", hole=0.3), use_container_width=True)
             with c3: st.plotly_chart(px.pie(df, names='Col_9', title="หมวก", hole=0.3), use_container_width=True)
             total = len(df); lok = df[df['Col_7'].str.contains("มี", na=False)].shape[0]
-            st.metric("รถทั้งหมด", total); st.metric("มีใบขับขี่", lok)
+            m1, m2 = st.columns(2)
+            with m1: st.markdown(f'<div class="metric-card"><div class="metric-value">{total}</div><div class="metric-label">รถทั้งหมด</div></div>', unsafe_allow_html=True)
+            with m2: st.markdown(f'<div class="metric-card"><div class="metric-value">{lok}</div><div class="metric-label">มีใบขับขี่</div></div>', unsafe_allow_html=True)
 
 # ==========================================
-# 4. MAIN ENTRY
+# 4. MAIN ENTRY (Timeout Check)
 # ==========================================
 def main():
+    if 'timeout_msg' in st.session_state and st.session_state.timeout_msg:
+        st.error(st.session_state.timeout_msg)
+        del st.session_state.timeout_msg
+
     if not st.session_state.logged_in:
         _, col, _ = st.columns([1, 1.2, 1])
         with col:
@@ -510,7 +563,13 @@ def main():
                     else: st.error("❌ รหัสผิด")
     else:
         if st.session_state.current_dept is None:
-            st.title("🏢 เลือกแผนกปฏิบัติงาน")
+            c_head, c_out = st.columns([4, 1])
+            with c_head: st.title("🏢 เลือกแผนกปฏิบัติงาน")
+            with c_out:
+                if st.button("🚪 Logout", key="main_logout", use_container_width=True):
+                    st.session_state.clear()
+                    st.rerun()
+                    
             c1, c2 = st.columns(2)
             with c1:
                 with st.container(border=True):
