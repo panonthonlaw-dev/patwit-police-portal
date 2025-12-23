@@ -53,32 +53,40 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 1.2 Session & Timeout Logic (60 นาที) ---
-# ตั้งเวลาตัด Session เป็น 60 นาที (3600 วินาที)
-TIMEOUT_SECONDS = 60 * 60 
+# --- 1.2 Session & Timeout Logic (60 นาที + กัน Refresh หลุด) ---
+TIMEOUT_SECONDS = 60 * 60  # ตั้งเวลา 60 นาที
 
 def check_inactivity():
-    # ตรวจสอบว่ามีการล็อกอินค้างไว้ใน query params หรือไม่ (แก้ปัญหารีเฟรชแล้วหลุด)
-    # หมายเหตุ: Streamlit Cloud มักจะเคลียร์ session_state เมื่อรีเฟรช
-    # วิธีที่ยั่งยืนที่สุดใน Streamlit คือการตรวจสอบ state ปัจจุบันเทียบกับเวลาล่าสุด
-    
-    current_time = time.time()
-    
+    # 1. ตรวจสอบเวลา Timeout
     if 'last_active' not in st.session_state:
-        st.session_state.last_active = current_time
-        return
-
-    # คำนวณเวลาที่ผ่านไป
-    time_passed = current_time - st.session_state.last_active
-    
-    if time_passed > TIMEOUT_SECONDS:
-        # หากเกิน 60 นาที ให้เคลียร์ค่าและแจ้งเตือน
+        st.session_state.last_active = time.time()
+        
+    if time.time() - st.session_state.last_active > TIMEOUT_SECONDS:
         st.session_state.clear()
+        st.query_params.clear() # ล้างค่าใน URL ด้วย
         st.session_state.timeout_msg = "⏳ หมดเวลาการเชื่อมต่อ (60 นาที) กรุณาเข้าสู่ระบบใหม่"
         st.rerun()
     else:
-        # หากยังไม่เกิน ให้อัปเดตเวลาล่าสุดทุกครั้งที่มีการรัน script (คือมีการขยับหรือกดปุ่ม)
-        st.session_state.last_active = current_time
+        st.session_state.last_active = time.time()
+
+    # 2. ระบบกู้คืนสถานะเมื่อกด Refresh (ดึงค่าจาก URL กลับมา)
+    if not st.session_state.get('logged_in') and st.query_params.get("logged_in") == "true":
+        st.session_state.logged_in = True
+        st.session_state.user_info = {
+            'name': st.query_params.get("name", ""),
+            'role': st.query_params.get("role", "")
+        }
+        st.session_state.current_user_pwd = st.query_params.get("pwd", "")
+        st.rerun() # รีโหลดเพื่อเข้าสู่ระบบทันที
+
+    # 3. บันทึกสถานะปัจจุบันลง URL (เพื่อให้กด Refresh แล้วไม่หาย)
+    if st.session_state.get('logged_in'):
+        # อัปเดต URL เฉพาะเมื่อค่ายังไม่ตรง
+        if st.query_params.get("logged_in") != "true":
+            st.query_params["logged_in"] = "true"
+            st.query_params["name"] = st.session_state.user_info.get("name", "")
+            st.query_params["role"] = st.session_state.user_info.get("role", "")
+            st.query_params["pwd"] = st.session_state.current_user_pwd
 
 check_inactivity()
 
