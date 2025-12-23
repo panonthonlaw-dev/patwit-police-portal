@@ -24,7 +24,7 @@ import plotly.express as px
 # ==========================================
 st.set_page_config(page_title="ระบบเจ้าหน้าที่ส่วนกลาง", page_icon="👮‍♂️", layout="wide")
 
-# คืนค่า Session State
+# คืนค่า Session State ครบถ้วน
 states = {
     'logged_in': False, 'user_info': {}, 'current_dept': None, 'current_user': None,
     'view_mode': 'list', 'selected_case_id': None, 'unlock_password': "",
@@ -58,8 +58,17 @@ def process_image(img_file):
         buf = io.BytesIO(); img.save(buf, format="JPEG", quality=65); return base64.b64encode(buf.getvalue()).decode()
     except: return ""
 
+# ฟังก์ชันคำนวณหน้า (ตัวต้นฉบับที่ประกาศ end_p)
+def calculate_pagination(key, total_items, limit=5):
+    if key not in st.session_state: st.session_state[key] = 1
+    total_pages = math.ceil(total_items / limit) or 1
+    if st.session_state[key] > total_pages: st.session_state[key] = 1
+    start_idx = (st.session_state[key] - 1) * limit
+    end_idx = start_idx + limit
+    return start_idx, end_idx, st.session_state[key], total_pages
+
 # ==========================================
-# 2. MODULE: INVESTIGATION (คืนค่าเดิม 100%)
+# 2. MODULE: INVESTIGATION (ต้นฉบับ 100%)
 # ==========================================
 def create_pdf_inv(row):
     rid = str(row.get('Report_ID', '')); date_str = str(row.get('Timestamp', ''))
@@ -74,8 +83,10 @@ def create_pdf_inv(row):
     
     img_html = ""
     if clean_val(row.get('Evidence_Image')):
-        img_html = f"<div style='text-align:center;margin-top:10px;'><img src='data:image/jpeg;base64,{row.get('Evidence_Image')}' style='max-width:350px;max-height:200px;object-fit:contain;border:1px solid #ccc;'></div>"
-    
+        img_html += f"<div style='text-align:center;margin-top:10px;'><img src='data:image/jpeg;base64,{row.get('Evidence_Image')}' style='max-width:380px;max-height:220px;object-fit:contain;border:1px solid #ccc;'></div>"
+    if clean_val(row.get('Image_Data')): # เพิ่มรูปจากผู้แจ้งด้วย
+        img_html += f"<div style='text-align:center;margin-top:10px;'><img src='data:image/jpeg;base64,{row.get('Image_Data')}' style='max-width:380px;max-height:220px;object-fit:contain;border:1px solid #ccc;'></div>"
+
     logo_html = f'<img class="logo" src="data:image/png;base64,{LOGO_BASE64}">' if LOGO_BASE64 else ""
     html_content = f"""
     <html><head><style>@font-face {{ font-family: 'THSarabunNew'; src: url('file://{FONT_FILE}'); }}
@@ -129,12 +140,8 @@ def investigation_module():
                 df_f = filtered[filtered['Status'] == "ดำเนินการเรียบร้อย"][::-1]
 
                 st.markdown("<h4 style='color:#1E3A8A; background-color:#f0f2f6; padding:10px; border-radius:5px;'>⏳ รายการที่รอการดำเนินการ</h4>", unsafe_allow_html=True)
-                # Pagination Pending
-                if 'page_pending' not in st.session_state: st.session_state.page_pending = 1
-                tot_p = math.ceil(len(df_p)/5) or 1
-                if st.session_state.page_pending > tot_p: st.session_state.page_pending = 1
-                start_p = (st.session_state.page_pending - 1) * 5
-                
+                # ใช้ calculate_pagination ตัวเต็ม เพื่อให้ได้ end_p
+                start_p, end_p, cur_p, tot_p = calculate_pagination('page_pending', len(df_p), 5)
                 h1, h2, h3, h4 = st.columns([2.5, 2, 3, 1.5])
                 h1.markdown("**เลขที่รับแจ้ง**"); h2.markdown("**วันเวลา**"); h3.markdown("**ประเภทเหตุ**"); h4.markdown("**สถานะ**")
                 st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
@@ -144,23 +151,17 @@ def investigation_module():
                     cc1, cc2, cc3, cc4 = st.columns([2.5, 2, 3, 1.5])
                     with cc1: st.button(f"📝 {row['Report_ID']}", key=f"p_{i}", use_container_width=True, on_click=lambda r=row['Report_ID']: st.session_state.update({'selected_case_id': r, 'view_mode': 'detail', 'unlock_password': ""}))
                     cc2.write(row['Timestamp']); cc3.write(row['Incident_Type'])
-                    # คืนค่าข้อความเดิม "รอสอบสวน"
-                    cc4.markdown("<span style='color:orange;font-weight:bold'>⏳ รอสอบสวน</span>", unsafe_allow_html=True)
-                    st.markdown("<hr style='margin: 5px 0; opacity: 0.3;'>", unsafe_allow_html=True)
+                    # ใช้คำสั่งดึงค่าจาก DB โดยตรงตามคำสั่ง
+                    cc4.markdown(f"<span style='color:orange;font-weight:bold'>⏳ {row['Status']}</span>", unsafe_allow_html=True); st.divider()
                 
                 if tot_p > 1:
                     cp1, cp2, cp3 = st.columns([1, 2, 1])
-                    if cp1.button("⬅️ ย้อนกลับ (รอ)", disabled=st.session_state.page_pending==1): st.session_state.page_pending-=1; st.rerun()
+                    if cp1.button("⬅️ ย้อนกลับ", disabled=st.session_state.page_pending==1, key="pp"): st.session_state.page_pending-=1; st.rerun()
                     cp2.markdown(f"<div style='text-align:center;'>{st.session_state.page_pending} / {tot_p}</div>", unsafe_allow_html=True)
-                    if cp3.button("ถัดไป (รอ) ➡️", disabled=st.session_state.page_pending==tot_p): st.session_state.page_pending+=1; st.rerun()
+                    if cp3.button("ถัดไป ➡️", disabled=st.session_state.page_pending==tot_p, key="pn"): st.session_state.page_pending+=1; st.rerun()
 
                 st.markdown("<h4 style='color:#2e7d32; background-color:#e8f5e9; padding:10px; border-radius:5px;'>✅ รายการที่ดำเนินการเรียบร้อย</h4>", unsafe_allow_html=True)
-                # Pagination Finished
-                if 'page_finished' not in st.session_state: st.session_state.page_finished = 1
-                tot_f = math.ceil(len(df_f)/5) or 1
-                if st.session_state.page_finished > tot_f: st.session_state.page_finished = 1
-                start_f = (st.session_state.page_finished - 1) * 5
-                
+                start_f, end_f, cur_f, tot_f = calculate_pagination('page_finished', len(df_f), 5)
                 h1f, h2f, h3f, h4f = st.columns([2.5, 2, 3, 1.5])
                 h1f.markdown("**เลขที่รับแจ้ง**"); h2f.markdown("**วันเวลา**"); h3f.markdown("**ประเภทเหตุ**"); h4f.markdown("**สถานะ**")
                 st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
@@ -170,12 +171,9 @@ def investigation_module():
                     cc1, cc2, cc3, cc4 = st.columns([2.5, 2, 3, 1.5])
                     with cc1: st.button(f"✅ {row['Report_ID']}", key=f"f_{i}", use_container_width=True, on_click=lambda r=row['Report_ID']: st.session_state.update({'selected_case_id': r, 'view_mode': 'detail', 'unlock_password': ""}))
                     cc2.write(row['Timestamp']); cc3.write(row['Incident_Type'])
-                    # คืนค่าข้อความเดิม "เรียบร้อย"
-                    cc4.markdown("<span style='color:green;font-weight:bold'>✅ เรียบร้อย</span>", unsafe_allow_html=True)
-                    st.markdown("<hr style='margin: 5px 0; opacity: 0.3;'>", unsafe_allow_html=True)
+                    cc4.markdown(f"<span style='color:green;font-weight:bold'>✅ {row['Status']}</span>", unsafe_allow_html=True); st.divider()
 
             with tab_dash:
-                st.subheader("📊 สรุปสถิติ")
                 tc = len(df_display)
                 if tc > 0:
                     m1, m2, m3 = st.columns(3)
@@ -206,13 +204,12 @@ def investigation_module():
                 st.markdown(f"### 📝 เลขที่รับแจ้ง: {sid}")
                 with st.container(border=True):
                     st.write(f"**ผู้แจ้ง:** {row['Reporter']} | **สถานที่:** {row['Location']}"); st.info(f"**รายละเอียด:** {row['Details']}")
-                    if clean_val(row['Image_Data']): st.image(base64.b64decode(row['Image_Data']), width=500, caption="หลักฐานจากผู้แจ้ง")
+                    if clean_val(row['Image_Data']): st.image(base64.b64decode(row['Image_Data']), width=500)
                 cur_sta = clean_val(row['Status'])
                 is_lock = (cur_sta == "ดำเนินการเรียบร้อย" and st.session_state.unlock_password != "Patwit1510")
                 if user.get('role') != 'admin': is_lock = True
                 
                 if is_lock and cur_sta == "ดำเนินการเรียบร้อย" and user.get('role') == 'admin':
-                    st.error("🔒 เคสนี้ดำเนินการเรียบร้อยแล้ว (ใช้รหัส Patwit1510 เพื่อแก้ไข)")
                     pwd = st.text_input("รหัสปลดล็อค", type="password")
                     if st.button("ยืนยันปลดล็อค"):
                         if pwd == "Patwit1510": st.session_state.unlock_password = "Patwit1510"; st.rerun()
@@ -227,7 +224,7 @@ def investigation_module():
                     v_sta = c2.selectbox("สถานะ", ["รอดำเนินการ", "อยู่ระหว่างการดำเนินการ", "ดำเนินการเรียบร้อย", "ยกเลิก"], index=["รอดำเนินการ", "อยู่ระหว่างการดำเนินการ", "ดำเนินการเรียบร้อย", "ยกเลิก"].index(cur_sta) if cur_sta in ["รอดำเนินการ", "อยู่ระหว่างการดำเนินการ", "ดำเนินการเรียบร้อย", "ยกเลิก"] else 0, disabled=is_lock)
                     v_stmt = st.text_area("ผลการดำเนินการสอบสวน *", value=clean_val(row['Statement']), disabled=is_lock)
                     ev_img = st.file_uploader("📸 แนบรูปหลักฐานเพิ่ม", type=['jpg','png'], disabled=is_lock)
-                    if st.form_submit_button("💾 บันทึกข้อมูลและประวัติ") and not is_lock:
+                    if st.form_submit_button("💾 บันทึกข้อมูล") and not is_lock:
                         df_raw.at[idx_raw, 'Victim'] = v_vic; df_raw.at[idx_raw, 'Accused'] = v_acc
                         df_raw.at[idx_raw, 'Witness'] = v_wit; df_raw.at[idx_raw, 'Teacher_Investigator'] = v_tea
                         df_raw.at[idx_raw, 'Student_Police_Investigator'] = v_stu
@@ -238,12 +235,12 @@ def investigation_module():
                 st.divider()
                 try:
                     pdf_data = create_pdf_inv(row)
-                    st.download_button(label="📥 ดาวน์โหลด PDF (สำนวนคดี)", data=pdf_data, file_name=f"Report_{sid}.pdf", mime="application/pdf", use_container_width=True, type="primary")
+                    st.download_button(label="📥 ดาวน์โหลด PDF", data=pdf_data, file_name=f"Report_{sid}.pdf", mime="application/pdf", use_container_width=True, type="primary")
                 except: st.error("PDF ขัดข้อง")
     except Exception as e: st.error(f"Error: {e}")
 
 # ==========================================
-# 3. MODULE: TRAFFIC (เจ้าหน้าที่ 100% - แก้ Syntax/Load)
+# 3. MODULE: TRAFFIC (เจ้าหน้าที่ 100% - แก้ Syntax)
 # ==========================================
 def traffic_module():
     user = st.session_state.user_info
@@ -288,6 +285,7 @@ def traffic_module():
         draw_img(img_url1, 70, height - 415, 180, 180); draw_img(img_url2, 300, height - 415, 180, 180)
         c.save(); buffer.seek(0); return buffer
 
+    # บังคับโหลดจราจร
     if st.session_state.df_tra is None:
         with st.spinner("⏳ กำลังโหลดข้อมูลจราจร..."): load_tra_data()
 
@@ -295,14 +293,18 @@ def traffic_module():
         df = st.session_state.df_tra
         col_u, col_l = st.columns([3, 1])
         col_u.info(f"👤 ผู้ใช้งานจราจร: {user['name']} (สิทธิ์: {user['role']})")
-        # แก้ไข Syntax Error ที่นี่
+        
+        # --- FIX SYNTAX ERROR HERE ---
         with col_l:
-            if st.button("🚪 Logout", key="tra_logout"): st.session_state.clear(); st.rerun()
+            if st.button("🚪 Logout", key="tra_logout"):
+                st.session_state.clear()
+                st.rerun()
 
         if st.session_state.traffic_page == 'teacher':
             c1, c2 = st.columns(2)
-            if c1.button("🔄 ดึงข้อมูลล่าสุด", use_container_width=True): load_tra_data(); st.rerun()
-            if c2.button("📊 รายงานสถิติ", use_container_width=True): st.session_state.traffic_page = 'dash'; st.rerun()
+            if c1.button("🔄 ดึงข้อมูลล่าสุด"): load_tra_data(); st.rerun()
+            if c2.button("📊 รายงานสถิติ"): st.session_state.traffic_page = 'dash'; st.rerun()
+            
             total = len(df); lok = df[df.iloc[:,7].str.contains("มี", na=False)].shape[0]; tok = df[df.iloc[:,8].str.contains("ปกติ|✅", na=False)].shape[0]; hok = df[df.iloc[:,9].str.contains("มี", na=False)].shape[0]
             m1, m2, m3, m4 = st.columns(4)
             m1.markdown(f'<div class="metric-card"><div class="metric-value">{total}</div><div class="metric-label">รถทั้งหมด</div></div>', unsafe_allow_html=True)
@@ -311,6 +313,7 @@ def traffic_module():
             m4.markdown(f'<div class="metric-card"><div class="metric-value">{hok}</div><div class="metric-percent">{(hok/total*100) if total else 0:.1f}%</div><div class="metric-label">หมวก</div></div>', unsafe_allow_html=True)
             st.markdown("---"); search_q = st.text_input("🔍 ค้นหา (ชื่อ/รหัส/ทะเบียน)", key="tra_search")
             res_df = df[df.iloc[:, [1, 2, 6]].apply(lambda r: r.astype(str).str.contains(search_q, case=False).any(), axis=1)] if search_q else df.head(10)
+            
             for i, row in res_df.iterrows():
                 v = row.tolist()
                 with st.expander(f"📍 {v[6]} | {v[1]}"):
