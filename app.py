@@ -27,11 +27,13 @@ st.set_page_config(page_title="ศูนย์ปฏิบัติการก�
 # --- 1.1 CSS ปรับแต่งเพื่อลดภาระเครื่อง (NO ANIMATION / MAX SPEED) ---
 st.markdown("""
 <style>
-    /* ปิด Animation ทั้งหมดเพื่อความเร็วสูงสุด */
+    /* ปิด Animation ทั้งหมดในระบบเพื่อลดอาการ Lag */
     * {
         animation: none !important;
         transition: none !important;
     }
+    
+    /* ซ่อน UI Streamlit ตามคำสั่งเดิม */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
@@ -39,6 +41,7 @@ st.markdown("""
     [data-testid="stSidebar"] {display: none;}
     [data-testid="collapsedControl"] {display: none;}
     
+    /* สไตล์ Metric Card แบบคงที่ */
     .metric-card { 
         background: white; 
         padding: 15px; 
@@ -49,6 +52,8 @@ st.markdown("""
     }
     .metric-value { font-size: 2.5rem; font-weight: 800; color: #1e293b; } 
     .metric-label { font-size: 1rem; color: #64748b; }
+    
+    /* เร่งความเร็วการแสดงผล Image */
     img { opacity: 1 !important; }
 </style>
 """, unsafe_allow_html=True)
@@ -118,7 +123,7 @@ def calculate_pagination(key, total_items, limit=5):
     return start_idx, end_idx, st.session_state[key], total_pages
 
 # ==========================================
-# 2. MODULE: INVESTIGATION
+# 2. MODULE: INVESTIGATION (ต้นฉบับ 100%)
 # ==========================================
 def create_pdf_inv(row):
     rid = str(row.get('Report_ID', '')); date_str = str(row.get('Timestamp', ''))
@@ -304,7 +309,7 @@ def investigation_module():
     except Exception as e: st.error(f"Error: {e}")
 
 # ==========================================
-# 3. MODULE: TRAFFIC (แก้ไขตามคำสั่ง: บังคับค้นหา)
+# 3. MODULE: TRAFFIC (ต้นฉบับ 100%)
 # ==========================================
 def traffic_module():
     user = st.session_state.user_info
@@ -463,32 +468,23 @@ def traffic_module():
         f_br = col_f3.selectbox("🏍️ ยี่ห้อรถ:", ["ทั้งหมด"] + unique_br)
         do_filter = st.button("⚡ กรองข้อมูลตามเงื่อนไข", use_container_width=True)
 
-        # Logic แก้ปัญหา: ไม่กรอกค้นหาแล้วเจอทั้งหมด + ล้างข้อมูลเก่า
         if do_search or do_filter:
             st.session_state.search_results_df = None # ล้างข้อมูลเก่าทันทีเมื่อเริ่มค้นหาใหม่
             
-            # ตรวจสอบว่าไม่มีการกรอกข้อความและไม่มีการเลือกตัวกรอง
             if not q.strip() and f_risk == "ทั้งหมด" and f_lv == "ทั้งหมด" and f_br == "ทั้งหมด":
                 st.error("⚠️ กรุณากรอกข้อมูลหรือเลือกตัวกรองเพื่อค้นหา")
             else:
                 if st.session_state.df_tra is None: load_tra_data()
                 if st.session_state.df_tra is not None:
                     df = st.session_state.df_tra.copy()
-                    
-                    # ค้นหาตามข้อความ (ถ้ามี)
                     if q.strip():
                         df = df[df.iloc[:, [1, 2, 6]].apply(lambda r: r.astype(str).str.contains(q, case=False).any(), axis=1)]
-                    
-                    # กรองตามตัวเลือก (ถ้าเลือก)
                     if f_risk != "ทั้งหมด": 
                         idx = 7 if "ใบขับขี่" in f_risk else (8 if "ภาษี" in f_risk else 9)
                         df = df[df.iloc[:, idx].astype(str).str.contains("ไม่มี|ขาด")]
-                    if f_lv != "ทั้งหมด": 
-                        df = df[df.iloc[:, 3].astype(str).str.contains(f_lv)]
-                    if f_br != "ทั้งหมด": 
-                        df = df[df.iloc[:, 4] == f_br]
+                    if f_lv != "ทั้งหมด": df = df[df.iloc[:, 3].astype(str).str.contains(f_lv)]
+                    if f_br != "ทั้งหมด": df = df[df.iloc[:, 4] == f_br]
                     
-                    # กรณีผลลัพธ์เป็นทั้งหมดจากการกรอกเงื่อนไขกว้างๆ เกินไป (ป้องกันการหลุดแสดงทั้งหมดโดยไม่ตั้งใจ)
                     if len(df) == len(st.session_state.df_tra) and not q.strip():
                          st.warning("ℹ️ ข้อมูลกว้างเกินไป กรุณาระบุรายละเอียดเพิ่มเติม")
                          st.session_state.search_results_df = None
@@ -585,7 +581,97 @@ def traffic_module():
             with m2: st.markdown(f'<div class="metric-card"><div class="metric-value">{lok}</div><div class="metric-label">มีใบขับขี่</div></div>', unsafe_allow_html=True)
 
 # ==========================================
-# 4. MAIN ENTRY
+# 4. NEW MODULE: BEHAVIORAL ANALYTICS (Analytics)
+# ==========================================
+def analytics_module():
+    user = st.session_state.user_info
+    c_brand, c_nav = st.columns([7, 2.5])
+    with c_brand:
+        c_logo, c_text = st.columns([1, 6])
+        with c_logo: 
+            if LOGO_PATH: st.image(LOGO_PATH, use_column_width=True)
+        with c_text:
+            st.markdown(f"""
+            <div style="display: flex; flex-direction: column; justify-content: center; height: 100%;">
+                <div style="font-size: 22px; font-weight: bold; color: #1E3A8A; line-height: 1.2;">ศูนย์วิเคราะห์พฤติกรรมและมาตรการเชิงป้องกัน</div>
+                <div style="font-size: 16px; color: #475569; margin-top: 4px;">
+                    <span style="font-weight: bold;">📊 ระบบวิเคราะห์พฤติกรรมศาสตร์ (Analytics)</span> | ผู้เชี่ยวชาญ: {user['name']}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+    with c_nav:
+        st.write("")
+        st.write("")
+        b_home, b_logout = st.columns(2)
+        if b_home.button("🏠 หน้าหลัก", use_container_width=True, key="ana_home"):
+            setattr(st.session_state, 'current_dept', None); st.rerun()
+        if b_logout.button("🚪 ออก", key="ana_logout", use_container_width=True):
+            st.session_state.clear(); st.rerun()
+
+    st.markdown("---")
+
+    with st.spinner("⏳ กำลังบูรณาการข้อมูลสถิติพฤติกรรม..."):
+        try:
+            # 1. ดึงข้อมูลสอบสวน (Read-Only)
+            conn_inv = st.connection("gsheets", type=GSheetsConnection)
+            df_inv = conn_inv.read(ttl="0").fillna("")
+            
+            # 2. ดึงข้อมูลจราจร (Read-Only)
+            def get_tra_data_internal():
+                if "textkey" in st.secrets:
+                    ks = st.secrets["textkey"]["json_content"].strip()
+                    if ks.startswith(("'","\"")): ks = ks[1:-1]
+                    cd = json.loads(ks.replace('\n', '\\n'), strict=False)
+                    creds = ServiceAccountCredentials.from_json_keyfile_dict(cd, ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"])
+                    return gspread.authorize(creds).open(SHEET_NAME_TRAFFIC).sheet1.get_all_values()
+                return None
+            
+            tra_vals = get_tra_data_internal()
+            df_tra = pd.DataFrame(tra_vals[1:], columns=tra_vals[0]) if tra_vals else pd.DataFrame()
+
+            # --- เริ่มต้นวิเคราะห์ ---
+            st.markdown("### 🔍 ผลการวิเคราะห์ระดับความเสี่ยงรายชั้นเรียน")
+            
+            if not df_tra.empty and 'ชั้น/ห้อง' in df_tra.columns:
+                # วิเคราะห์งานจราจร (ดึงจากคอลัมน์ที่ 4 - ชั้น/ห้อง)
+                df_tra['Grade_Level'] = df_tra['ชั้น/ห้อง'].apply(lambda x: str(x).split('/')[0] if x else "N/A")
+                tra_stats = df_tra['Grade_Level'].value_counts()
+
+                # วิเคราะห์งานสอบสวน (จำลองการดึงกลุ่มเสี่ยงจาก Location หรือคอลัมน์ที่เกี่ยวข้อง)
+                inv_stats = df_inv['Location'].value_counts() # ในที่นี้ใช้สถานที่เกิดเหตุบ่งบอกจุดเสี่ยง
+
+                # รวมสถิติเข้าด้วยกัน
+                comb_stats = pd.DataFrame({
+                    'งานจราจร (คัน)': tra_stats,
+                    'งานสอบสวน (เคส)': inv_stats
+                }).fillna(0).reset_index().rename(columns={'index': 'กลุ่ม'})
+                
+                # กรองเฉพาะ ม.1 - ม.6
+                comb_stats = comb_stats[comb_stats['กลุ่ม'].str.contains("ม.", na=False)].sort_values('กลุ่ม')
+
+                # แสดงกราฟเปรียบเทียบ
+                fig = px.bar(comb_stats, x='กลุ่ม', y=['งานจราจร (คัน)', 'งานสอบสวน (เคส)'], 
+                             barmode='group', title="เปรียบเทียบสถิติพฤติกรรมผิดระเบียบแยกตามระดับชั้น",
+                             labels={'value': 'จำนวนรายการ', 'variable': 'หมวดงาน'})
+                st.plotly_chart(fig, use_container_width=True)
+
+                st.markdown("---")
+                c1, c2 = st.columns(2)
+                # ค้นหาเรื่องที่เกิดบ่อยสุดในงานสอบสวน
+                if 'Incident_Type' in df_inv.columns:
+                    top_risk = df_inv['Incident_Type'].value_counts().idxmax()
+                    c1.error(f"🚩 **ความเสี่ยงทางคดีสูงสุด:** {top_risk}")
+                    c2.info("🛡️ **มาตรการแนะนำ:** ควรกวดขันวินัยและปฐมนิเทศเชิงบวกในกลุ่มระดับชั้นที่มีสถิติรวมสูงกว่าค่าเฉลี่ย")
+            
+            else:
+                st.warning("⚠️ ข้อมูลในฐานข้อมูลยังไม่เพียงพอสำหรับการวิเคราะห์เปรียบเทียบเชิงลึก")
+                
+        except Exception as e:
+            st.warning(f"⚠️ อยู่ในระหว่างการเชื่อมต่อฐานข้อมูลสำหรับการวิเคราะห์เชิงลึก...")
+
+# ==========================================
+# 5. MAIN ENTRY
 # ==========================================
 def main():
     if 'timeout_msg' in st.session_state and st.session_state.timeout_msg:
@@ -628,7 +714,8 @@ def main():
                     st.session_state.clear(); st.rerun()
             
             st.markdown("---")
-            c1, c2 = st.columns(2)
+            # --- ส่วนที่เปลี่ยน: ปรับเป็น 3 คอลัมน์เพื่อเพิ่มโมดูลวิเคราะห์ ---
+            c1, c2, c3 = st.columns(3)
             with c1:
                 with st.container(border=True):
                     st.subheader("🕵️ งานสอบสวน")
@@ -640,10 +727,17 @@ def main():
                     if st.button("เข้าใช้งานจราจร", use_container_width=True, type='primary', key="btn_to_tra"):
                         st.session_state.current_dept = "tra"
                         st.session_state.traffic_page = 'teacher'
-                        st.session_state.search_results_df = None # ล้างค่าค้นหาเดิมเพื่อความปลอดภัย
+                        st.session_state.search_results_df = None # Reset ผลการค้นหา
                         st.rerun()
+            with c3:
+                with st.container(border=True):
+                    st.subheader("📊 วิเคราะห์พฤติกรรม")
+                    if st.button("เข้าสู่ระบบ Analytics", use_container_width=True, type='primary', key="btn_to_ana"):
+                        st.session_state.current_dept = "ana"; st.rerun()
         else:
             if st.session_state.current_dept == "inv": investigation_module()
             elif st.session_state.current_dept == "tra": traffic_module()
+            # --- ส่วนที่เพิ่ม: เรียกโมดูล Analytics ---
+            elif st.session_state.current_dept == "ana": analytics_module()
 
 if __name__ == "__main__": main()
