@@ -317,7 +317,7 @@ def investigation_module():
                 if clean_val(row['Audit_Log']):
                     with st.expander("📜 ประวัติการบันทึก (Audit Log)"): st.code(row['Audit_Log'])
 
-                st.divider()
+               st.divider()
                 try:
                     pdf_data = create_pdf_inv(row)
                     st.download_button(label="📥 ดาวน์โหลด PDF (สำนวนคดี)", data=pdf_data, file_name=f"Report_{sid}.pdf", mime="application/pdf", use_container_width=True, type="primary")
@@ -456,6 +456,7 @@ def traffic_module():
         if st.session_state.df_tra is not None:
             df = st.session_state.df_tra
             total = len(df)
+            
             # นับจำนวน
             has_lic = len(df[df['C7'].str.contains("มี", na=False)])
             has_tax = len(df[df['C8'].str.contains("ปกติ|✅", na=False)])
@@ -466,14 +467,11 @@ def traffic_module():
             p_tax = int((has_tax / total * 100)) if total > 0 else 0
             p_hel = int((has_hel / total * 100)) if total > 0 else 0
 
-            # แสดงผล: ใช้ <div> เพื่อแยกบรรทัด และ style บังคับสีเขียว/ขนาด
+            # แสดงผล Metric Card
             c1, c2, c3, c4 = st.columns(4)
             c1.markdown(f"<div class='metric-card'><div class='metric-label'>ลงทะเบียน</div><div class='metric-value'>{total}</div><div style='font-size:1rem; color:#64748b;'>คน</div></div>", unsafe_allow_html=True)
-            
             c2.markdown(f"<div class='metric-card'><div class='metric-label'>ใบขับขี่</div><div class='metric-value'>{has_lic}</div><div style='color:#16a34a; font-size:1.1rem; font-weight:bold; margin-top:-5px;'>{p_lic}%</div></div>", unsafe_allow_html=True)
-            
             c3.markdown(f"<div class='metric-card'><div class='metric-label'>ภาษี/พรบ.</div><div class='metric-value'>{has_tax}</div><div style='color:#16a34a; font-size:1.1rem; font-weight:bold; margin-top:-5px;'>{p_tax}%</div></div>", unsafe_allow_html=True)
-            
             c4.markdown(f"<div class='metric-card'><div class='metric-label'>หมวกกันน็อค</div><div class='metric-value'>{has_hel}</div><div style='color:#16a34a; font-size:1.1rem; font-weight:bold; margin-top:-5px;'>{p_hel}%</div></div>", unsafe_allow_html=True)
             st.write("") 
         # -------------------------------------------------------------------------
@@ -546,6 +544,8 @@ def traffic_module():
                         c1, c2 = st.columns([1.5, 1])
                         with c1: st.markdown(f"### 👤 {v[1]}"); st.caption(f"🆔 {v[2]} | {v[3]}")
                         with c2: st.markdown(f"### 🏍️ {v[6]}")
+                            # --- [เพิ่มบรรทัดแสดงสถานะเอกสาร] ---
+                        st.markdown(f"**สถานะเอกสาร:** 🪪 ใบขับขี่: {v[7]} | 📝 ภาษี: {v[8]} | 🪖 หมวก: {v[9]}")
                         st.markdown(f"<span style='font-size:1.2rem;font-weight:bold;color:{sc_color};'>คะแนน: {sc}/100</span>", unsafe_allow_html=True)
                         c_img1, c_img2, c_img3 = st.columns(3)
                         c_img1.image(get_img_link(v[14]), caption="เจ้าของ")
