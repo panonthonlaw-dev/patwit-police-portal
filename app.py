@@ -30,8 +30,7 @@ states = {
     'view_mode': 'list', 'selected_case_id': None, 'unlock_password': "",
     'page_pending': 1, 'page_finished': 1, 'search_query_main': "",
     'traffic_page': 'teacher', 'df_tra': None, 'search_results_df': None, 
-    'current_user_pwd': "", 'last_active': time.time(), 'edit_data': None, 'reset_count': 0,
-    'preserve_search': False
+    'current_user_pwd': "", 'last_active': time.time(), 'edit_data': None, 'reset_count': 0
 }
 for key, val in states.items():
     if key not in st.session_state: st.session_state[key] = val
@@ -43,9 +42,9 @@ FONT_BOLD = os.path.join(BASE_DIR, "THSarabunNewBold.ttf")
 # Configs
 SHEET_NAME_TRAFFIC = "Motorcycle_DB"
 DRIVE_FOLDER_ID = "1WQGATGaGBoIjf44Yj_-DjuX8LZ8kbmBA"
-GAS_APP_URL = "https://script.google.com/macros/s/AKfycbxRf6z032SxMkiI4IxtUBvWLKeo1LmIQAUMByoXidy4crNEwHoO6h0B-3hT0X7Q5g/exec"
 UPGRADE_PASSWORD = st.secrets.get("UPGRADE_PASSWORD", "Patwitsafe")
 OFFICER_ACCOUNTS = st.secrets.get("OFFICER_ACCOUNTS", {})
+GAS_APP_URL = "https://script.google.com/macros/s/AKfycbxRf6z032SxMkiI4IxtUBvWLKeo1LmIQAUMByoXidy4crNEwHoO6h0B-3hT0X7Q5g/exec"
 
 # Logo
 LOGO_PATH = next((f for f in glob.glob(os.path.join(BASE_DIR, "school_logo*")) if os.path.isfile(f)), 
@@ -74,7 +73,7 @@ def calculate_pagination(key, total_items, limit=5):
     return start_idx, end_idx, st.session_state[key], total_pages
 
 # ==========================================
-# 2. MODULE: INVESTIGATION (คงเดิม 100%)
+# 2. MODULE: INVESTIGATION (ต้นฉบับ 100% ห้ามแก้)
 # ==========================================
 def create_pdf_inv(row):
     rid = str(row.get('Report_ID', '')); date_str = str(row.get('Timestamp', ''))
@@ -239,7 +238,7 @@ def investigation_module():
     except Exception as e: st.error(f"Error: {e}")
 
 # ==========================================
-# 3. MODULE: TRAFFIC (ใช้ Logic ต้นฉบับ 100% + Fixed Credentials Priority)
+# 3. MODULE: TRAFFIC (ใช้ Logic ต้นฉบับ 100% + Robust Connection)
 # ==========================================
 def traffic_module():
     user = st.session_state.user_info
@@ -252,6 +251,7 @@ def traffic_module():
     st.markdown("""<style>
         .metric-card { background: white; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .metric-value { font-size: 2.5rem; font-weight: 800; color: #1e293b; } .metric-percent { font-size: 1.1rem; color: #16a34a; font-weight: bold; }
+        .metric-label { font-size: 1rem; color: #64748b; }
     </style>""", unsafe_allow_html=True)
 
     # --- CONNECT (PRIORITY: Textkey -> Connections) ---
@@ -281,7 +281,7 @@ def traffic_module():
             creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
             return gspread.authorize(creds).open(SHEET_NAME_TRAFFIC).sheet1
             
-        raise Exception("ไม่สามารถอ่าน Credentials ได้ (client_id missing in both sources)")
+        raise Exception("ไม่สามารถอ่าน Credentials ได้")
 
     def load_tra_data():
         try:
@@ -387,16 +387,27 @@ def traffic_module():
             # Metrics
             total = len(df); lok = df[df.iloc[:,7].str.contains("มี", na=False)].shape[0]; tok = df[df.iloc[:,8].str.contains("ปกติ|✅", na=False)].shape[0]; hok = df[df.iloc[:,9].str.contains("มี", na=False)].shape[0]
             m1, m2, m3, m4 = st.columns(4)
-            with m1: st.markdown(f'<div class="metric-card"><div class="metric-value">{total}</div><div class="metric-label">รถทั้งหมด</div></div>', unsafe_allow_html=True)
-            with m2: st.markdown(f'<div class="metric-card"><div class="metric-value">{lok}</div><div class="metric-label">ใบขับขี่</div></div>', unsafe_allow_html=True)
-            with m3: st.markdown(f'<div class="metric-card"><div class="metric-value">{tok}</div><div class="metric-label">ภาษี</div></div>', unsafe_allow_html=True)
-            with m4: st.markdown(f'<div class="metric-card"><div class="metric-value">{hok}</div><div class="metric-label">หมวก</div></div>', unsafe_allow_html=True)
+            with m1: st.markdown(f'<div class="metric-card"><div class="metric-value">{total}</div><div class="metric-percent">100%</div><div class="metric-label">รถทั้งหมด</div></div>', unsafe_allow_html=True)
+            with m2: p = (lok/total*100) if total else 0; st.markdown(f'<div class="metric-card"><div class="metric-value">{lok}</div><div class="metric-percent">{p:.1f}%</div><div class="metric-label">ใบขับขี่</div></div>', unsafe_allow_html=True)
+            with m3: p = (tok/total*100) if total else 0; st.markdown(f'<div class="metric-card"><div class="metric-value">{tok}</div><div class="metric-percent">{p:.1f}%</div><div class="metric-label">ภาษี</div></div>', unsafe_allow_html=True)
+            with m4: p = (hok/total*100) if total else 0; st.markdown(f'<div class="metric-card"><div class="metric-value">{hok}</div><div class="metric-percent">{p:.1f}%</div><div class="metric-label">หมวก</div></div>', unsafe_allow_html=True)
             
             st.markdown("---")
             q = st.text_input("🔍 ค้นหา (ชื่อ/รหัส/ทะเบียน)", on_change=lambda: setattr(st.session_state, 'search_results_df', None))
-            if q or (st.button("ค้นหา", type="primary") and q):
-                res_df = df[df.iloc[:, [1, 2, 6]].apply(lambda r: r.astype(str).str.contains(q, case=False).any(), axis=1)]
-                st.session_state.search_results_df = res_df
+            
+            # Filters
+            col_f1, col_f2, col_f3 = st.columns(3)
+            f_risk = col_f1.selectbox("🚨 กรองกลุ่มปัญหา:", ["ทั้งหมด", "❌ ไม่มีใบขับขี่", "❌ ภาษีขาด", "❌ ไม่สวมหมวก"])
+            f_lv = col_f2.selectbox("📚 ระดับชั้น:", ["ทั้งหมด"] + sorted(list(set([str(x).split('/')[0] for x in df.iloc[:, 3].unique()]))))
+            f_br = col_f3.selectbox("🏍️ ยี่ห้อรถ:", ["ทั้งหมด"] + sorted(list(set(df.iloc[:, 4].unique()))))
+            
+            if st.button("⚡ กรองข้อมูลตามเงื่อนไข", use_container_width=True) or q:
+                fdf = df.copy()
+                if q: fdf = fdf[fdf.iloc[:, [1, 2, 6]].apply(lambda r: r.astype(str).str.contains(q, case=False).any(), axis=1)]
+                if f_risk != "ทั้งหมด": idx = 7 if "ใบขับขี่" in f_risk else (8 if "ภาษี" in f_risk else 9); fdf = fdf[fdf.iloc[:, idx].astype(str).str.contains("ไม่มี|ขาด")]
+                if f_lv != "ทั้งหมด": fdf = fdf[fdf.iloc[:, 3].astype(str).str.contains(f_lv)]
+                if f_br != "ทั้งหมด": fdf = fdf[fdf.iloc[:, 4] == f_br]
+                st.session_state.search_results_df = fdf
             
             # Display Result
             target_df = st.session_state.search_results_df if st.session_state.search_results_df is not None else df.head(10)
@@ -440,6 +451,24 @@ def traffic_module():
                                 sheet.update(f'M{cell.row}:N{cell.row}', [[new_log, str(ns)]])
                                 st.success("บันทึกแล้ว"); load_tra_data(); st.rerun()
                             elif (deduct or add): st.error("รหัสผิดหรือข้อมูลไม่ครบ")
+            
+            st.markdown("---")
+            if st.session_state.current_user_pwd == "Patwit1510":
+                with st.expander("⚙️ ระบบจัดการเลื่อนชั้นเรียน (Super Admin Only)"):
+                    st.warning("⚠️ คำเตือน: การเลื่อนชั้นจะปรับระดับชั้นของนักเรียนทุกคน และไม่สามารถย้อนกลับได้")
+                    up_pwd = st.text_input("รหัสเลื่อนชั้น (Patwitnext)", type="password", key="prom_pwd")
+                    if st.button("ยืนยันเลื่อนชั้น", use_container_width=True) and up_pwd == UPGRADE_PASSWORD:
+                        s = connect_gsheet_universal(); d = s.get_all_values(); h = d[0]; r = d[1:]; nr = []
+                        for row in r:
+                            ol = str(row[3]); nl = ol
+                            if "ม.1" in ol: nl=ol.replace("ม.1","ม.2")
+                            elif "ม.2" in ol: nl=ol.replace("ม.2","ม.3")
+                            elif "ม.3" in ol: nl="จบการศึกษา 🎓"
+                            elif "ม.4" in ol: nl=ol.replace("ม.4","ม.5")
+                            elif "ม.5" in ol: nl=ol.replace("ม.5","ม.6")
+                            elif "ม.6" in ol: nl="จบการศึกษา 🎓"
+                            row[3] = nl; nr.append(row)
+                        s.clear(); s.update('A1', [h] + nr); st.success("สำเร็จ!"); load_tra_data(); st.rerun()
 
     elif st.session_state.traffic_page == 'edit':
         st.subheader("✏️ แก้ไขข้อมูล")
