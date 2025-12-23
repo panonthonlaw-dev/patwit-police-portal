@@ -25,23 +25,35 @@ import plotly.express as px
 st.set_page_config(page_title="ระบบเจ้าหน้าที่ส่วนกลาง", page_icon="👮‍♂️", layout="wide")
 
 # คืนค่า Session State ทุกตัวที่โค้ดดั้งเดิมทั้ง 2 ระบบต้องใช้
-states = {
-    'logged_in': False, 'user_info': {}, 'current_dept': None, 'current_user': None,
-    'view_mode': 'list', 'selected_case_id': None, 'unlock_password': "",
-    'page_pending': 1, 'page_finished': 1, 'search_query_main': "",
-    'reset_count': 0, 'traffic_page': 'teacher', 'search_results_df': None, 'edit_data': None,
-    'df_tra': None, 'current_user_pwd': "", 'last_active': time.time()
-}
-for key, val in states.items():
-    if key not in st.session_state: st.session_state[key] = val
+if "logged_in" not in st.session_state: st.session_state.logged_in = False
+if "user_info" not in st.session_state: st.session_state.user_info = {}
+if "current_dept" not in st.session_state: st.session_state.current_dept = None
+if "current_user" not in st.session_state: st.session_state.current_user = None
+if 'view_mode' not in st.session_state: st.session_state.view_mode = "list"
+if 'selected_case_id' not in st.session_state: st.session_state.selected_case_id = None
+if 'unlock_password' not in st.session_state: st.session_state.unlock_password = ""
+if 'page_pending' not in st.session_state: st.session_state.page_pending = 1
+if 'page_finished' not in st.session_state: st.session_state.page_finished = 1
+if 'search_query_main' not in st.session_state: st.session_state.search_query_main = ""
+if 'reset_count' not in st.session_state: st.session_state.reset_count = 0
+if 'traffic_page' not in st.session_state: st.session_state.traffic_page = 'teacher'
+if 'search_results_df' not in st.session_state: st.session_state.search_results_df = None
+if 'edit_data' not in st.session_state: st.session_state.edit_data = None
+if 'df_tra' not in st.session_state: st.session_state.df_tra = None
+if 'current_user_pwd' not in st.session_state: st.session_state.current_user_pwd = ""
+if 'last_active' not in st.session_state: st.session_state.last_active = time.time()
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FONT_FILE = os.path.join(BASE_DIR, "THSarabunNew.ttf")
 FONT_BOLD = os.path.join(BASE_DIR, "THSarabunNewBold.ttf")
 
+# Constant สำหรับงานจราจร
+SHEET_NAME_TRAFFIC = "Motorcycle_DB"
+
 # --- ระบบค้นหาโลโก้ ---
 LOGO_PATH = next((f for f in glob.glob(os.path.join(BASE_DIR, "school_logo*")) if os.path.isfile(f)), 
                  next((f for f in ["logo.png", "logo.jpg", "logo"] if os.path.exists(f)), None))
+
 def get_base64_image(path):
     if not path or not os.path.exists(path): return ""
     with open(path, "rb") as f: return base64.b64encode(f.read()).decode()
@@ -54,7 +66,7 @@ def clean_val(val):
     return str(val).strip()
 
 # ==========================================
-# 2. MODULE: INVESTIGATION (ต้นฉบับ 100% - ไม่มีการลดทอน)
+# 2. MODULE: INVESTIGATION (ต้นฉบับ 100%)
 # ==========================================
 def create_pdf_inv(row):
     rid = str(row.get('Report_ID', '')); date_str = str(row.get('Timestamp', ''))
@@ -64,7 +76,8 @@ def create_pdf_inv(row):
             lines = [line for line in audit_log.split('\n') if line.strip()]
             if lines:
                 last_line = lines[-1]
-                if '[' in last_line and ']' in last_line: latest_date = last_line[last_line.find('[')+1 : last_line.find(']')]
+                if '[' in last_line and ']' in last_line: 
+                    latest_date = last_line[last_line.find('[')+1 : last_line.find(']')]
         except: pass
     p_name = st.session_state.user_info.get('name', 'System'); p_time = get_now_th().strftime("%d/%m/%Y %H:%M:%S")
     qr = qrcode.make(rid); qi = io.BytesIO(); qr.save(qi, format="PNG"); qr_b64 = base64.b64encode(qi.getvalue()).decode()
@@ -83,7 +96,7 @@ def create_pdf_inv(row):
     <body><div class="header">{logo_html}<div style="font-size: 22pt; font-weight: bold;">สถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</div>
     <div style="font-size: 18pt;">ใบสรุปรายงานเหตุการณ์และผลการดำเนินการสอบสวน</div><img class="qr" src="data:image/png;base64,{qr_base64}"></div><hr>
     <table style="width:100%;"><tr><td width="60%"><b>เลขที่รับแจ้ง:</b> {rid}</td><td width="40%" style="text-align:right;"><b>วันที่แจ้ง:</b> {date_str}<br><b>วันที่บันทึกผล:</b> {latest_date}</td></tr></table>
-    <p><b>ผู้แจ้ง:</b> {row.get('Reporter','-')} | <b>ประเภทเหตุ:</b> {row.get('Incident_Type','-')} | <b>สถานที่:</b> {row.get('Location','-')}</p>
+    <p><b>ผู้แจ้ง:</b> {row.get('Reporter','-')} | <b>ประเภท:</b> {row.get('Incident_Type','-')} | <b>สถานที่:</b> {row.get('Location','-')}</p>
     <div style="margin-top:10px;"><b>รายละเอียดเหตุการณ์:</b></div><div class="box">{row.get('Details','-')}</div>
     <div><b>ผลการดำเนินการสอบสวน:</b></div><div class="box">{row.get('Statement','-')}</div>{img_html}
     <table class="sig-table"><tr><td width="50%">ลงชื่อ..........................................................<br>( {row.get('Victim','')} )<br>ผู้เสียหาย</td><td width="50%">ลงชื่อ..........................................................<br>( {row.get('Accused','')} )<br>ผู้ถูกกล่าวหา</td></tr>
@@ -97,9 +110,14 @@ def investigation_module():
     st.sidebar.button("⬅️ กลับหน้าเลือกแผนก", on_click=lambda: setattr(st.session_state, 'current_dept', None), width='stretch')
     
     col_h1, col_h2, col_h3 = st.columns([1, 4, 1])
-    with col_h1: if LOGO_PATH: st.image(LOGO_PATH, width=80)
-    with col_h2: st.markdown(f"<div style='font-size: 26px; font-weight: bold; color: #1E3A8A; padding-top: 20px;'>🏢 ระบบสอบสวน คุณ{user['name']}</div>", unsafe_allow_html=True)
-    with col_h3: if st.button("🔴 Logout", key="inv_logout", use_container_width=True): st.session_state.clear(); st.rerun()
+    with col_h1:
+        if LOGO_PATH:
+            st.image(LOGO_PATH, width=80)
+    with col_h2:
+        st.markdown(f"<div style='font-size: 26px; font-weight: bold; color: #1E3A8A; padding-top: 20px;'>🏢 ระบบสอบสวน คุณ{user['name']}</div>", unsafe_allow_html=True)
+    with col_h3:
+        if st.button("🔴 Logout", key="inv_logout", use_container_width=True):
+            st.session_state.clear(); st.rerun()
 
     conn = st.connection("gsheets", type=GSheetsConnection)
     try:
@@ -113,27 +131,29 @@ def investigation_module():
                 c_search, c_btn_search, c_btn_clear = st.columns([3, 1, 1])
                 search_q = c_search.text_input("ค้นหา", placeholder="เลขเคส, ชื่อ, หรือเหตุการณ์...", key="search_query_main", label_visibility="collapsed")
                 c_btn_search.button("🔍 ค้นหา", use_container_width=True)
-                if c_btn_clear.button("❌ ล้าง", use_container_width=True): st.rerun()
+                if c_btn_clear.button("❌ ล้าง", use_container_width=True):
+                    st.rerun()
                 filtered = df_display.copy()
-                if search_q: filtered = filtered[filtered.apply(lambda r: r.astype(str).str.contains(search_q, case=False).any(), axis=1)]
+                if search_q:
+                    filtered = filtered[filtered.apply(lambda r: r.astype(str).str.contains(search_q, case=False).any(), axis=1)]
                 df_p = filtered[filtered['Status'].isin(["รอดำเนินการ", "อยู่ระหว่างการดำเนินการ"])][::-1]
                 df_f = filtered[filtered['Status'] == "ดำเนินการเรียบร้อย"][::-1]
 
                 st.markdown("<h4 style='color:#1E3A8A; background-color:#f0f2f6; padding:10px; border-radius:5px;'>⏳ รายการที่รอการดำเนินการ</h4>", unsafe_allow_html=True)
                 start_p, end_p, cur_p, tot_p = calculate_pagination_shared('page_pending', len(df_p))
                 for i, row in df_p.iloc[start_p:end_p].iterrows():
-                    rid = row['Report_ID']
                     cc1, cc2, cc3, cc4 = st.columns([2.5, 2, 3, 1.5])
-                    with cc1: st.button(f"📝 {rid}", key=f"p_{i}", use_container_width=True, on_click=lambda r=rid: st.session_state.update({'selected_case_id': r, 'view_mode': 'detail', 'unlock_password': ""}))
-                    cc2.write(row['Timestamp']); cc3.write(row['Incident_Type']); cc4.markdown("<span style='color:orange;'>⏳ รอ</span>", unsafe_allow_html=True); st.divider()
+                    with cc1:
+                        st.button(f"📝 {row['Report_ID']}", key=f"p_{i}", use_container_width=True, on_click=lambda r=row['Report_ID']: st.session_state.update({'selected_case_id': r, 'view_mode': 'detail', 'unlock_password': ""}))
+                    cc2.write(row['Timestamp']); cc3.write(row['Incident_Type']); cc4.markdown("<span style='color:orange;font-weight:bold'>⏳ รอ</span>", unsafe_allow_html=True); st.divider()
 
                 st.markdown("<h4 style='color:#2e7d32; background-color:#e8f5e9; padding:10px; border-radius:5px;'>✅ รายการที่ดำเนินการเรียบร้อย</h4>", unsafe_allow_html=True)
                 start_f, end_f, cur_f, tot_f = calculate_pagination_shared('page_finished', len(df_f))
                 for i, row in df_f.iloc[start_f:end_f].iterrows():
-                    rid = row['Report_ID']
                     cc1, cc2, cc3, cc4 = st.columns([2.5, 2, 3, 1.5])
-                    with cc1: st.button(f"✅ {rid}", key=f"f_{i}", use_container_width=True, on_click=lambda r=rid: st.session_state.update({'selected_case_id': r, 'view_mode': 'detail', 'unlock_password': ""}))
-                    cc2.write(row['Timestamp']); cc3.write(row['Incident_Type']); cc4.markdown("<span style='color:green;'>✅ เรียบร้อย</span>", unsafe_allow_html=True); st.divider()
+                    with cc1:
+                        st.button(f"✅ {row['Report_ID']}", key=f"f_{i}", use_container_width=True, on_click=lambda r=row['Report_ID']: st.session_state.update({'selected_case_id': r, 'view_mode': 'detail', 'unlock_password': ""}))
+                    cc2.write(row['Timestamp']); cc3.write(row['Incident_Type']); cc4.markdown("<span style='color:green;font-weight:bold'>✅ เรียบร้อย</span>", unsafe_allow_html=True); st.divider()
 
             with tab_dash:
                 tc = len(df_display)
@@ -204,6 +224,17 @@ def calculate_pagination_shared(k, t):
     if st.session_state[k] > tp: st.session_state[k] = 1
     return (st.session_state[k] - 1) * 5, st.session_state[k] * 5, st.session_state[k], tp
 
+def process_image(img_file):
+    if img_file is None: return ""
+    try:
+        img = Image.open(img_file)
+        if img.mode in ('RGBA', 'LA', 'P'): img = img.convert('RGB')
+        img.thumbnail((800, 800))
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=65, optimize=True)
+        return base64.b64encode(buf.getvalue()).decode()
+    except: return ""
+
 # ==========================================
 # 3. MODULE: TRAFFIC (ไส้ใน 100% - ระบบจัดการเจ้าหน้าที่)
 # ==========================================
@@ -261,20 +292,24 @@ def traffic_module():
         m = re.search(r'/d/([a-zA-Z0-9_-]+)|id=([a-zA-Z0-9_-]+)', str(url)); fid = m.group(1) or m.group(2) if m else None
         return f"https://drive.google.com/thumbnail?id={fid}&sz=w800" if fid else url
 
-    # --- บังคับโหลดข้อมูล ---
+    # บังคับโหลดข้อมูล
     if st.session_state.df_tra is None:
-        with st.spinner("⏳ กำลังโหลดข้อมูลจราจร..."): load_tra()
+        with st.spinner("⏳ กำลังโหลดข้อมูลจราจร..."): 
+            load_tra()
 
     if st.session_state.df_tra is not None:
         df = st.session_state.df_tra
         col_u, col_l = st.columns([3, 1])
         col_u.info(f"👤 ผู้ใช้งาน: {user['name']} (สิทธิ์: {user['role']})")
-        if col_l.button("🚪 Logout", key="tra_logout"): st.session_state.clear(); st.rerun()
+        if col_l.button("🚪 Logout", key="tra_logout"):
+            st.session_state.clear(); st.rerun()
 
         if st.session_state.traffic_page == 'teacher':
             c1, c2 = st.columns(2)
-            if c1.button("🔄 ดึงข้อมูลล่าสุด", use_container_width=True): load_tra(); st.rerun()
-            if c2.button("📊 รายงานสถิติ", use_container_width=True): st.session_state.traffic_page = 'dash'; st.rerun()
+            if c1.button("🔄 ดึงข้อมูลล่าสุด", use_container_width=True):
+                load_tra(); st.rerun()
+            if c2.button("📊 รายงานสถิติ", use_container_width=True):
+                st.session_state.traffic_page = 'dash'; st.rerun()
 
             total = len(df); lok = df[df.iloc[:,7].str.contains("มี", na=False)].shape[0]
             tok = df[df.iloc[:,8].str.contains("ปกติ|✅", na=False)].shape[0]
@@ -292,12 +327,16 @@ def traffic_module():
             for i, row in res_df.iterrows():
                 v = row.tolist()
                 with st.expander(f"📍 {v[6]} | {v[1]}"):
-                    st.markdown(f"### 👤 {v[1]} (รหัส: {v[2]})"); c_i1, c_i2, c_i3 = st.columns(3)
-                    c_i1.image(get_img_tra(v[14]), caption="เจ้าของรถ"); c_i2.image(get_img_tra(v[10]), caption="หลังรถ"); c_i3.image(get_img_tra(v[11]), caption="ข้างรถ")
+                    st.markdown(f"### 👤 {v[1]} (รหัส: {v[2]})")
+                    c_i1, c_i2, c_i3 = st.columns(3)
+                    c_i1.image(get_img_tra(v[14]), caption="เจ้าของรถ")
+                    c_i2.image(get_img_tra(v[10]), caption="หลังรถ")
+                    c_i3.image(get_img_tra(v[11]), caption="ข้างรถ")
                     st.download_button(f"📥 โหลด PDF {v[6]}", create_pdf_tra(v, get_img_tra(v[10]), get_img_tra(v[11]), get_img_tra(v[14]), user['name']), f"{v[6]}.pdf")
 
         elif st.session_state.traffic_page == 'dash':
-            if st.button("⬅️ กลับหน้าจัดการ"): st.session_state.traffic_page = 'teacher'; st.rerun()
+            if st.button("⬅️ กลับหน้าจัดการ"):
+                st.session_state.traffic_page = 'teacher'; st.rerun()
             st.subheader("📊 สถิติจราจร"); st.plotly_chart(px.pie(df, names=df.columns[7], title="สัดส่วนใบขับขี่"), use_container_width=True)
 
 # ==========================================
@@ -314,15 +353,25 @@ def main():
                 if st.button("เข้าสู่ระบบ", width='stretch', type='primary'):
                     accs = st.secrets.get("OFFICER_ACCOUNTS", {})
                     if pwd_in in accs:
-                        st.session_state.logged_in = True; st.session_state.user_info = accs[pwd_in]
-                        st.session_state.current_user_pwd = pwd_in; st.rerun()
+                        st.session_state.logged_in = True
+                        st.session_state.user_info = accs[pwd_in]
+                        st.session_state.current_user_pwd = pwd_in
+                        st.rerun()
                     else: st.error("❌ รหัสผิด")
     else:
         if st.session_state.current_dept is None:
             st.title("🏢 เลือกแผนกปฏิบัติงาน")
             c1, c2 = st.columns(2)
-            with c1: if st.button("🕵️ งานสอบสวน", use_container_width=True, type="primary"): st.session_state.current_dept = "inv"; st.rerun()
-            with c2: if st.button("🚦 งานจราจร", use_container_width=True, type="primary"): st.session_state.current_dept = "tra"; st.session_state.traffic_page = 'teacher'; st.rerun()
+            with c1:
+                with st.container(border=True):
+                    st.subheader("🕵️ งานสอบสวน")
+                    if st.button("🕵️ เข้าใช้งานสอบสวน", use_container_width=True, type="primary"):
+                        st.session_state.current_dept = "inv"; st.rerun()
+            with c2:
+                with st.container(border=True):
+                    st.subheader("🚦 งานจราจร")
+                    if st.button("🚦 เข้าใช้งานจราจร", use_container_width=True, type="primary"):
+                        st.session_state.current_dept = "tra"; st.session_state.traffic_page = 'teacher'; st.rerun()
         else:
             if st.session_state.current_dept == "inv": investigation_module()
             elif st.session_state.current_dept == "tra": traffic_module()
