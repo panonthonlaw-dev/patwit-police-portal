@@ -2,7 +2,7 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime, timedelta
-import pytz, random, os, base64, io, qrcode, glob, math, mimetypes, json, requests, re, textwrap, time
+import pytz, random, os, base64, io, qrcode, glob, math, mimetypes, json, requests, re, textwrap, time, ast
 from PIL import Image
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
@@ -24,7 +24,7 @@ import plotly.express as px
 # ==========================================
 st.set_page_config(page_title="ระบบเจ้าหน้าที่ส่วนกลาง", page_icon="👮‍♂️", layout="wide")
 
-# Session States (คงเดิม)
+# คืนค่า Session State (ห้ามลบ)
 states = {
     'logged_in': False, 'user_info': {}, 'current_dept': None, 'current_user': None,
     'view_mode': 'list', 'selected_case_id': None, 'unlock_password': "",
@@ -196,7 +196,7 @@ def investigation_module():
                 st.markdown(f"### 📝 เลขที่รับแจ้ง: {sid}")
                 with st.container(border=True):
                     st.write(f"**ผู้แจ้ง:** {row['Reporter']} | **สถานที่:** {row['Location']}"); st.info(f"**รายละเอียด:** {row['Details']}")
-                    if clean_val(row['Image_Data']): st.image(base64.b64decode(row['Image_Data']), width=500)
+                    if clean_val(row['Image_Data']): st.image(base64.b64decode(row['Image_Data']), width=500, caption="หลักฐานจากผู้แจ้ง")
                 cur_sta = clean_val(row['Status'])
                 is_lock = (cur_sta == "ดำเนินการเรียบร้อย" and st.session_state.unlock_password != "Patwit1510")
                 if user.get('role') != 'admin': is_lock = True
@@ -232,7 +232,7 @@ def investigation_module():
     except Exception as e: st.error(f"Error: {e}")
 
 # ==========================================
-# 3. MODULE: TRAFFIC (แก้การเชื่อมต่อ โดยใช้ st.secrets[connections][gsheets] แทน textkey)
+# 3. MODULE: TRAFFIC (แก้การโหลดข้อมูลให้รองรับทุกรูปแบบ Key)
 # ==========================================
 def traffic_module():
     user = st.session_state.user_info
@@ -244,16 +244,30 @@ def traffic_module():
     </style>""", unsafe_allow_html=True)
 
     def load_tra_data():
-        # *** FIX KEY ERROR: ใช้ Credential เดียวกับ Investigation (connections.gsheets) ***
         try:
-            # พยายามหา Key ในรูปแบบต่างๆ
+            # *** FIX: Robust JSON parsing ***
             key_dict = None
-            if "textkey" in st.secrets and "json_content" in st.secrets["textkey"]:
-                key_dict = json.loads(st.secrets["textkey"]["json_content"].replace('\n', '\\n'), strict=False)
-            elif "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
-                # กรณีใช้ st.connection แบบมาตรฐาน ข้อมูล service_account จะอยู่ในนี้
+            
+            # 1. ลองดึงจาก connections.gsheets (ถ้ามี)
+            if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
                 key_dict = st.secrets["connections"]["gsheets"]
             
+            # 2. ลองดึงจาก textkey.json_content (ถ้ามี)
+            elif "textkey" in st.secrets and "json_content" in st.secrets["textkey"]:
+                raw_json = st.secrets["textkey"]["json_content"]
+                # ทำความสะอาด String
+                if isinstance(raw_json, str):
+                    try:
+                        # ลองโหลดแบบ JSON มาตรฐาน
+                        key_dict = json.loads(raw_json.replace('\n', '\\n'), strict=False)
+                    except json.JSONDecodeError:
+                        # ถ้าพัง ให้ลองใช้ ast.literal_eval (เผื่อเป็น Python Dict String)
+                        try:
+                            key_dict = ast.literal_eval(raw_json)
+                        except: pass
+                elif isinstance(raw_json, dict):
+                    key_dict = raw_json
+
             if key_dict:
                 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
                 creds = ServiceAccountCredentials.from_json_keyfile_dict(key_dict, scope)
@@ -263,9 +277,9 @@ def traffic_module():
                     st.session_state.df_tra = pd.DataFrame(vals[1:], columns=[f"C{i}" for i, h in enumerate(vals[0])])
                     return True
             else:
-                st.error("ไม่พบ Credentials (textkey หรือ connections.gsheets)")
-        except Exception as e: 
-            st.error(f"Error loading traffic data: {e}")
+                st.error("ไม่พบ Key ที่ถูกต้อง (ตรวจสอบ secrets.toml)")
+        except Exception as e:
+            st.error(f"Error loading data: {e}")
         return False
 
     def get_img_tra(url):
@@ -293,9 +307,9 @@ def traffic_module():
         draw_img(img_url1, 70, height - 415, 180, 180); draw_img(img_url2, 300, height - 415, 180, 180)
         c.save(); buffer.seek(0); return buffer
 
-    # บังคับโหลดจราจร
+    # Load Data Immediately
     if st.session_state.df_tra is None:
-        with st.spinner("⏳ กำลังโหลดข้อมูลจราจร..."): 
+        with st.spinner("⏳ Loading Traffic DB..."): 
             load_tra_data()
 
     if st.session_state.df_tra is not None:
