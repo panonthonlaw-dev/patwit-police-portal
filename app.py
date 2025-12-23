@@ -24,7 +24,7 @@ import plotly.express as px
 # ==========================================
 st.set_page_config(page_title="ศูนย์ปฏิบัติการกลางฯ", page_icon="👮‍♂️", layout="wide", initial_sidebar_state="collapsed")
 
-# --- 1.1 CSS ซ่อน Sidebar & ตกแต่ง Header ---
+# --- 1.1 CSS ซ่อน Sidebar & ตกแต่ง ---
 st.markdown("""
 <style>
     [data-testid="stSidebar"] {display: none;}
@@ -33,10 +33,6 @@ st.markdown("""
     .metric-card { background: white; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     .metric-value { font-size: 2.5rem; font-weight: 800; color: #1e293b; } 
     .metric-label { font-size: 1rem; color: #64748b; }
-    
-    /* Header Styles */
-    .header-title { font-size: 24px; font-weight: bold; color: #1E3A8A; margin-bottom: 0px; }
-    .header-subtitle { font-size: 14px; color: #64748b; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -105,7 +101,7 @@ def calculate_pagination(key, total_items, limit=5):
     return start_idx, end_idx, st.session_state[key], total_pages
 
 # ==========================================
-# 2. MODULE: INVESTIGATION (New Header Layout)
+# 2. MODULE: INVESTIGATION (New Header Layout 2 Rows)
 # ==========================================
 def create_pdf_inv(row):
     rid = str(row.get('Report_ID', '')); date_str = str(row.get('Timestamp', ''))
@@ -146,26 +142,29 @@ def create_pdf_inv(row):
 def investigation_module():
     user = st.session_state.user_info
     
-    # --- HEADER: Logo(Left) ... Buttons(Right) ---
-    c_brand, c_nav = st.columns([6, 2])
+    # --- HEADER: 2 Rows Layout ---
+    c_brand, c_nav = st.columns([7, 2.5]) # ปรับสัดส่วน
     with c_brand:
-        c_logo, c_text = st.columns([0.7, 5])
+        c_logo, c_text = st.columns([1, 6])
         with c_logo: 
-            if LOGO_PATH: st.image(LOGO_PATH, width=65)
+            if LOGO_PATH: st.image(LOGO_PATH, use_column_width=True)
         with c_text:
             st.markdown(f"""
-            <div style="padding-top:5px;">
-                <div class="header-title">🏢 ระบบสอบสวน</div>
-                <div class="header-subtitle">เจ้าหน้าที่: {user['name']}</div>
+            <div style="display: flex; flex-direction: column; justify-content: center; height: 100%;">
+                <div style="font-size: 22px; font-weight: bold; color: #1E3A8A; line-height: 1.2;">ศูนย์ปฏิบัติการกลางสถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</div>
+                <div style="font-size: 16px; color: #475569; margin-top: 4px;">
+                    <span style="font-weight: bold;">🕵️ ระบบงานสอบสวน</span> | ผู้เข้าใช้: {user['name']}
+                </div>
             </div>
             """, unsafe_allow_html=True)
             
     with c_nav:
-        st.write("") # Spacer
+        st.write("") # Spacer ให้ปุ่มลงมาตรงกลาง
+        st.write("")
         b_home, b_logout = st.columns(2)
-        if b_home.button("🏠 หน้าหลัก", use_container_width=True):
+        if b_home.button("🏠 หน้าหลัก", use_container_width=True, key="inv_home_btn"):
             setattr(st.session_state, 'current_dept', None); st.rerun()
-        if b_logout.button("🚪 ออก", key="inv_out", use_container_width=True):
+        if b_logout.button("🚪 ออก", key="inv_logout_btn", use_container_width=True):
             st.session_state.clear(); st.rerun()
             
     st.markdown("---")
@@ -285,7 +284,7 @@ def investigation_module():
     except Exception as e: st.error(f"Error: {e}")
 
 # ==========================================
-# 3. MODULE: TRAFFIC (New Header Layout)
+# 3. MODULE: TRAFFIC (New Header Layout 2 Rows)
 # ==========================================
 def traffic_module():
     user = st.session_state.user_info
@@ -293,26 +292,29 @@ def traffic_module():
     st.session_state.officer_role = user.get('role', 'teacher')
     st.session_state.current_user_pwd = st.session_state.current_user_pwd 
 
-    # --- HEADER ---
-    c_brand, c_nav = st.columns([6, 2])
+    # --- HEADER: 2 Rows Layout ---
+    c_brand, c_nav = st.columns([7, 2.5]) # ปรับสัดส่วน
     with c_brand:
-        c_logo, c_text = st.columns([0.7, 5])
+        c_logo, c_text = st.columns([1, 6])
         with c_logo: 
-            if LOGO_PATH: st.image(LOGO_PATH, width=65)
+            if LOGO_PATH: st.image(LOGO_PATH, use_column_width=True)
         with c_text:
             st.markdown(f"""
-            <div style="padding-top:5px;">
-                <div class="header-title">🚦 ระบบงานจราจร</div>
-                <div class="header-subtitle">เจ้าหน้าที่: {st.session_state.officer_name}</div>
+            <div style="display: flex; flex-direction: column; justify-content: center; height: 100%;">
+                <div style="font-size: 22px; font-weight: bold; color: #1E3A8A; line-height: 1.2;">ศูนย์ปฏิบัติการกลางสถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</div>
+                <div style="font-size: 16px; color: #475569; margin-top: 4px;">
+                    <span style="font-weight: bold;">🚦 ระบบงานจราจร</span> | ผู้เข้าใช้: {st.session_state.officer_name}
+                </div>
             </div>
             """, unsafe_allow_html=True)
             
     with c_nav:
-        st.write("") # Spacer
+        st.write("") # Spacer ให้ปุ่มลงมาตรงกลาง
+        st.write("")
         b_home, b_logout = st.columns(2)
-        if b_home.button("🏠 หน้าหลัก", key="tra_back", use_container_width=True):
+        if b_home.button("🏠 หน้าหลัก", key="tra_home_btn", use_container_width=True):
             setattr(st.session_state, 'current_dept', None); st.rerun()
-        if b_logout.button("🚪 ออก", key="tra_logout", use_container_width=True):
+        if b_logout.button("🚪 ออก", key="tra_logout_btn", use_container_width=True):
             st.session_state.clear(); st.rerun()
     st.markdown("---")
 
@@ -576,9 +578,13 @@ def main():
         if st.session_state.current_dept is None:
             c_brand, c_nav = st.columns([4, 1.5])
             with c_brand:
-                if LOGO_PATH: st.image(LOGO_PATH, width=50)
-                st.markdown("### 🏢 เลือกแผนกปฏิบัติงาน")
+                c_logo, c_text = st.columns([0.8, 5])
+                with c_logo:
+                    if LOGO_PATH: st.image(LOGO_PATH, width=55)
+                with c_text:
+                    st.markdown("### 🏢 เลือกแผนกปฏิบัติงาน")
             with c_nav:
+                st.write("")
                 if st.button("🚪 ออกจากระบบ", key="main_logout", use_container_width=True):
                     st.session_state.clear(); st.rerun()
             
