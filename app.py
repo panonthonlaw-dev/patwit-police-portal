@@ -2,7 +2,7 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime, timedelta
-import pytz, random, os, base64, io, qrcode, glob, math, mimetypes, json, requests, re, textwrap, time
+import pytz, random, os, base64, io, qrcode, glob, math, mimetypes, json, requests, re, textwrap, time, ast
 from PIL import Image
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
@@ -38,7 +38,7 @@ for key, val in states.items():
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FONT_FILE = os.path.join(BASE_DIR, "THSarabunNew.ttf")
 FONT_BOLD = os.path.join(BASE_DIR, "THSarabunNewBold.ttf")
-SHEET_NAME_TRAFFIC = "Motorcycle_DB"
+SHEET_NAME_TRAFFIC = "Motorcycle_DB" # ชื่อไฟล์ Google Sheet จราจรต้องตรงเป๊ะ
 
 # Logo
 LOGO_PATH = next((f for f in glob.glob(os.path.join(BASE_DIR, "school_logo*")) if os.path.isfile(f)), 
@@ -67,7 +67,7 @@ def calculate_pagination(key, total_items, limit=5):
     return start_idx, end_idx, st.session_state[key], total_pages
 
 # ==========================================
-# 2. MODULE: INVESTIGATION (คงเดิม 100%)
+# 2. MODULE: INVESTIGATION (คงเดิม 100% ห้ามแก้)
 # ==========================================
 def create_pdf_inv(row):
     rid = str(row.get('Report_ID', '')); date_str = str(row.get('Timestamp', ''))
@@ -232,7 +232,7 @@ def investigation_module():
     except Exception as e: st.error(f"Error: {e}")
 
 # ==========================================
-# 3. MODULE: TRAFFIC (แก้ให้โชว์อีเมลถ้าเชื่อมต่อไม่ได้)
+# 3. MODULE: TRAFFIC (แก้ Connection โดยแปลง String JSON เป็น Dict)
 # ==========================================
 def traffic_module():
     user = st.session_state.user_info
@@ -245,16 +245,19 @@ def traffic_module():
 
     def load_tra_data():
         try:
-            # 1. ดึง Credentials จาก connections.gsheets ที่ใช้ได้ชัวร์
-            if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
-                creds_dict = dict(st.secrets["connections"]["gsheets"])
+            # *** FIX: ดึงค่าจาก textkey.json_content แล้วแปลงเป็น Dict ***
+            # เพราะใน secrets.toml เก็บเป็น String ยาวๆ ต้องใช้ json.loads()
+            if "textkey" in st.secrets and "json_content" in st.secrets["textkey"]:
+                json_str = st.secrets["textkey"]["json_content"]
+                # ทำความสะอาด String ก่อนแปลง (เผื่อมี Newline)
+                creds_dict = json.loads(json_str.replace('\n', '\\n'), strict=False)
                 
-                # 2. เชื่อมต่อ
+                # เชื่อมต่อ
                 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
                 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
                 client = gspread.authorize(creds)
                 
-                # 3. เปิดไฟล์ (ถ้าพังตรงนี้แสดงว่าไม่ได้ Share)
+                # เปิดไฟล์
                 try:
                     sheet = client.open(SHEET_NAME_TRAFFIC).sheet1
                     vals = sheet.get_all_values()
@@ -262,16 +265,15 @@ def traffic_module():
                         st.session_state.df_tra = pd.DataFrame(vals[1:], columns=[f"C{i}" for i, h in enumerate(vals[0])])
                         return True
                 except gspread.exceptions.SpreadsheetNotFound:
-                    # *** จุดสำคัญ: แจ้งเตือนให้แชร์ไฟล์ ***
-                    client_email = creds_dict.get("client_email", "ไม่ทราบอีเมล")
-                    st.error(f"⚠️ ไม่พบไฟล์ชื่อ '{SHEET_NAME_TRAFFIC}' หรือยังไม่มีสิทธิ์เข้าถึง")
-                    st.warning(f"กรุณาไปที่ Google Sheet '{SHEET_NAME_TRAFFIC}' แล้วกด Share ให้กับอีเมลนี้:\n\n**{client_email}**\n\n(เลือกสิทธิ์เป็น Editor)")
+                    st.error(f"❌ ไม่พบไฟล์ชื่อ '{SHEET_NAME_TRAFFIC}' หรือระบบไม่มีสิทธิ์เข้าถึง")
+                    st.warning(f"กรุณาแชร์ไฟล์ Google Sheet ให้กับอีเมล: **moto-bot@school-moto.iam.gserviceaccount.com** (Editor Role)")
                     return False
             else:
-                st.error("ไม่พบ Credentials ใน secrets.toml")
+                st.error("ไม่พบ [textkey] ใน secrets.toml")
+                return False
         except Exception as e:
             st.error(f"Traffic Connection Error: {e}")
-        return False
+            return False
 
     def get_img_tra(url):
         m = re.search(r'/d/([a-zA-Z0-9_-]+)|id=([a-zA-Z0-9_-]+)', str(url)); fid = m.group(1) or m.group(2) if m else None
@@ -334,9 +336,7 @@ def traffic_module():
             if st.button("⬅️ กลับ"): st.session_state.traffic_page = 'teacher'; st.rerun()
             st.plotly_chart(px.pie(df, names=df.columns[7], title="สัดส่วนใบขับขี่"), use_container_width=True)
     else:
-        # กรณีโหลดไม่ได้ จะมี Error Message จาก load_tra_data() แสดงอยู่แล้ว
-        if st.button("ลองโหลดใหม่"):
-            st.rerun()
+        if st.button("ลองโหลดใหม่"): st.rerun()
 
 # ==========================================
 # 4. MAIN ENTRY
