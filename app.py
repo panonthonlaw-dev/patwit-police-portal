@@ -36,7 +36,7 @@ if 'page_finished' not in st.session_state: st.session_state.page_finished = 1
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FONT_FILE = os.path.join(BASE_DIR, "THSarabunNew.ttf")
 
-# --- ระบบค้นหาโลโก้ (ต้นฉบับ) ---
+# --- ระบบค้นหาโลโก้ ---
 LOGO_PATH = None
 LOGO_MIME = "image/png"
 target_file = os.path.join(BASE_DIR, "school_logo")
@@ -55,7 +55,7 @@ def get_base64_image(image_path):
 LOGO_BASE64 = get_base64_image(LOGO_PATH) if LOGO_PATH else ""
 
 # ==========================================
-# 2. HELPER FUNCTIONS (ก๊อปปี้จากต้นฉบับ 100%)
+# 2. HELPER FUNCTIONS (Copy-Paste 100%)
 # ==========================================
 def get_now_th(): return datetime.now(pytz.timezone('Asia/Bangkok'))
 
@@ -97,6 +97,9 @@ def back_to_list():
     st.session_state.view_mode = "list"
     st.session_state.selected_case_id = None
 
+def clear_search_callback():
+    st.session_state.search_query_main = ""
+
 # --- ฟังก์ชันสร้าง PDF (ต้นฉบับเป๊ะ: ลายเซ็น 5 คน + Footer) ---
 def create_pdf(row):
     rid = str(row.get('Report_ID', ''))
@@ -119,12 +122,7 @@ def create_pdf(row):
     qr = qrcode.make(rid); qr_io = io.BytesIO(); qr.save(qr_io, format="PNG")
     qr_base64 = base64.b64encode(qr_io.getvalue()).decode()
 
-    # จัดการรูปภาพใน PDF (Resize ให้พอดีหน้า)
-    img_html = ""
-    for k in ['Image_Data', 'Evidence_Image']:
-        if clean_val(row.get(k)):
-            img_html += f'<div style="text-align:center;margin-top:10px;"><img src="data:image/jpeg;base64,{row[k]}" style="max-width:350px;max-height:200px;object-fit:contain;border:1px solid #ccc;"></div>'
-
+    evidence_html = f"<div style='margin-top:10px;page-break-inside:avoid;'><b>หลักฐานประกอบ:</b><br><img src='data:image/jpeg;base64,{row.get('Evidence_Image')}' style='max-height:150px;border:1px solid #ccc;'></div>" if row.get('Evidence_Image') else ""
     logo_html = f'<img class="logo" src="data:image/png;base64,{LOGO_BASE64}">' if LOGO_BASE64 else ""
 
     html_content = f"""
@@ -141,8 +139,7 @@ def create_pdf(row):
             .logo {{ position: absolute; top: 0; left: 0; width: 60px; }}
             .qr {{ position: absolute; top: 0; right: 0; width: 60px; }}
             .box {{ border: 1px solid #000; background-color: #f9f9f9; padding: 10px; min-height: 50px; white-space: pre-wrap; }}
-            .sig-table {{ width: 100%; margin-top: 30px; text-align: center; border-collapse: collapse; }}
-            .sig-table td {{ padding-bottom: 25px; vertical-align: top; }}
+            .sig-table {{ width: 100%; margin-top: 30px; text-align: center; }}
         </style>
     </head>
     <body>
@@ -162,7 +159,7 @@ def create_pdf(row):
         <p><b>ผู้แจ้ง:</b> {row.get('Reporter','-')} | <b>ประเภท:</b> {row.get('Incident_Type','-')} | <b>สถานที่:</b> {row.get('Location','-')}</p>
         <div style="margin-top:10px;"><b>รายละเอียดเหตุการณ์:</b></div><div class="box">{row.get('Details','-')}</div>
         <div><b>ผลการดำเนินการสอบสวน:</b></div><div class="box">{row.get('Statement','-')}</div>
-        {img_html}
+        {evidence_html}
         <table class="sig-table">
             <tr>
                 <td width="50%">ลงชื่อ..........................................................<br>( {row.get('Victim','')} )<br>ผู้เสียหาย</td>
@@ -182,13 +179,14 @@ def create_pdf(row):
     return HTML(string=html_content, base_url=BASE_DIR).write_pdf(font_config=FontConfiguration())
 
 # ==========================================
-# 3. MODULE: INVESTIGATION (100% UNMODIFIED UI)
+# 3. MODULE: INVESTIGATION (100% UNMODIFIED)
 # ==========================================
 def investigation_module():
     st.session_state.current_user = st.session_state.user_info
     user = st.session_state.current_user
     st.sidebar.button("⬅️ กลับหน้าเลือกแผนก", on_click=lambda: setattr(st.session_state, 'current_dept', None), width='stretch')
     
+    # --- DASHBOARD HEADER ---
     col_h1, col_h2, col_h3 = st.columns([1, 4, 1])
     with col_h1:
         if LOGO_PATH: st.image(LOGO_PATH, width=80)
@@ -208,6 +206,7 @@ def investigation_module():
             tab_list, tab_dash = st.tabs(["📋 รายการแจ้งเหตุ", "📊 แดชบอร์ดสถิติ"])
             
             with tab_list:
+                # ระบบค้นหา
                 c_search, c_btn_search, c_btn_clear = st.columns([3, 1, 1])
                 search_q = c_search.text_input("ค้นหา", placeholder="เลขเคส, ชื่อ, หรือเหตุการณ์...", key="search_query_main", label_visibility="collapsed")
                 c_btn_search.button("🔍 ค้นหา", use_container_width=True)
@@ -258,11 +257,35 @@ def investigation_module():
                     cc4.markdown("<span style='color:green;font-weight:bold'>✅ เรียบร้อย</span>", unsafe_allow_html=True)
                     st.divider()
 
+            with tab_dash:
+                # --- สถิติ (ดึงโค้ดดั้งเดิมกลับมาครบ 100%) ---
+                st.subheader("📊 สรุปสถิติ")
+                total_cases = len(df_display)
+                if not df_display.empty:
+                    m1, m2, m3 = st.columns(3)
+                    m1.metric("แจ้งเหตุทั้งหมด", f"{total_cases} ครั้ง")
+                    m2.metric("สถานที่เกิดเหตุบ่อยสุด", df_display['Location'].mode()[0])
+                    m3.metric("เหตุที่เกิดบ่อยสุด", df_display['Incident_Type'].mode()[0])
+                    st.divider()
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.markdown("**🔹 ประเภทเหตุ**"); st.bar_chart(df_display['Incident_Type'].value_counts(), color="#FF4B4B")
+                    with col2:
+                        st.markdown("**🔹 สถานที่เกิดเหตุ**"); st.bar_chart(df_display['Location'].value_counts(), color="#1E3A8A")
+
+                    st.markdown("---")
+                    st.subheader("📈 สถิติเชิงลึก (Advanced Analytics)")
+                    df_display['dt'] = pd.to_datetime(df_display['Timestamp'], format="%d/%m/%Y %H:%M:%S", errors='coerce')
+                    df_display = df_display.dropna(subset=['dt'])
+                    df_display['Hour'] = df_display['dt'].dt.hour
+                    heatmap_df = pd.crosstab(df_display['Location'], df_display['Incident_Type'])
+                    st.write("**🔥 ความสัมพันธ์: สถานที่ vs ประเภทเหตุ**")
+                    st.dataframe(heatmap_df, use_container_width=True)
+
         elif st.session_state.view_mode == "detail":
             st.button("⬅️ กลับหน้ารายการ", on_click=back_to_list, use_container_width=True)
             sid = st.session_state.selected_case_id
             sel = df_display[df_display['Report_ID'] == sid]
-            
             if not sel.empty:
                 idx_raw = sel.index[0]; row = sel.iloc[0]
                 st.markdown(f"### 📝 เลขที่รับแจ้ง: {sid}")
@@ -326,9 +349,10 @@ def main():
                 st.markdown("<h2 style='text-align:center;'>👮‍♂️ Central Login</h2>", unsafe_allow_html=True)
                 pwd_in = st.text_input("รหัสผ่านเจ้าหน้าที่", type="password")
                 if st.button("เข้าสู่ระบบ", width='stretch', type='primary'):
-                    accs = st.secrets.get("OFFICER_ACCOUNTS", {})
-                    if pwd_in in accs:
-                        st.session_state.logged_in = True; st.session_state.user_info = accs[pwd_in]; st.rerun()
+                    # ดึงบัญชีจาก OFFICER_ACCOUNTS ใน Secrets
+                    accounts = st.secrets.get("OFFICER_ACCOUNTS", {})
+                    if pwd_in in accounts:
+                        st.session_state.logged_in = True; st.session_state.user_info = accounts[pwd_in]; st.rerun()
                     else: st.error("❌ รหัสผิด")
     else:
         if st.session_state.current_dept is None:
