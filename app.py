@@ -7,14 +7,11 @@ from PIL import Image
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-# --- LIBRARIES SETUP ---
-# 1. PDF สอบสวน (WeasyPrint)
+# PDF Libraries
 try:
     from weasyprint import HTML, CSS
     from weasyprint.text.fonts import FontConfiguration
 except: pass
-
-# 2. PDF จราจร (ReportLab)
 from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
@@ -23,19 +20,17 @@ from reportlab.lib.utils import ImageReader
 import plotly.express as px
 
 # ==========================================
-# 1. INITIAL SETTINGS & SHARED STATE
+# 1. INITIAL SETTINGS & SESSION STATE
 # ==========================================
 st.set_page_config(page_title="ระบบเจ้าหน้าที่ส่วนกลาง", page_icon="👮‍♂️", layout="wide")
 
-# Session States (รวมของเดิมและของจราจร)
+# Session States (คงเดิม)
 states = {
     'logged_in': False, 'user_info': {}, 'current_dept': None, 'current_user': None,
     'view_mode': 'list', 'selected_case_id': None, 'unlock_password': "",
     'page_pending': 1, 'page_finished': 1, 'search_query_main': "",
-    'current_user_pwd': "", 'last_active': time.time(),
-    # Traffic States
-    'reset_count': 0, 'page': 'teacher', 'search_results_df': None, 
-    'edit_data': None, 'officer_name': "", 'officer_role': ""
+    'traffic_page': 'teacher', 'df_tra': None, 'search_results_df': None, 
+    'current_user_pwd': "", 'last_active': time.time(), 'edit_data': None, 'reset_count': 0
 }
 for key, val in states.items():
     if key not in st.session_state: st.session_state[key] = val
@@ -43,15 +38,9 @@ for key, val in states.items():
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FONT_FILE = os.path.join(BASE_DIR, "THSarabunNew.ttf")
 FONT_BOLD = os.path.join(BASE_DIR, "THSarabunNewBold.ttf")
+SHEET_NAME_TRAFFIC = "Motorcycle_DB" # ชื่อ Sheet งานจราจร
 
-# Config จราจร
-SHEET_NAME_TRAFFIC = "Motorcycle_DB"
-DRIVE_FOLDER_ID = "1WQGATGaGBoIjf44Yj_-DjuX8LZ8kbmBA"
-UPGRADE_PASSWORD = st.secrets.get("UPGRADE_PASSWORD", "Patwitnext")
-OFFICER_ACCOUNTS = st.secrets.get("OFFICER_ACCOUNTS", {})
-GAS_APP_URL = "https://script.google.com/macros/s/AKfycbxRf6z032SxMkiI4IxtUBvWLKeo1LmIQAUMByoXidy4crNEwHoO6h0B-3hT0X7Q5g/exec"
-
-# Logo System
+# Logo
 LOGO_PATH = next((f for f in glob.glob(os.path.join(BASE_DIR, "school_logo*")) if os.path.isfile(f)), 
                  next((f for f in ["logo.png", "logo.jpg", "logo"] if os.path.exists(f)), None))
 def get_base64_image(path):
@@ -78,7 +67,7 @@ def calculate_pagination(key, total_items, limit=5):
     return start_idx, end_idx, st.session_state[key], total_pages
 
 # ==========================================
-# 2. MODULE: INVESTIGATION (ต้นฉบับ 100% ห้ามแก้)
+# 2. MODULE: INVESTIGATION (ยกมา 100% ห้ามแก้)
 # ==========================================
 def create_pdf_inv(row):
     rid = str(row.get('Report_ID', '')); date_str = str(row.get('Timestamp', ''))
@@ -92,7 +81,7 @@ def create_pdf_inv(row):
     qr = qrcode.make(rid); qi = io.BytesIO(); qr.save(qi, format="PNG"); qr_b64 = base64.b64encode(qi.getvalue()).decode()
     
     img_html = ""
-    # เพิ่มข้อความพยานหลักฐานตามสั่ง
+    # พยานหลักฐาน
     if clean_val(row.get('Evidence_Image')):
         img_html += f"<div style='text-align:center;margin-top:10px;'><b>พยานหลักฐาน</b><br><img src='data:image/jpeg;base64,{row.get('Evidence_Image')}' style='max-width:380px;max-height:220px;object-fit:contain;border:1px solid #ccc;'></div>"
     if clean_val(row.get('Image_Data')):
@@ -244,144 +233,95 @@ def investigation_module():
     except Exception as e: st.error(f"Error: {e}")
 
 # ==========================================
-# 3. MODULE: TRAFFIC (ใช้โค้ดคุณ 100% + แก้ connect_gsheet ให้ฉลาด)
+# 3. MODULE: TRAFFIC (แก้ให้ใช้ st.connection เพื่อจบปัญหา Key Error)
 # ==========================================
 def traffic_module():
-    # Sync User Data
-    st.session_state.officer_name = st.session_state.user_info.get('name', 'N/A')
-    st.session_state.officer_role = st.session_state.user_info.get('role', 'teacher')
-    
+    user = st.session_state.user_info
     st.sidebar.button("⬅️ กลับหน้าเลือกแผนก", on_click=lambda: setattr(st.session_state, 'current_dept', None), width='stretch')
     
-    st.markdown("""
-    <style>
+    st.markdown("""<style>
         .metric-card { background: white; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .metric-value { font-size: 2.5rem; font-weight: 800; color: #1e293b; } .metric-percent { font-size: 1.1rem; color: #16a34a; font-weight: bold; }
-        .atm-card { width: 100%; max-width: 450px; aspect-ratio: 1.586; background: white; border-radius: 15px; border: 2px solid #cbd5e1; padding: 20px; position: relative; color: #334155; margin: auto; }
-        .atm-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 15px; }
-        .atm-logo { height: 55px; } .atm-photo { width: 100px; height: 125px; border-radius: 8px; object-fit: cover; border: 1px solid #cbd5e1; }
-        .atm-score-box { position: absolute; bottom: 35px; right: 20px; text-align: right; } .atm-score-val { font-size: 32px; font-weight: 800; }
     </style>""", unsafe_allow_html=True)
 
-    # --- UNIVERSAL CONNECTOR (หัวใจสำคัญของการแก้ปัญหา) ---
-    def connect_gsheet_universal():
-        # วิธีที่ 1: ลองดึงจาก connections.gsheets (ที่สอบสวนใช้) แล้วแปลงเป็น Dict
-        if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
-            creds_dict = dict(st.secrets["connections"]["gsheets"]) # แปลง AttrDict -> Dict
-            scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-            return gspread.authorize(creds).open(SHEET_NAME_TRAFFIC).sheet1
-        
-        # วิธีที่ 2: ลองดึงจาก textkey (เผื่อมี)
-        elif "textkey" in st.secrets:
-            key_content = st.secrets["textkey"]["json_content"]
-            key_dict = json.loads(key_content.replace('\n', '\\n'), strict=False)
-            scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-            creds = ServiceAccountCredentials.from_json_keyfile_dict(key_dict, scope)
-            return gspread.authorize(creds).open(SHEET_NAME_TRAFFIC).sheet1
-        
-        raise Exception("ไม่พบ Credentials ที่ถูกต้องใน secrets.toml")
-
-    def load_data_tra():
+    def load_tra_data():
         try:
-            sheet = connect_gsheet_universal()
-            vals = sheet.get_all_values()
-            if len(vals) > 1:
-                st.session_state.df_tra = pd.DataFrame(vals[1:], columns=[f"C{i}" for i, h in enumerate(vals[0])])
-                return True
-        except Exception as e: st.error(f"Error: {e}"); return False
+            # *** FIX: เปลี่ยนมาใช้ st.connection เหมือน Investigation เพื่อความชัวร์ ***
+            # วิธีนี้ Streamlit จะจัดการ Authentication ให้เอง ไม่ต้องแกะ Key
+            conn = st.connection("gsheets", type=GSheetsConnection)
+            # โหลดข้อมูลจาก Worksheet ชื่อ Motorcycle_DB
+            df = conn.read(worksheet=SHEET_NAME_TRAFFIC, ttl="0")
+            # เปลี่ยนชื่อ Column เป็น C0, C1, ... เพื่อให้ตรงกับ Code เดิม
+            df.columns = [f"C{i}" for i in range(len(df.columns))]
+            st.session_state.df_tra = df.astype(str).fillna("")
+            return True
+        except Exception as e:
+            st.error(f"ไม่สามารถโหลดข้อมูลจราจรได้: {e}")
+            return False
 
-    def upload_to_drive(file_obj, filename):
-        file_content = file_obj.getvalue()
-        base64_str = base64.b64encode(file_content).decode('utf-8')
-        payload = {"folder_id": DRIVE_FOLDER_ID, "filename": filename, "file": base64_str, "mimeType": file_obj.type}
-        try:
-            res = requests.post(GAS_APP_URL, json=payload).json()
-            return res.get("link") if res.get("status") == "success" else None
-        except: return None
+    def get_img_tra(url):
+        m = re.search(r'/d/([a-zA-Z0-9_-]+)|id=([a-zA-Z0-9_-]+)', str(url)); fid = m.group(1) or m.group(2) if m else None
+        return f"https://drive.google.com/thumbnail?id={fid}&sz=w800" if fid else url
 
-    def get_img_link(url):
-        match = re.search(r'/d/([a-zA-Z0-9_-]+)|id=([a-zA-Z0-9_-]+)', str(url))
-        file_id = match.group(1) or match.group(2) if match else None
-        return f"https://drive.google.com/thumbnail?id={file_id}&sz=w800" if file_id else url
-
-    # --- ฟังก์ชัน PDF (จราจร) ---
     def create_pdf_tra(vals, img_url1, img_url2, face_url=None, printed_by="ระบบอัตโนมัติ"):
         buffer = io.BytesIO(); c = canvas.Canvas(buffer, pagesize=A4); width, height = A4
         if os.path.exists(FONT_FILE):
-            pdfmetrics.registerFont(TTFont('Thai', FONT_FILE))
-            pdfmetrics.registerFont(TTFont('ThaiBold', FONT_BOLD if os.path.exists(FONT_BOLD) else FONT_FILE))
+            pdfmetrics.registerFont(TTFont('Thai', FONT_FILE)); pdfmetrics.registerFont(TTFont('ThaiBold', FONT_BOLD if os.path.exists(FONT_BOLD) else FONT_FILE))
             fn, fb = 'Thai', 'ThaiBold'
         else: fn, fb = 'Helvetica', 'Helvetica-Bold'
         logo = next((f for f in ["logo.png", "logo.jpg", "logo"] if os.path.exists(f)), None)
         if logo: c.drawImage(logo, 50, height - 85, width=50, height=50, mask='auto')
         c.setFont(fb, 22); c.drawCentredString(width/2, height - 50, "แบบทะเบียนประวัติรถจักรยานยนต์นักเรียน")
-        c.setFont(fn, 18); c.drawCentredString(width/2, height - 72, "โรงเรียนโพนทองพัฒนาวิทยา")
-        c.line(50, height - 85, width - 50, height - 85)
-        name, std_id, classroom, plate = str(vals[1]), str(vals[2]), str(vals[3]), str(vals[6])
-        score = str(vals[13]) if len(vals) > 13 else "100"
+        c.setFont(fn, 18); c.drawCentredString(width/2, height - 72, "โรงเรียนโพนทองพัฒนาวิทยา"); c.line(50, height - 85, width - 50, height - 85)
+        name, std_id, plate, score = str(vals[1]), str(vals[2]), str(vals[6]), str(vals[13])
         c.setFont(fn, 16); c.drawString(60, height - 115, f"ชื่อ-นามสกุล: {name}"); c.drawString(60, height - 135, f"รหัสนักเรียน: {std_id}"); c.drawString(300, height - 155, f"ทะเบียน: {plate}")
         c.setFont(fb, 18); c.drawString(60, height - 185, f"คะแนนความประพฤติคงเหลือ: {score} คะแนน")
         def draw_img(url, x, y, w, h):
             try:
-                if url:
-                    res = requests.get(url, timeout=5); img_data = ImageReader(io.BytesIO(res.content))
-                    c.drawImage(img_data, x, y, width=w, height=h, preserveAspectRatio=True, mask='auto'); c.rect(x, y, w, h)
+                res = requests.get(url, timeout=5); img_data = ImageReader(io.BytesIO(res.content))
+                c.drawImage(img_data, x, y, width=w, height=h, preserveAspectRatio=True, mask='auto'); c.rect(x, y, w, h)
             except: pass
         draw_img(img_url1, 70, height - 415, 180, 180); draw_img(img_url2, 300, height - 415, 180, 180)
         c.save(); buffer.seek(0); return buffer
 
-    # Logic การทำงาน
+    # Force Load
     if st.session_state.df_tra is None:
-        with st.spinner("⏳ กำลังโหลดข้อมูลจราจร..."): load_data_tra()
+        with st.spinner("⏳ กำลังโหลดข้อมูลจราจร..."): 
+            load_tra_data()
 
-    if st.session_state.traffic_page == 'teacher':
-        if 'df_tra' in st.session_state and st.session_state.df_tra is not None:
-            df = st.session_state.df_tra
-            col_u, col_l = st.columns([3, 1])
-            col_u.info(f"👤 ผู้ใช้งาน: {st.session_state.officer_name}")
-            with col_l:
-                if st.button("🚪 ออกจากระบบ", key="tra_logout"): st.session_state.clear(); st.rerun()
+    if st.session_state.df_tra is not None:
+        df = st.session_state.df_tra
+        col_u, col_l = st.columns([3, 1])
+        col_u.info(f"👤 ผู้ใช้งานจราจร: {user['name']} (สิทธิ์: {user['role']})")
+        with col_l:
+            if st.button("🚪 Logout", key="tra_logout"):
+                st.session_state.clear(); st.rerun()
 
+        if st.session_state.traffic_page == 'teacher':
             c1, c2 = st.columns(2)
-            if c1.button("🔄 ดึงข้อมูลล่าสุด"): load_data_tra(); st.rerun()
+            if c1.button("🔄 ดึงข้อมูลล่าสุด"): load_tra_data(); st.rerun()
             if c2.button("📊 รายงานสถิติ"): st.session_state.traffic_page = 'dash'; st.rerun()
-
-            total = len(df); lok = df[df.iloc[:,7].str.contains("มี", na=False)].shape[0]
+            
+            total = len(df); lok = df[df.iloc[:,7].str.contains("มี", na=False)].shape[0]; tok = df[df.iloc[:,8].str.contains("ปกติ|✅", na=False)].shape[0]; hok = df[df.iloc[:,9].str.contains("มี", na=False)].shape[0]
             m1, m2, m3, m4 = st.columns(4)
             m1.markdown(f'<div class="metric-card"><div class="metric-value">{total}</div><div class="metric-label">รถทั้งหมด</div></div>', unsafe_allow_html=True)
-            m2.markdown(f'<div class="metric-card"><div class="metric-value">{lok}</div><div class="metric-label">มีใบขับขี่</div></div>', unsafe_allow_html=True)
-
-            st.markdown("---")
-            q = st.text_input("🔍 ค้นหา (ชื่อ/รหัส/ทะเบียน)")
-            res_df = df[df.iloc[:, [1, 2, 6]].apply(lambda r: r.astype(str).str.contains(q, case=False).any(), axis=1)] if q else df.head(10)
-
+            m2.markdown(f'<div class="metric-card"><div class="metric-value">{lok}</div><div class="metric-percent">{(lok/total*100) if total else 0:.1f}%</div><div class="metric-label">ใบขับขี่</div></div>', unsafe_allow_html=True)
+            m3.markdown(f'<div class="metric-card"><div class="metric-value">{tok}</div><div class="metric-percent">{(tok/total*100) if total else 0:.1f}%</div><div class="metric-label">ภาษี</div></div>', unsafe_allow_html=True)
+            m4.markdown(f'<div class="metric-card"><div class="metric-value">{hok}</div><div class="metric-percent">{(hok/total*100) if total else 0:.1f}%</div><div class="metric-label">หมวก</div></div>', unsafe_allow_html=True)
+            st.markdown("---"); search_q = st.text_input("🔍 ค้นหา (ชื่อ/รหัส/ทะเบียน)", key="tra_search")
+            res_df = df[df.iloc[:, [1, 2, 6]].apply(lambda r: r.astype(str).str.contains(search_q, case=False).any(), axis=1)] if search_q else df.head(10)
             for i, row in res_df.iterrows():
                 v = row.tolist()
                 with st.expander(f"📍 {v[6]} | {v[1]}"):
-                    st.markdown(f"### 👤 {v[1]} (รหัส: {v[2]})")
-                    ci1, ci2, ci3 = st.columns(3)
-                    ci1.image(get_img_link(v[14]), caption="เจ้าของรถ"); ci2.image(get_img_link(v[10]), caption="หลังรถ"); ci3.image(get_img_link(v[11]), caption="ข้างรถ")
-                    
-                    if st.session_state.officer_role == "admin":
-                        with st.form(key=f"sc_{i}"):
-                            pts = st.number_input("แต้ม", 1, 50, 5); note = st.text_area("เหตุผล"); pwd = st.text_input("รหัสยืนยัน", type="password")
-                            if st.form_submit_button("🔴 หักแต้ม") and pwd == st.session_state.current_user_pwd:
-                                sheet = connect_gsheet_universal(); cell = sheet.find(str(v[2]))
-                                sc = int(v[13]) if len(v)>13 and str(v[13]).isdigit() else 100
-                                ns = max(0, sc-pts)
-                                sheet.update_cell(cell.row, 14, str(ns)) # Update score
-                                st.success("บันทึกแล้ว"); load_data_tra(); st.rerun()
-                        
-                        st.download_button("📥 โหลด PDF", create_pdf_tra(v, get_img_link(v[10]), get_img_link(v[11]), get_img_link(v[14]), st.session_state.officer_name), f"{v[6]}.pdf")
-
-    elif st.session_state.traffic_page == 'dash':
-        if st.button("⬅️ กลับ"): st.session_state.traffic_page = 'teacher'; st.rerun()
-        if 'df_tra' in st.session_state:
-            st.plotly_chart(px.pie(st.session_state.df_tra, names='C7', title="ใบขับขี่"), use_container_width=True)
+                    st.markdown(f"### 👤 {v[1]} (รหัส: {v[2]})"); ci1, ci2, ci3 = st.columns(3)
+                    ci1.image(get_img_tra(v[14]), caption="เจ้าของรถ"); ci2.image(get_img_tra(v[10]), caption="หลังรถ"); ci3.image(get_img_tra(v[11]), caption="ข้างรถ")
+                    st.download_button(f"📥 โหลด PDF {v[6]}", create_pdf_tra(v, get_img_tra(v[10]), get_img_tra(v[11]), get_img_tra(v[14]), user['name']), f"{v[6]}.pdf")
+        elif st.session_state.traffic_page == 'dash':
+            if st.button("⬅️ กลับ"): st.session_state.traffic_page = 'teacher'; st.rerun()
+            st.plotly_chart(px.pie(df, names=df.columns[7], title="สัดส่วนใบขับขี่"), use_container_width=True)
 
 # ==========================================
-# 4. MAIN GATEWAY
+# 4. MAIN ENTRY
 # ==========================================
 def main():
     if not st.session_state.logged_in:
