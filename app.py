@@ -2,7 +2,7 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime, timedelta
-import pytz, random, os, base64, io, qrcode, glob, math, mimetypes, json, requests, re, textwrap, time, ast
+import pytz, random, os, base64, io, qrcode, glob, math, mimetypes, json, requests, re, textwrap, time
 from PIL import Image
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
@@ -67,7 +67,7 @@ def calculate_pagination(key, total_items, limit=5):
     return start_idx, end_idx, st.session_state[key], total_pages
 
 # ==========================================
-# 2. MODULE: INVESTIGATION (ยกมา 100% ห้ามแตะ)
+# 2. MODULE: INVESTIGATION (คงเดิม 100%)
 # ==========================================
 def create_pdf_inv(row):
     rid = str(row.get('Report_ID', '')); date_str = str(row.get('Timestamp', ''))
@@ -81,7 +81,6 @@ def create_pdf_inv(row):
     qr = qrcode.make(rid); qi = io.BytesIO(); qr.save(qi, format="PNG"); qr_b64 = base64.b64encode(qi.getvalue()).decode()
     
     img_html = ""
-    # ข้อความพยานหลักฐานและรูปภาพ
     if clean_val(row.get('Evidence_Image')):
         img_html += f"<div style='text-align:center;margin-top:10px;'><b>พยานหลักฐาน</b><br><img src='data:image/jpeg;base64,{row.get('Evidence_Image')}' style='max-width:380px;max-height:220px;object-fit:contain;border:1px solid #ccc;'></div>"
     if clean_val(row.get('Image_Data')):
@@ -233,7 +232,7 @@ def investigation_module():
     except Exception as e: st.error(f"Error: {e}")
 
 # ==========================================
-# 3. MODULE: TRAFFIC (แก้ Key Error: วนหา Credential ที่ถูกต้อง)
+# 3. MODULE: TRAFFIC (แก้เชื่อมต่อ: ใช้ st.connection เหมือนสอบสวน)
 # ==========================================
 def traffic_module():
     user = st.session_state.user_info
@@ -246,35 +245,17 @@ def traffic_module():
 
     def load_tra_data():
         try:
-            # *** FIX: Robust Credential Loader ***
-            target_key = None
-            
-            # 1. เช็ค connections.gsheets (แบบ Dict หรือ AttrDict)
-            if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
-                raw = st.secrets["connections"]["gsheets"]
-                # ถ้ามี client_id ใช้อันนี้เลย (แปลงเป็น dict ปกติ)
-                if "client_id" in raw:
-                    target_key = dict(raw)
-            
-            # 2. เช็ค textkey.json_content (แบบ String)
-            if not target_key and "textkey" in st.secrets and "json_content" in st.secrets["textkey"]:
-                try:
-                    target_key = json.loads(st.secrets["textkey"]["json_content"].replace('\n', '\\n'), strict=False)
-                except: pass
-
-            if target_key and "client_id" in target_key:
-                scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-                creds = ServiceAccountCredentials.from_json_keyfile_dict(target_key, scope)
-                sh = gspread.authorize(creds).open(SHEET_NAME_TRAFFIC).sheet1
-                vals = sh.get_all_values()
-                if len(vals) > 1:
-                    st.session_state.df_tra = pd.DataFrame(vals[1:], columns=[f"C{i}" for i, h in enumerate(vals[0])])
-                    return True
-            else:
-                st.error("Error: ไม่พบ 'client_id' ใน secrets (ตรวจสอบ secrets.toml)")
+            # *** FIX: ใช้ st.connection แบบเดียวกับ Investigation ***
+            conn = st.connection("gsheets", type=GSheetsConnection)
+            # อ่านข้อมูล
+            df = conn.read(worksheet=SHEET_NAME_TRAFFIC, ttl="0")
+            # เปลี่ยนชื่อ Column ให้ตรงกับ Logic เดิม (C0, C1, ...)
+            df.columns = [f"C{i}" for i in range(len(df.columns))]
+            st.session_state.df_tra = df.astype(str).fillna("")
+            return True
         except Exception as e:
-            st.error(f"Traffic Load Error: {e}")
-        return False
+            st.error(f"การเชื่อมต่อล้มเหลว: {e}")
+            return False
 
     def get_img_tra(url):
         m = re.search(r'/d/([a-zA-Z0-9_-]+)|id=([a-zA-Z0-9_-]+)', str(url)); fid = m.group(1) or m.group(2) if m else None
@@ -303,7 +284,7 @@ def traffic_module():
 
     # Force Load
     if st.session_state.df_tra is None:
-        with st.spinner("⏳ กำลังดึงข้อมูลจราจร..."): 
+        with st.spinner("⏳ กำลังโหลดข้อมูลจราจร..."): 
             load_tra_data()
 
     if st.session_state.df_tra is not None:
