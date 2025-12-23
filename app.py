@@ -452,7 +452,7 @@ def traffic_module():
         load_tra_data()
 
     if st.session_state.traffic_page == 'teacher':
-        # --- [ส่วนสถิติภาพรวม] ---
+        # --- [ส่วนสถิติภาพรวม: แก้ไขตามสั่ง (Int + Green + Small + No Parens)] ---
         if st.session_state.df_tra is not None:
             df = st.session_state.df_tra
             total = len(df)
@@ -461,19 +461,19 @@ def traffic_module():
             has_tax = len(df[df['C8'].str.contains("ปกติ|✅", na=False)])
             has_hel = len(df[df['C9'].str.contains("มี", na=False)])
             
-            # คำนวณ % (ป้องกันการหารด้วย 0)
-            p_lic = (has_lic / total * 100) if total > 0 else 0
-            p_tax = (has_tax / total * 100) if total > 0 else 0
-            p_hel = (has_hel / total * 100) if total > 0 else 0
+            # คำนวณ % เป็นจำนวนเต็ม (int) ตัดทศนิยมออก
+            p_lic = int((has_lic / total * 100)) if total > 0 else 0
+            p_tax = int((has_tax / total * 100)) if total > 0 else 0
+            p_hel = int((has_hel / total * 100)) if total > 0 else 0
 
-            # แสดงผล (เอาวงเล็บออก และเว้นวรรคหน้า %)
+            # แสดงผล: ใช้ style บังคับสีเขียว (#16a34a) และขนาด (1.2rem) ให้เล็กกว่าตัวเลขหลัก
             c1, c2, c3, c4 = st.columns(4)
-            c1.markdown(f"<div class='metric-card'><div class='metric-label'>ลงทะเบียน</div><div class='metric-value'>{total} <span class='pct-green' style='font-size:1rem;'>คัน</span></div></div>", unsafe_allow_html=True)
-            c2.markdown(f"<div class='metric-card'><div class='metric-label'>ใบขับขี่</div><div class='metric-value'>{has_lic} <span class='pct-green'> {p_lic:.1f}%</span></div></div>", unsafe_allow_html=True)
-            c3.markdown(f"<div class='metric-card'><div class='metric-label'>ภาษี/พรบ.</div><div class='metric-value'>{has_tax} <span class='pct-green'> {p_tax:.1f}%</span></div></div>", unsafe_allow_html=True)
-            c4.markdown(f"<div class='metric-card'><div class='metric-label'>หมวกกันน็อค</div><div class='metric-value'>{has_hel} <span class='pct-green'> {p_hel:.1f}%</span></div></div>", unsafe_allow_html=True)
+            c1.markdown(f"<div class='metric-card'><div class='metric-label'>ลงทะเบียน</div><div class='metric-value'>{total} <span style='font-size:1rem; color:#64748b; font-weight:normal;'>คน</span></div></div>", unsafe_allow_html=True)
+            c2.markdown(f"<div class='metric-card'><div class='metric-label'>ใบขับขี่</div><div class='metric-value'>{has_lic}<span style='color:#16a34a; font-size:1.2rem; font-weight:bold;'> {p_lic}%</span></div></div>", unsafe_allow_html=True)
+            c3.markdown(f"<div class='metric-card'><div class='metric-label'>ภาษี/พรบ.</div><div class='metric-value'>{has_tax}<span style='color:#16a34a; font-size:1.2rem; font-weight:bold;'> {p_tax}%</span></div></div>", unsafe_allow_html=True)
+            c4.markdown(f"<div class='metric-card'><div class='metric-label'>หมวกกันน็อค</div><div class='metric-value'>{has_hel}<span style='color:#16a34a; font-size:1.2rem; font-weight:bold;'> {p_hel}%</span></div></div>", unsafe_allow_html=True)
             st.write("") 
-        # ------------------------
+        # -------------------------------------------------------------------------
         c1, c2 = st.columns(2)
         if c1.button("🔄 ดึงข้อมูลล่าสุด"): 
             st.session_state.df_tra = None 
