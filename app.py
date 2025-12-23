@@ -27,13 +27,11 @@ st.set_page_config(page_title="ศูนย์ปฏิบัติการก�
 # --- 1.1 CSS ปรับแต่งเพื่อลดภาระเครื่อง (NO ANIMATION / MAX SPEED) ---
 st.markdown("""
 <style>
-    /* ปิด Animation ทั้งหมดในระบบเพื่อลดอาการ Lag */
+    /* ปิด Animation ทั้งหมดเพื่อความเร็วสูงสุด */
     * {
         animation: none !important;
         transition: none !important;
     }
-    
-    /* ซ่อน UI Streamlit ตามคำสั่งเดิม */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
@@ -41,7 +39,6 @@ st.markdown("""
     [data-testid="stSidebar"] {display: none;}
     [data-testid="collapsedControl"] {display: none;}
     
-    /* สไตล์ Metric Card แบบคงที่ */
     .metric-card { 
         background: white; 
         padding: 15px; 
@@ -52,8 +49,6 @@ st.markdown("""
     }
     .metric-value { font-size: 2.5rem; font-weight: 800; color: #1e293b; } 
     .metric-label { font-size: 1rem; color: #64748b; }
-    
-    /* เร่งความเร็วการแสดงผล Image */
     img { opacity: 1 !important; }
 </style>
 """, unsafe_allow_html=True)
@@ -123,7 +118,7 @@ def calculate_pagination(key, total_items, limit=5):
     return start_idx, end_idx, st.session_state[key], total_pages
 
 # ==========================================
-# 2. MODULE: INVESTIGATION (ต้นฉบับ 100%)
+# 2. MODULE: INVESTIGATION
 # ==========================================
 def create_pdf_inv(row):
     rid = str(row.get('Report_ID', '')); date_str = str(row.get('Timestamp', ''))
@@ -309,7 +304,7 @@ def investigation_module():
     except Exception as e: st.error(f"Error: {e}")
 
 # ==========================================
-# 3. MODULE: TRAFFIC (แก้ไขตามคำสั่ง: ไม่ค้นหา ไม่โชว์)
+# 3. MODULE: TRAFFIC (แก้ไขตามคำสั่ง: บังคับค้นหา)
 # ==========================================
 def traffic_module():
     user = st.session_state.user_info
@@ -468,24 +463,40 @@ def traffic_module():
         f_br = col_f3.selectbox("🏍️ ยี่ห้อรถ:", ["ทั้งหมด"] + unique_br)
         do_filter = st.button("⚡ กรองข้อมูลตามเงื่อนไข", use_container_width=True)
 
-        # Logic สำหรับการค้นหา: ล้างผลลัพธ์เก่าและแสดงเฉพาะที่ต้องการ
+        # Logic แก้ปัญหา: ไม่กรอกค้นหาแล้วเจอทั้งหมด + ล้างข้อมูลเก่า
         if do_search or do_filter:
-            st.session_state.search_results_df = None # ล้างข้อมูลเก่าทิ้งก่อน
-            if st.session_state.df_tra is None: load_tra_data()
-            if st.session_state.df_tra is not None:
-                df = st.session_state.df_tra.copy()
-                if q:
-                    df = df[df.iloc[:, [1, 2, 6]].apply(lambda r: r.astype(str).str.contains(q, case=False).any(), axis=1)]
-                if f_risk != "ทั้งหมด": 
-                    idx = 7 if "ใบขับขี่" in f_risk else (8 if "ภาษี" in f_risk else 9)
-                    df = df[df.iloc[:, idx].astype(str).str.contains("ไม่มี|ขาด")]
-                if f_lv != "ทั้งหมด": df = df[df.iloc[:, 3].astype(str).str.contains(f_lv)]
-                if f_br != "ทั้งหมด": df = df[df.iloc[:, 4] == f_br]
-                st.session_state.search_results_df = df
+            st.session_state.search_results_df = None # ล้างข้อมูลเก่าทันทีเมื่อเริ่มค้นหาใหม่
+            
+            # ตรวจสอบว่าไม่มีการกรอกข้อความและไม่มีการเลือกตัวกรอง
+            if not q.strip() and f_risk == "ทั้งหมด" and f_lv == "ทั้งหมด" and f_br == "ทั้งหมด":
+                st.error("⚠️ กรุณากรอกข้อมูลหรือเลือกตัวกรองเพื่อค้นหา")
             else:
-                st.error("โหลดข้อมูลไม่สำเร็จ")
+                if st.session_state.df_tra is None: load_tra_data()
+                if st.session_state.df_tra is not None:
+                    df = st.session_state.df_tra.copy()
+                    
+                    # ค้นหาตามข้อความ (ถ้ามี)
+                    if q.strip():
+                        df = df[df.iloc[:, [1, 2, 6]].apply(lambda r: r.astype(str).str.contains(q, case=False).any(), axis=1)]
+                    
+                    # กรองตามตัวเลือก (ถ้าเลือก)
+                    if f_risk != "ทั้งหมด": 
+                        idx = 7 if "ใบขับขี่" in f_risk else (8 if "ภาษี" in f_risk else 9)
+                        df = df[df.iloc[:, idx].astype(str).str.contains("ไม่มี|ขาด")]
+                    if f_lv != "ทั้งหมด": 
+                        df = df[df.iloc[:, 3].astype(str).str.contains(f_lv)]
+                    if f_br != "ทั้งหมด": 
+                        df = df[df.iloc[:, 4] == f_br]
+                    
+                    # กรณีผลลัพธ์เป็นทั้งหมดจากการกรอกเงื่อนไขกว้างๆ เกินไป (ป้องกันการหลุดแสดงทั้งหมดโดยไม่ตั้งใจ)
+                    if len(df) == len(st.session_state.df_tra) and not q.strip():
+                         st.warning("ℹ️ ข้อมูลกว้างเกินไป กรุณาระบุรายละเอียดเพิ่มเติม")
+                         st.session_state.search_results_df = None
+                    else:
+                         st.session_state.search_results_df = df
+                else:
+                    st.error("โหลดข้อมูลไม่สำเร็จ")
 
-        # แสดงผลเฉพาะเมื่อมีการกดค้นหาเท่านั้น
         if st.session_state.search_results_df is not None:
             target_df = st.session_state.search_results_df
             if target_df.empty: st.warning("❌ ไม่พบข้อมูล")
@@ -524,7 +535,6 @@ def traffic_module():
                                     st.success("บันทึกแล้ว"); load_tra_data(); st.rerun()
                                 elif (deduct or add): st.error("รหัสผิดหรือข้อมูลไม่ครบ")
         else:
-            # หากยังไม่ค้นหา ให้แสดงข้อความแจ้งเตือนสีฟ้าเพียงอย่างเดียว
             st.info("ℹ️ กรุณากรอกคำค้นหาหรือใช้ตัวกรองเพื่อแสดงข้อมูล")
 
         st.markdown("---")
@@ -630,7 +640,7 @@ def main():
                     if st.button("เข้าใช้งานจราจร", use_container_width=True, type='primary', key="btn_to_tra"):
                         st.session_state.current_dept = "tra"
                         st.session_state.traffic_page = 'teacher'
-                        st.session_state.search_results_df = None # ล้างค่าค้นหาเดิมเมื่อกดเข้าแผนก
+                        st.session_state.search_results_df = None # ล้างค่าค้นหาเดิมเพื่อความปลอดภัย
                         st.rerun()
         else:
             if st.session_state.current_dept == "inv": investigation_module()
