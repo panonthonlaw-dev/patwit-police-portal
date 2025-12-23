@@ -30,7 +30,8 @@ states = {
     'view_mode': 'list', 'selected_case_id': None, 'unlock_password': "",
     'page_pending': 1, 'page_finished': 1, 'search_query_main': "",
     'traffic_page': 'teacher', 'df_tra': None, 'search_results_df': None, 
-    'current_user_pwd': "", 'last_active': time.time(), 'edit_data': None, 'reset_count': 0
+    'current_user_pwd': "", 'last_active': time.time(), 'edit_data': None, 'reset_count': 0,
+    'preserve_search': False
 }
 for key, val in states.items():
     if key not in st.session_state: st.session_state[key] = val
@@ -42,9 +43,9 @@ FONT_BOLD = os.path.join(BASE_DIR, "THSarabunNewBold.ttf")
 # Configs
 SHEET_NAME_TRAFFIC = "Motorcycle_DB"
 DRIVE_FOLDER_ID = "1WQGATGaGBoIjf44Yj_-DjuX8LZ8kbmBA"
+GAS_APP_URL = "https://script.google.com/macros/s/AKfycbxRf6z032SxMkiI4IxtUBvWLKeo1LmIQAUMByoXidy4crNEwHoO6h0B-3hT0X7Q5g/exec"
 UPGRADE_PASSWORD = st.secrets.get("UPGRADE_PASSWORD", "Patwitsafe")
 OFFICER_ACCOUNTS = st.secrets.get("OFFICER_ACCOUNTS", {})
-GAS_APP_URL = "https://script.google.com/macros/s/AKfycbxRf6z032SxMkiI4IxtUBvWLKeo1LmIQAUMByoXidy4crNEwHoO6h0B-3hT0X7Q5g/exec"
 
 # Logo
 LOGO_PATH = next((f for f in glob.glob(os.path.join(BASE_DIR, "school_logo*")) if os.path.isfile(f)), 
@@ -73,7 +74,7 @@ def calculate_pagination(key, total_items, limit=5):
     return start_idx, end_idx, st.session_state[key], total_pages
 
 # ==========================================
-# 2. MODULE: INVESTIGATION (ต้นฉบับ 100% ห้ามแก้)
+# 2. MODULE: INVESTIGATION (คงเดิม 100%)
 # ==========================================
 def create_pdf_inv(row):
     rid = str(row.get('Report_ID', '')); date_str = str(row.get('Timestamp', ''))
@@ -238,14 +239,14 @@ def investigation_module():
     except Exception as e: st.error(f"Error: {e}")
 
 # ==========================================
-# 3. MODULE: TRAFFIC (ใช้ Logic ต้นฉบับ 100% + Fixed Credentials Priority)
+# 3. MODULE: TRAFFIC (CODE สมบูรณ์ + Robust Connection + Fixed Key Priority)
 # ==========================================
 def traffic_module():
     user = st.session_state.user_info
-    # Sync User Data
     st.session_state.officer_name = user.get('name', 'N/A')
     st.session_state.officer_role = user.get('role', 'teacher')
-    
+    st.session_state.current_user_pwd = st.session_state.current_user_pwd 
+
     st.sidebar.button("⬅️ กลับหน้าเลือกแผนก", on_click=lambda: setattr(st.session_state, 'current_dept', None), width='stretch')
     
     st.markdown("""<style>
@@ -254,25 +255,21 @@ def traffic_module():
         .metric-label { font-size: 1rem; color: #64748b; }
     </style>""", unsafe_allow_html=True)
 
-    # --- CONNECT (PRIORITY: Textkey -> Connections) ---
+    # --- CONNECT (PRIORITY: Textkey First) ---
     def connect_gsheet_universal():
-        # Priority 1: textkey (ตามที่คุณมีข้อมูลครบ)
+        # Priority 1: textkey (ตามที่คุณให้มา)
         if "textkey" in st.secrets and "json_content" in st.secrets["textkey"]:
             try:
-                # Cleaning string content
                 key_str = st.secrets["textkey"]["json_content"]
                 key_str = key_str.strip()
                 if key_str.startswith("'") and key_str.endswith("'"): key_str = key_str[1:-1]
                 if key_str.startswith('"') and key_str.endswith('"'): key_str = key_str[1:-1]
-                
-                # Parse
                 try: creds_dict = json.loads(key_str, strict=False)
                 except: creds_dict = json.loads(key_str.replace('\n', '\\n'), strict=False)
-                
                 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
                 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
                 return gspread.authorize(creds).open(SHEET_NAME_TRAFFIC).sheet1
-            except: pass # ถ้าพัง ให้ไปลอง Priority 2
+            except: pass
 
         # Priority 2: connections.gsheets
         if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
@@ -306,7 +303,6 @@ def traffic_module():
         file_id = match.group(1) or match.group(2) if match else None
         return f"https://drive.google.com/thumbnail?id={file_id}&sz=w800" if file_id else url
 
-    # --- PDF Copy-Paste จากต้นฉบับ ---
     def create_pdf_tra(vals, img_url1, img_url2, face_url=None, printed_by="ระบบอัตโนมัติ"):
         buffer = io.BytesIO(); c = canvas.Canvas(buffer, pagesize=A4); width, height = A4
         if os.path.exists(FONT_FILE):
@@ -316,55 +312,38 @@ def traffic_module():
         else: fn, fb = 'Helvetica', 'Helvetica-Bold'
         logo = next((f for f in ["logo.png", "logo.jpg", "logo"] if os.path.exists(f)), None)
         if logo: c.drawImage(logo, 50, height - 85, width=50, height=50, mask='auto')
-        
         c.setFont(fb, 22); c.drawCentredString(width/2, height - 50, "แบบทะเบียนประวัติรถจักรยานยนต์นักเรียน")
         c.setFont(fn, 18); c.drawCentredString(width/2, height - 72, "โรงเรียนโพนทองพัฒนาวิทยา")
         c.line(50, height - 85, width - 50, height - 85)
-        
         name, std_id, classroom, brand, color, plate = str(vals[1]), str(vals[2]), str(vals[3]), str(vals[4]), str(vals[5]), str(vals[6])
         lic_s, tax_s, hel_s = str(vals[7]), str(vals[8]), str(vals[9])
         raw_note = str(vals[12]).strip() if len(vals) > 12 else ""
         note_text = raw_note if raw_note and raw_note.lower() != "nan" else "ไม่พบประวัติ"
         score = str(vals[13]) if len(vals) > 13 and str(vals[13]).lower() != "nan" else "100"
-        
-        c.setFont(fn, 16)
-        c.drawString(60, height - 115, f"ชื่อ-นามสกุล: {name}"); c.drawString(300, height - 115, f"ยี่ห้อรถ: {brand}")
+        c.setFont(fn, 16); c.drawString(60, height - 115, f"ชื่อ-นามสกุล: {name}"); c.drawString(300, height - 115, f"ยี่ห้อรถ: {brand}")
         c.drawString(60, height - 135, f"รหัสนักเรียน: {std_id}"); c.drawString(300, height - 135, f"สีรถ: {color}")
         c.drawString(60, height - 155, f"ระดับชั้น: {classroom}"); c.setFont(fb, 16); c.drawString(300, height - 155, f"ทะเบียน: {plate}")
-        
         c.setFont(fb, 18); color_val = (0.7, 0, 0) if int(score) < 80 else (0, 0.5, 0); c.setFillColorRGB(*color_val)
         c.drawString(60, height - 185, f"คะแนนความประพฤติจราจรคงเหลือ: {score} คะแนน"); c.setFillColorRGB(0, 0, 0)
         c.setFont(fn, 16); lm = "(/)" if "มี" in lic_s else "( )"; tm = "(/)" if "ปกติ" in tax_s or "✅" in tax_s else "( )"; hm = "(/)" if "มี" in hel_s else "( )"
         c.drawString(60, height - 210, f"สถานะเอกสาร:  {lm} ใบขับขี่    {tm} ภาษี/พรบ.    {hm} หมวกกันน็อค")
-        
         def draw_img(url, x, y, w, h):
             try:
                 if url:
                     res = requests.get(url, timeout=5); img_data = ImageReader(io.BytesIO(res.content))
                     c.drawImage(img_data, x, y, width=w, height=h, preserveAspectRatio=True, mask='auto'); c.rect(x, y, w, h)
             except: pass
-
-        draw_img(img_url1, 70, height - 415, 180, 180)
-        draw_img(img_url2, 300, height - 415, 180, 180)
-
+        draw_img(img_url1, 70, height - 415, 180, 180); draw_img(img_url2, 300, height - 415, 180, 180)
         note_y = height - 455; c.setFont(fb, 16); c.drawString(60, note_y, "ประวัติบันทึกการทำผิดวินัยจราจร:")
         c.setFont(fn, 15); text_obj = c.beginText(70, note_y - 25); text_obj.setLeading(20)
         for line in note_text.split('\n'):
             for w_line in textwrap.wrap(line, width=75): text_obj.textLine(w_line)
         c.drawText(text_obj)
-        
         sign_y = 180 
-        c.setFont(fn, 16)
-        c.drawString(60, sign_y, "ลงชื่อ ......................................... เจ้าของรถ")
-        c.drawString(100, sign_y - 20, f"({name})")
-
+        c.setFont(fn, 16); c.drawString(60, sign_y, "ลงชื่อ ......................................... เจ้าของรถ"); c.drawString(100, sign_y - 20, f"({name})")
         if face_url: draw_img(face_url, 450, height - 200, 90, 110)
-
-        c.drawString(320, sign_y, "ลงชื่อ ......................................... ครูผู้ตรวจสอบ")
-        c.drawString(340, sign_y - 20, "(.........................................)")
-        
-        c.setFont(fn, 10)
-        c.setFillColorRGB(0.5, 0.5, 0.5)
+        c.drawString(320, sign_y, "ลงชื่อ ......................................... ครูผู้ตรวจสอบ"); c.drawString(340, sign_y - 20, "(.........................................)")
+        c.setFont(fn, 10); c.setFillColorRGB(0.5, 0.5, 0.5)
         print_time = (datetime.now() + timedelta(hours=7)).strftime('%d/%m/%Y %H:%M')
         c.drawRightString(width - 30, 20, f"พิมพ์โดย: {printed_by} | เมื่อ: {print_time}")
         c.save(); buffer.seek(0); return buffer
@@ -387,10 +366,10 @@ def traffic_module():
             # Metrics
             total = len(df); lok = df[df.iloc[:,7].str.contains("มี", na=False)].shape[0]; tok = df[df.iloc[:,8].str.contains("ปกติ|✅", na=False)].shape[0]; hok = df[df.iloc[:,9].str.contains("มี", na=False)].shape[0]
             m1, m2, m3, m4 = st.columns(4)
-            with m1: st.markdown(f'<div class="metric-card"><div class="metric-value">{total}</div><div class="metric-label">รถทั้งหมด</div></div>', unsafe_allow_html=True)
-            with m2: st.markdown(f'<div class="metric-card"><div class="metric-value">{lok}</div><div class="metric-label">ใบขับขี่</div></div>', unsafe_allow_html=True)
-            with m3: st.markdown(f'<div class="metric-card"><div class="metric-value">{tok}</div><div class="metric-label">ภาษี</div></div>', unsafe_allow_html=True)
-            with m4: st.markdown(f'<div class="metric-card"><div class="metric-value">{hok}</div><div class="metric-label">หมวก</div></div>', unsafe_allow_html=True)
+            with m1: st.markdown(f'<div class="metric-card"><div class="metric-value">{total}</div><div class="metric-percent">100%</div><div class="metric-label">รถทั้งหมด</div></div>', unsafe_allow_html=True)
+            with m2: p = (lok/total*100) if total else 0; st.markdown(f'<div class="metric-card"><div class="metric-value">{lok}</div><div class="metric-percent">{p:.1f}%</div><div class="metric-label">ใบขับขี่</div></div>', unsafe_allow_html=True)
+            with m3: p = (tok/total*100) if total else 0; st.markdown(f'<div class="metric-card"><div class="metric-value">{tok}</div><div class="metric-percent">{p:.1f}%</div><div class="metric-label">ภาษี</div></div>', unsafe_allow_html=True)
+            with m4: p = (hok/total*100) if total else 0; st.markdown(f'<div class="metric-card"><div class="metric-value">{hok}</div><div class="metric-percent">{p:.1f}%</div><div class="metric-label">หมวก</div></div>', unsafe_allow_html=True)
             
             st.markdown("---")
             q = st.text_input("🔍 ค้นหา (ชื่อ/รหัส/ทะเบียน)", on_change=lambda: setattr(st.session_state, 'search_results_df', None))
@@ -496,20 +475,20 @@ def traffic_module():
             with c3: st.plotly_chart(px.pie(df, names='Col_9', title="หมวก", hole=0.3), use_container_width=True)
 
 # ==========================================
-# 4. MAIN ENTRY
+# 4. MAIN ENTRY (แก้ไขจุดบั๊ก st.image)
 # ==========================================
 def main():
-    # ... (ส่วน Login หน้าใหม่ที่ผมทำให้ก่อนหน้า ให้นำมารวมตรงนี้) ...
-    # เนื่องจากข้อจำกัดความยาว ผมจะคงส่วน Main เดิมที่เวิร์คไว้
-    # คุณสามารถเอาโค้ด Login หน้าสวยที่ผมทำให้ใน Turn ที่แล้วมาแทนที่ส่วนนี้ได้เลยครับ
     if not st.session_state.logged_in:
         _, col, _ = st.columns([1, 1.2, 1])
         with col:
             st.markdown("<br><br>", unsafe_allow_html=True)
             with st.container(border=True):
-                # ตกแต่ง Header ตามที่ขอมาล่าสุด
-                st.image(LOGO_PATH, width=100) if LOGO_PATH else None
+                if LOGO_PATH:
+                    c_img, _ = st.columns([1, 0.1])
+                    st.image(LOGO_PATH, width=120)
+                
                 st.markdown("<h3 style='text-align:center;'>ศูนย์ปฏิบัติการกลาง<br>สถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</h3>", unsafe_allow_html=True)
+                
                 pwd_in = st.text_input("รหัสผ่านเจ้าหน้าที่", type="password")
                 if st.button("เข้าสู่ระบบ", width='stretch', type='primary'):
                     accs = st.secrets.get("OFFICER_ACCOUNTS", {})
