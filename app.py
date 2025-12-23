@@ -24,7 +24,7 @@ import plotly.express as px
 # ==========================================
 st.set_page_config(page_title="ระบบเจ้าหน้าที่ส่วนกลาง", page_icon="👮‍♂️", layout="wide")
 
-# Session States (คงเดิม)
+# Session States
 states = {
     'logged_in': False, 'user_info': {}, 'current_dept': None, 'current_user': None,
     'view_mode': 'list', 'selected_case_id': None, 'unlock_password': "",
@@ -38,7 +38,7 @@ for key, val in states.items():
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FONT_FILE = os.path.join(BASE_DIR, "THSarabunNew.ttf")
 FONT_BOLD = os.path.join(BASE_DIR, "THSarabunNewBold.ttf")
-SHEET_NAME_TRAFFIC = "Motorcycle_DB" # ชื่อ Sheet งานจราจร
+SHEET_NAME_TRAFFIC = "Motorcycle_DB"
 
 # Logo
 LOGO_PATH = next((f for f in glob.glob(os.path.join(BASE_DIR, "school_logo*")) if os.path.isfile(f)), 
@@ -67,7 +67,7 @@ def calculate_pagination(key, total_items, limit=5):
     return start_idx, end_idx, st.session_state[key], total_pages
 
 # ==========================================
-# 2. MODULE: INVESTIGATION (ยกมา 100% ห้ามแก้)
+# 2. MODULE: INVESTIGATION (คงเดิม 100%)
 # ==========================================
 def create_pdf_inv(row):
     rid = str(row.get('Report_ID', '')); date_str = str(row.get('Timestamp', ''))
@@ -81,7 +81,6 @@ def create_pdf_inv(row):
     qr = qrcode.make(rid); qi = io.BytesIO(); qr.save(qi, format="PNG"); qr_b64 = base64.b64encode(qi.getvalue()).decode()
     
     img_html = ""
-    # พยานหลักฐาน
     if clean_val(row.get('Evidence_Image')):
         img_html += f"<div style='text-align:center;margin-top:10px;'><b>พยานหลักฐาน</b><br><img src='data:image/jpeg;base64,{row.get('Evidence_Image')}' style='max-width:380px;max-height:220px;object-fit:contain;border:1px solid #ccc;'></div>"
     if clean_val(row.get('Image_Data')):
@@ -233,7 +232,7 @@ def investigation_module():
     except Exception as e: st.error(f"Error: {e}")
 
 # ==========================================
-# 3. MODULE: TRAFFIC (แก้ให้ใช้ st.connection เพื่อจบปัญหา Key Error)
+# 3. MODULE: TRAFFIC (แก้ให้โชว์อีเมลถ้าเชื่อมต่อไม่ได้)
 # ==========================================
 def traffic_module():
     user = st.session_state.user_info
@@ -246,18 +245,33 @@ def traffic_module():
 
     def load_tra_data():
         try:
-            # *** FIX: เปลี่ยนมาใช้ st.connection เหมือน Investigation เพื่อความชัวร์ ***
-            # วิธีนี้ Streamlit จะจัดการ Authentication ให้เอง ไม่ต้องแกะ Key
-            conn = st.connection("gsheets", type=GSheetsConnection)
-            # โหลดข้อมูลจาก Worksheet ชื่อ Motorcycle_DB
-            df = conn.read(worksheet=SHEET_NAME_TRAFFIC, ttl="0")
-            # เปลี่ยนชื่อ Column เป็น C0, C1, ... เพื่อให้ตรงกับ Code เดิม
-            df.columns = [f"C{i}" for i in range(len(df.columns))]
-            st.session_state.df_tra = df.astype(str).fillna("")
-            return True
+            # 1. ดึง Credentials จาก connections.gsheets ที่ใช้ได้ชัวร์
+            if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
+                creds_dict = dict(st.secrets["connections"]["gsheets"])
+                
+                # 2. เชื่อมต่อ
+                scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+                creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+                client = gspread.authorize(creds)
+                
+                # 3. เปิดไฟล์ (ถ้าพังตรงนี้แสดงว่าไม่ได้ Share)
+                try:
+                    sheet = client.open(SHEET_NAME_TRAFFIC).sheet1
+                    vals = sheet.get_all_values()
+                    if len(vals) > 1:
+                        st.session_state.df_tra = pd.DataFrame(vals[1:], columns=[f"C{i}" for i, h in enumerate(vals[0])])
+                        return True
+                except gspread.exceptions.SpreadsheetNotFound:
+                    # *** จุดสำคัญ: แจ้งเตือนให้แชร์ไฟล์ ***
+                    client_email = creds_dict.get("client_email", "ไม่ทราบอีเมล")
+                    st.error(f"⚠️ ไม่พบไฟล์ชื่อ '{SHEET_NAME_TRAFFIC}' หรือยังไม่มีสิทธิ์เข้าถึง")
+                    st.warning(f"กรุณาไปที่ Google Sheet '{SHEET_NAME_TRAFFIC}' แล้วกด Share ให้กับอีเมลนี้:\n\n**{client_email}**\n\n(เลือกสิทธิ์เป็น Editor)")
+                    return False
+            else:
+                st.error("ไม่พบ Credentials ใน secrets.toml")
         except Exception as e:
-            st.error(f"ไม่สามารถโหลดข้อมูลจราจรได้: {e}")
-            return False
+            st.error(f"Traffic Connection Error: {e}")
+        return False
 
     def get_img_tra(url):
         m = re.search(r'/d/([a-zA-Z0-9_-]+)|id=([a-zA-Z0-9_-]+)', str(url)); fid = m.group(1) or m.group(2) if m else None
@@ -286,7 +300,7 @@ def traffic_module():
 
     # Force Load
     if st.session_state.df_tra is None:
-        with st.spinner("⏳ กำลังโหลดข้อมูลจราจร..."): 
+        with st.spinner("⏳ กำลังเชื่อมต่อฐานข้อมูลจราจร..."): 
             load_tra_data()
 
     if st.session_state.df_tra is not None:
@@ -319,6 +333,10 @@ def traffic_module():
         elif st.session_state.traffic_page == 'dash':
             if st.button("⬅️ กลับ"): st.session_state.traffic_page = 'teacher'; st.rerun()
             st.plotly_chart(px.pie(df, names=df.columns[7], title="สัดส่วนใบขับขี่"), use_container_width=True)
+    else:
+        # กรณีโหลดไม่ได้ จะมี Error Message จาก load_tra_data() แสดงอยู่แล้ว
+        if st.button("ลองโหลดใหม่"):
+            st.rerun()
 
 # ==========================================
 # 4. MAIN ENTRY
