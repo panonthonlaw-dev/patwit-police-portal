@@ -24,7 +24,7 @@ import plotly.express as px
 # ==========================================
 st.set_page_config(page_title="ระบบเจ้าหน้าที่ส่วนกลาง", page_icon="👮‍♂️", layout="wide")
 
-# คืนค่า Session State (ตามต้นฉบับ 100%)
+# Session States
 states = {
     'logged_in': False, 'user_info': {}, 'current_dept': None, 'current_user': None,
     'view_mode': 'list', 'selected_case_id': None, 'unlock_password': "",
@@ -39,10 +39,6 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FONT_FILE = os.path.join(BASE_DIR, "THSarabunNew.ttf")
 FONT_BOLD = os.path.join(BASE_DIR, "THSarabunNewBold.ttf")
 SHEET_NAME_TRAFFIC = "Motorcycle_DB"
-DRIVE_FOLDER_ID = "1WQGATGaGBoIjf44Yj_-DjuX8LZ8kbmBA"
-UPGRADE_PASSWORD = st.secrets.get("UPGRADE_PASSWORD", "Patwitnext")
-OFFICER_ACCOUNTS = st.secrets.get("OFFICER_ACCOUNTS", {})
-GAS_APP_URL = "https://script.google.com/macros/s/AKfycbxRf6z032SxMkiI4IxtUBvWLKeo1LmIQAUMByoXidy4crNEwHoO6h0B-3hT0X7Q5g/exec"
 
 # Logo
 LOGO_PATH = next((f for f in glob.glob(os.path.join(BASE_DIR, "school_logo*")) if os.path.isfile(f)), 
@@ -85,6 +81,7 @@ def create_pdf_inv(row):
     qr = qrcode.make(rid); qi = io.BytesIO(); qr.save(qi, format="PNG"); qr_b64 = base64.b64encode(qi.getvalue()).decode()
     
     img_html = ""
+    # เพิ่มข้อความพยานหลักฐานตามสั่ง
     if clean_val(row.get('Evidence_Image')):
         img_html += f"<div style='text-align:center;margin-top:10px;'><b>พยานหลักฐาน</b><br><img src='data:image/jpeg;base64,{row.get('Evidence_Image')}' style='max-width:380px;max-height:220px;object-fit:contain;border:1px solid #ccc;'></div>"
     if clean_val(row.get('Image_Data')):
@@ -174,8 +171,8 @@ def investigation_module():
                 if tc > 0:
                     m1, m2, m3 = st.columns(3)
                     m1.metric("แจ้งเหตุทั้งหมด", f"{tc} ครั้ง")
-                    m2.metric("สถานที่บ่อยสุด", df_display['Location'].mode()[0] if not df_display.empty else "-")
-                    m3.metric("เหตุบ่อยสุด", df_display['Incident_Type'].mode()[0] if not df_display.empty else "-")
+                    m2.metric("สถานที่เกิดเหตุบ่อยสุด", df_display['Location'].mode()[0] if not df_display.empty else "-")
+                    m3.metric("เหตุที่เกิดบ่อยสุด", df_display['Incident_Type'].mode()[0] if not df_display.empty else "-")
                     st.markdown("---")
                     c_text1, c_text2 = st.columns(2)
                     with c_text1:
@@ -201,7 +198,8 @@ def investigation_module():
                 with st.container(border=True):
                     st.write(f"**ผู้แจ้ง:** {row['Reporter']} | **สถานที่:** {row['Location']}"); st.info(f"**รายละเอียด:** {row['Details']}")
                     if clean_val(row['Image_Data']): st.image(base64.b64decode(row['Image_Data']), width=500)
-                cur_sta = clean_val(row['Status']); is_lock = (cur_sta == "ดำเนินการเรียบร้อย" and st.session_state.unlock_password != "Patwit1510")
+                cur_sta = clean_val(row['Status'])
+                is_lock = (cur_sta == "ดำเนินการเรียบร้อย" and st.session_state.unlock_password != "Patwit1510")
                 if user.get('role') != 'admin': is_lock = True
                 
                 if is_lock and cur_sta == "ดำเนินการเรียบร้อย" and user.get('role') == 'admin':
@@ -230,12 +228,12 @@ def investigation_module():
                 st.divider()
                 try:
                     pdf_data = create_pdf_inv(row)
-                    st.download_button(label="📥 ดาวน์โหลด PDF (สำนวนคดี)", data=pdf_data, file_name=f"Report_{sid}.pdf", mime="application/pdf", use_container_width=True, type="primary")
+                    st.download_button(label="📥 ดาวน์โหลด PDF", data=pdf_data, file_name=f"Report_{sid}.pdf", mime="application/pdf", use_container_width=True, type="primary")
                 except: st.error("PDF ขัดข้อง")
     except Exception as e: st.error(f"Error: {e}")
 
 # ==========================================
-# 3. MODULE: TRAFFIC (เจ้าหน้าที่ 100% + Fix Syntax)
+# 3. MODULE: TRAFFIC (เจ้าหน้าที่ 100% - แก้ปัญหาหน้าจอขาว)
 # ==========================================
 def traffic_module():
     user = st.session_state.user_info
@@ -253,7 +251,8 @@ def traffic_module():
             sh = gspread.authorize(creds).open(SHEET_NAME_TRAFFIC).sheet1
             vals = sh.get_all_values()
             if len(vals) > 1: st.session_state.df_tra = pd.DataFrame(vals[1:], columns=[f"C{i}" for i, h in enumerate(vals[0])])
-        except: pass
+            return True
+        except: return False
 
     def get_img_tra(url):
         m = re.search(r'/d/([a-zA-Z0-9_-]+)|id=([a-zA-Z0-9_-]+)', str(url)); fid = m.group(1) or m.group(2) if m else None
@@ -280,14 +279,18 @@ def traffic_module():
         draw_img(img_url1, 70, height - 415, 180, 180); draw_img(img_url2, 300, height - 415, 180, 180)
         c.save(); buffer.seek(0); return buffer
 
+    # บังคับโหลดจราจร (แก้ไขจุดที่ข้อมูลไม่ขึ้น)
     if st.session_state.df_tra is None:
-        with st.spinner("⏳ กำลังโหลดข้อมูลจราจร..."): load_tra_data()
+        with st.spinner("⏳ กำลังโหลดข้อมูลจราจร..."):
+            success = load_tra_data()
+            if not success:
+                st.error("ไม่สามารถโหลดข้อมูลได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต")
+                if st.button("ลองโหลดใหม่อีกครั้ง"): st.rerun()
 
     if st.session_state.df_tra is not None:
         df = st.session_state.df_tra
         col_u, col_l = st.columns([3, 1])
         col_u.info(f"👤 ผู้ใช้งานจราจร: {user['name']} (สิทธิ์: {user['role']})")
-        # --- FIXED SYNTAX ERROR ---
         with col_l:
             if st.button("🚪 Logout", key="tra_logout"):
                 st.session_state.clear(); st.rerun()
