@@ -239,7 +239,7 @@ def investigation_module():
     except Exception as e: st.error(f"Error: {e}")
 
 # ==========================================
-# 3. MODULE: TRAFFIC (CODE สมบูรณ์ + ค้นหาถึงโชว์ + ล้างค่าได้)
+# 3. MODULE: TRAFFIC (CODE สมบูรณ์ + ค้นหาถึงโชว์ + ล้างค่าได้ + กรองได้)
 # ==========================================
 def traffic_module():
     user = st.session_state.user_info
@@ -349,17 +349,10 @@ def traffic_module():
         c.drawText(text_obj)
         
         sign_y = 180 
-        c.setFont(fn, 16)
-        c.drawString(60, sign_y, "ลงชื่อ ......................................... เจ้าของรถ")
-        c.drawString(100, sign_y - 20, f"({name})")
-
+        c.setFont(fn, 16); c.drawString(60, sign_y, "ลงชื่อ ......................................... เจ้าของรถ"); c.drawString(100, sign_y - 20, f"({name})")
         if face_url: draw_img(face_url, 450, height - 200, 90, 110)
-
-        c.drawString(320, sign_y, "ลงชื่อ ......................................... ครูผู้ตรวจสอบ")
-        c.drawString(340, sign_y - 20, "(.........................................)")
-        
-        c.setFont(fn, 10)
-        c.setFillColorRGB(0.5, 0.5, 0.5)
+        c.drawString(320, sign_y, "ลงชื่อ ......................................... ครูผู้ตรวจสอบ"); c.drawString(340, sign_y - 20, "(.........................................)")
+        c.setFont(fn, 10); c.setFillColorRGB(0.5, 0.5, 0.5)
         print_time = (datetime.now() + timedelta(hours=7)).strftime('%d/%m/%Y %H:%M')
         c.drawRightString(width - 30, 20, f"พิมพ์โดย: {printed_by} | เมื่อ: {print_time}")
         c.save(); buffer.seek(0); return buffer
@@ -390,18 +383,49 @@ def traffic_module():
 
         if do_clear:
             st.session_state.search_results_df = None
-            st.session_state.df_tra = None # Optional: if you want to force reload next time
+            st.session_state.df_tra = None 
             st.rerun()
 
-        if do_search and q:
+        # --- FILTERS (กลับมาแล้ว) ---
+        st.write("▼ ตัวกรองข้อมูล (เลือกแล้วกดปุ่ม '⚡ กรองข้อมูล')")
+        col_f1, col_f2, col_f3 = st.columns(3)
+        # เตรียมตัวเลือกสำหรับ Dropdown (ถ้ายังไม่โหลดข้อมูล ให้แสดง Default)
+        if st.session_state.df_tra is not None:
+            unique_lv = sorted(list(set([str(x).split('/')[0] for x in st.session_state.df_tra.iloc[:, 3].unique()])))
+            unique_br = sorted(list(set(st.session_state.df_tra.iloc[:, 4].unique())))
+        else:
+            unique_lv = []
+            unique_br = []
+
+        f_risk = col_f1.selectbox("🚨 กรองกลุ่มปัญหา:", ["ทั้งหมด", "❌ ไม่มีใบขับขี่", "❌ ภาษีขาด", "❌ ไม่สวมหมวก"])
+        f_lv = col_f2.selectbox("📚 ระดับชั้น:", ["ทั้งหมด"] + unique_lv)
+        f_br = col_f3.selectbox("🏍️ ยี่ห้อรถ:", ["ทั้งหมด"] + unique_br)
+        
+        do_filter = st.button("⚡ กรองข้อมูลตามเงื่อนไข", use_container_width=True)
+
+        # Logic Processing
+        if do_search or do_filter:
             if st.session_state.df_tra is None: 
                 with st.spinner("⏳ กำลังโหลดฐานข้อมูล..."):
                     load_tra_data()
             
             if st.session_state.df_tra is not None:
-                df = st.session_state.df_tra
-                res = df[df.iloc[:, [1, 2, 6]].apply(lambda r: r.astype(str).str.contains(q, case=False).any(), axis=1)]
-                st.session_state.search_results_df = res
+                df = st.session_state.df_tra.copy()
+                
+                # Apply Text Search
+                if q:
+                    df = df[df.iloc[:, [1, 2, 6]].apply(lambda r: r.astype(str).str.contains(q, case=False).any(), axis=1)]
+                
+                # Apply Filters
+                if f_risk != "ทั้งหมด": 
+                    idx = 7 if "ใบขับขี่" in f_risk else (8 if "ภาษี" in f_risk else 9)
+                    df = df[df.iloc[:, idx].astype(str).str.contains("ไม่มี|ขาด")]
+                if f_lv != "ทั้งหมด": 
+                    df = df[df.iloc[:, 3].astype(str).str.contains(f_lv)]
+                if f_br != "ทั้งหมด": 
+                    df = df[df.iloc[:, 4] == f_br]
+
+                st.session_state.search_results_df = df
             else:
                 st.error("ไม่สามารถโหลดข้อมูลได้")
 
@@ -412,9 +436,7 @@ def traffic_module():
             if target_df.empty:
                 st.warning("❌ ไม่พบข้อมูลที่ค้นหา")
             else:
-                # Show Overview Metrics for the search result (Optional, but nice)
                 st.success(f"ค้นพบ {len(target_df)} รายการ")
-                
                 for i, row in target_df.iterrows():
                     v = row.tolist(); sc = int(v[13]) if len(v)>13 and str(v[13]).isdigit() else 100
                     sc_color = "#22c55e" if sc >= 80 else ("#eab308" if sc >= 50 else "#ef4444")
@@ -454,11 +476,9 @@ def traffic_module():
                                     st.success("บันทึกแล้ว"); load_tra_data(); st.rerun()
                                 elif (deduct or add): st.error("รหัสผิดหรือข้อมูลไม่ครบ")
         else:
-            st.info("ℹ️ กรุณากรอกคำค้นหาและกดปุ่ม 'ค้นหา' เพื่อแสดงข้อมูล")
+            st.info("ℹ️ กรุณากรอกคำค้นหาหรือใช้ตัวกรองเพื่อแสดงข้อมูล")
 
-        # --- Filters (Optional: Show only if needed, or always show below) ---
-        # (ตัดส่วน Filters ออกตาม Concept 'No data until search' เพื่อความสะอาด)
-        
+        # --- Promotion System (กลับมาแล้ว) ---
         st.markdown("---")
         if st.session_state.current_user_pwd == "Patwit1510":
             with st.expander("⚙️ ระบบจัดการเลื่อนชั้นเรียน (Super Admin Only)"):
@@ -509,7 +529,7 @@ def traffic_module():
             with m2: st.markdown(f'<div class="metric-card"><div class="metric-value">{lok}</div><div class="metric-label">มีใบขับขี่</div></div>', unsafe_allow_html=True)
 
 # ==========================================
-# 4. MAIN ENTRY (แก้ไขบั๊ก st.image)
+# 4. MAIN ENTRY
 # ==========================================
 def main():
     if not st.session_state.logged_in:
