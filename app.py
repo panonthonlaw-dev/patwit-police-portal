@@ -452,6 +452,28 @@ def traffic_module():
         load_tra_data()
 
     if st.session_state.traffic_page == 'teacher':
+        # --- [ส่วนที่เพิ่ม 1] สถิติภาพรวม ---
+        if st.session_state.df_tra is not None:
+            df = st.session_state.df_tra
+            total = len(df)
+            # นับจำนวน (แก้เงื่อนไขสตริงตามข้อมูลจริงใน Sheet)
+            has_lic = len(df[df['C7'].str.contains("มี", na=False)])
+            has_tax = len(df[df['C8'].str.contains("ปกติ|✅", na=False)])
+            has_hel = len(df[df['C9'].str.contains("มี", na=False)])
+            
+            # คำนวณเปอร์เซ็นต์
+            p_lic = (has_lic / total * 100) if total > 0 else 0
+            p_tax = (has_tax / total * 100) if total > 0 else 0
+            p_hel = (has_hel / total * 100) if total > 0 else 0
+
+            # แสดงผล 4 ช่อง
+            c1, c2, c3, c4 = st.columns(4)
+            c1.markdown(f"<div class='metric-card'><div class='metric-label'>ลงทะเบียน</div><div class='metric-value'>{total} คน</div></div>", unsafe_allow_html=True)
+            c2.markdown(f"<div class='metric-card'><div class='metric-label'>ใบขับขี่</div><div class='metric-value'>{has_lic} <span class='pct-green'>({p_lic:.1f}%)</span></div></div>", unsafe_allow_html=True)
+            c3.markdown(f"<div class='metric-card'><div class='metric-label'>ภาษี/พรบ.</div><div class='metric-value'>{has_tax} <span class='pct-green'>({p_tax:.1f}%)</span></div></div>", unsafe_allow_html=True)
+            c4.markdown(f"<div class='metric-card'><div class='metric-label'>หมวกกันน็อค</div><div class='metric-value'>{has_hel} <span class='pct-green'>({p_hel:.1f}%)</span></div></div>", unsafe_allow_html=True)
+            st.write("") # เว้นบรรทัด
+        # -----------------------------------
         c1, c2 = st.columns(2)
         if c1.button("🔄 ดึงข้อมูลล่าสุด"): 
             st.session_state.df_tra = None 
