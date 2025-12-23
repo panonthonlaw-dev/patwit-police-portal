@@ -309,7 +309,7 @@ def investigation_module():
     except Exception as e: st.error(f"Error: {e}")
 
 # ==========================================
-# 3. MODULE: TRAFFIC (ต้นฉบับ 100%)
+# 3. MODULE: TRAFFIC (แก้ไขตามคำสั่ง: ไม่ค้นหา ไม่โชว์)
 # ==========================================
 def traffic_module():
     user = st.session_state.user_info
@@ -454,7 +454,6 @@ def traffic_module():
 
         if do_clear:
             st.session_state.search_results_df = None
-            st.session_state.df_tra = None
             st.rerun()
 
         st.caption("▼ ตัวกรองข้อมูล (เลือกแล้วกด '⚡ กรองข้อมูล')")
@@ -469,7 +468,9 @@ def traffic_module():
         f_br = col_f3.selectbox("🏍️ ยี่ห้อรถ:", ["ทั้งหมด"] + unique_br)
         do_filter = st.button("⚡ กรองข้อมูลตามเงื่อนไข", use_container_width=True)
 
+        # Logic สำหรับการค้นหา: ล้างผลลัพธ์เก่าและแสดงเฉพาะที่ต้องการ
         if do_search or do_filter:
+            st.session_state.search_results_df = None # ล้างข้อมูลเก่าทิ้งก่อน
             if st.session_state.df_tra is None: load_tra_data()
             if st.session_state.df_tra is not None:
                 df = st.session_state.df_tra.copy()
@@ -484,6 +485,7 @@ def traffic_module():
             else:
                 st.error("โหลดข้อมูลไม่สำเร็จ")
 
+        # แสดงผลเฉพาะเมื่อมีการกดค้นหาเท่านั้น
         if st.session_state.search_results_df is not None:
             target_df = st.session_state.search_results_df
             if target_df.empty: st.warning("❌ ไม่พบข้อมูล")
@@ -522,6 +524,7 @@ def traffic_module():
                                     st.success("บันทึกแล้ว"); load_tra_data(); st.rerun()
                                 elif (deduct or add): st.error("รหัสผิดหรือข้อมูลไม่ครบ")
         else:
+            # หากยังไม่ค้นหา ให้แสดงข้อความแจ้งเตือนสีฟ้าเพียงอย่างเดียว
             st.info("ℹ️ กรุณากรอกคำค้นหาหรือใช้ตัวกรองเพื่อแสดงข้อมูล")
 
         st.markdown("---")
@@ -625,7 +628,10 @@ def main():
                 with st.container(border=True):
                     st.subheader("🚦 งานจราจร")
                     if st.button("เข้าใช้งานจราจร", use_container_width=True, type='primary', key="btn_to_tra"):
-                        st.session_state.current_dept = "tra"; st.session_state.traffic_page = 'teacher'; st.rerun()
+                        st.session_state.current_dept = "tra"
+                        st.session_state.traffic_page = 'teacher'
+                        st.session_state.search_results_df = None # ล้างค่าค้นหาเดิมเมื่อกดเข้าแผนก
+                        st.rerun()
         else:
             if st.session_state.current_dept == "inv": investigation_module()
             elif st.session_state.current_dept == "tra": traffic_module()
