@@ -7,7 +7,7 @@ from PIL import Image
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-# PDF Libraries
+# PDF & Chart Libraries
 try:
     from weasyprint import HTML, CSS
     from weasyprint.text.fonts import FontConfiguration
@@ -24,23 +24,37 @@ import plotly.express as px
 # ==========================================
 st.set_page_config(page_title="ศูนย์ปฏิบัติการกลางฯ", page_icon="👮‍♂️", layout="wide", initial_sidebar_state="collapsed")
 
-# --- 1.1 CSS ซ่อน UI Streamlit & ตกแต่ง ---
+# --- 1.1 CSS ปรับแต่งเพื่อลดภาระเครื่อง (NO ANIMATION / MAX SPEED) ---
 st.markdown("""
 <style>
-    /* --- HIDE STREAMLIT UI --- */
+    /* ปิด Animation ทั้งหมดในระบบเพื่อลดอาการ Lag */
+    * {
+        animation: none !important;
+        transition: none !important;
+    }
+    
+    /* ซ่อน UI Streamlit ตามคำสั่งเดิม */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
     .stDeployButton {display:none;}
-    
-    /* --- HIDE SIDEBAR --- */
     [data-testid="stSidebar"] {display: none;}
     [data-testid="collapsedControl"] {display: none;}
     
-    /* --- CUSTOM STYLES --- */
-    .metric-card { background: white; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    /* สไตล์ Metric Card แบบคงที่ */
+    .metric-card { 
+        background: white; 
+        padding: 15px; 
+        border-radius: 10px; 
+        border: 1px solid #e2e8f0; 
+        text-align: center; 
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
+    }
     .metric-value { font-size: 2.5rem; font-weight: 800; color: #1e293b; } 
     .metric-label { font-size: 1rem; color: #64748b; }
+    
+    /* เร่งความเร็วการแสดงผล Image */
+    img { opacity: 1 !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -109,7 +123,7 @@ def calculate_pagination(key, total_items, limit=5):
     return start_idx, end_idx, st.session_state[key], total_pages
 
 # ==========================================
-# 2. MODULE: INVESTIGATION
+# 2. MODULE: INVESTIGATION (ต้นฉบับ 100%)
 # ==========================================
 def create_pdf_inv(row):
     rid = str(row.get('Report_ID', '')); date_str = str(row.get('Timestamp', ''))
@@ -295,7 +309,7 @@ def investigation_module():
     except Exception as e: st.error(f"Error: {e}")
 
 # ==========================================
-# 3. MODULE: TRAFFIC
+# 3. MODULE: TRAFFIC (ต้นฉบับ 100%)
 # ==========================================
 def traffic_module():
     user = st.session_state.user_info
@@ -571,7 +585,6 @@ def main():
             st.markdown("<br><br>", unsafe_allow_html=True)
             with st.container(border=True):
                 if LOGO_PATH and os.path.exists(LOGO_PATH):
-                    c_img, _ = st.columns([1, 0.1])
                     st.image(LOGO_PATH, width=120)
                 st.markdown("<h3 style='text-align:center;'>ศูนย์ปฏิบัติการกลาง<br>สถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</h3>", unsafe_allow_html=True)
                 pwd_in = st.text_input("รหัสผ่านเจ้าหน้าที่", type="password")
@@ -606,12 +619,12 @@ def main():
             with c1:
                 with st.container(border=True):
                     st.subheader("🕵️ งานสอบสวน")
-                    if st.button("เข้าใช้งานสอบสวน", use_container_width=True, type='primary'):
+                    if st.button("เข้าใช้งานสอบสวน", use_container_width=True, type='primary', key="btn_to_inv"):
                         st.session_state.current_dept = "inv"; st.rerun()
             with c2:
                 with st.container(border=True):
                     st.subheader("🚦 งานจราจร")
-                    if st.button("เข้าใช้งานจราจร", use_container_width=True, type='primary'):
+                    if st.button("เข้าใช้งานจราจร", use_container_width=True, type='primary', key="btn_to_tra"):
                         st.session_state.current_dept = "tra"; st.session_state.traffic_page = 'teacher'; st.rerun()
         else:
             if st.session_state.current_dept == "inv": investigation_module()
