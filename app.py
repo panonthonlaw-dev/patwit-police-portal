@@ -31,7 +31,7 @@ states = {
     'page_pending': 1, 'page_finished': 1, 'search_query_main': "",
     'traffic_page': 'teacher', 'df_tra': None, 'search_results_df': None, 
     'current_user_pwd': "", 'last_active': time.time(), 'edit_data': None, 'reset_count': 0,
-    'preserve_search': False # เพิ่มตัวช่วยจำสถานะค้นหา
+    'preserve_search': False
 }
 for key, val in states.items():
     if key not in st.session_state: st.session_state[key] = val
@@ -239,15 +239,14 @@ def investigation_module():
     except Exception as e: st.error(f"Error: {e}")
 
 # ==========================================
-# 3. MODULE: TRAFFIC (ใช้ Logic ต้นฉบับ 100% + Robust Connection)
+# 3. MODULE: TRAFFIC (ใช้ Logic ต้นฉบับ 100% + Fixed Credentials Priority)
 # ==========================================
 def traffic_module():
     user = st.session_state.user_info
-    # ตั้งค่าตัวแปร session ให้ตรงกับโค้ดต้นฉบับ
+    # Sync User Data
     st.session_state.officer_name = user.get('name', 'N/A')
     st.session_state.officer_role = user.get('role', 'teacher')
-    st.session_state.current_user_pwd = st.session_state.current_user_pwd # ใช้รหัสที่ login มา
-
+    
     st.sidebar.button("⬅️ กลับหน้าเลือกแผนก", on_click=lambda: setattr(st.session_state, 'current_dept', None), width='stretch')
     
     st.markdown("""<style>
@@ -255,33 +254,34 @@ def traffic_module():
         .metric-value { font-size: 2.5rem; font-weight: 800; color: #1e293b; } .metric-percent { font-size: 1.1rem; color: #16a34a; font-weight: bold; }
     </style>""", unsafe_allow_html=True)
 
-    # --- CONNECT (ROBUST) ---
+    # --- CONNECT (PRIORITY: Textkey -> Connections) ---
     def connect_gsheet_universal():
-        # Priority 1: connections.gsheets (Parsed)
+        # Priority 1: textkey (ตามที่คุณมีข้อมูลครบ)
+        if "textkey" in st.secrets and "json_content" in st.secrets["textkey"]:
+            try:
+                # Cleaning string content
+                key_str = st.secrets["textkey"]["json_content"]
+                key_str = key_str.strip()
+                if key_str.startswith("'") and key_str.endswith("'"): key_str = key_str[1:-1]
+                if key_str.startswith('"') and key_str.endswith('"'): key_str = key_str[1:-1]
+                
+                # Parse
+                try: creds_dict = json.loads(key_str, strict=False)
+                except: creds_dict = json.loads(key_str.replace('\n', '\\n'), strict=False)
+                
+                scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+                creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+                return gspread.authorize(creds).open(SHEET_NAME_TRAFFIC).sheet1
+            except: pass # ถ้าพัง ให้ไปลอง Priority 2
+
+        # Priority 2: connections.gsheets
         if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
             creds_dict = dict(st.secrets["connections"]["gsheets"])
             scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
             creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
             return gspread.authorize(creds).open(SHEET_NAME_TRAFFIC).sheet1
-        
-        # Priority 2: textkey (Parsed JSON)
-        elif "textkey" in st.secrets and "json_content" in st.secrets["textkey"]:
-            try:
-                key_str = st.secrets["textkey"]["json_content"]
-                # Clean up string
-                if isinstance(key_str, str):
-                    try: creds_dict = json.loads(key_str.replace('\n', '\\n'), strict=False)
-                    except: creds_dict = ast.literal_eval(key_str)
-                else: creds_dict = key_str # Already dict
-                
-                if "private_key" in creds_dict:
-                    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
-                
-                scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-                creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-                return gspread.authorize(creds).open(SHEET_NAME_TRAFFIC).sheet1
-            except: pass
-        raise Exception("Credential Error")
+            
+        raise Exception("ไม่สามารถอ่าน Credentials ได้ (client_id missing in both sources)")
 
     def load_tra_data():
         try:
