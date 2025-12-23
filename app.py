@@ -546,6 +546,16 @@ def traffic_module():
                         c1, c2 = st.columns([1.5, 1])
                         with c1: st.markdown(f"### 👤 {v[1]}"); st.caption(f"🆔 {v[2]} | {v[3]}")
                         with c2: st.markdown(f"### 🏍️ {v[6]}")
+                        # --- [โค้ดส่วนที่เพิ่ม: แสดงสถานะเอกสาร] ---
+                        st.markdown(f"""
+                        <div style="background-color:#f8f9fa; padding:10px; border-radius:5px; margin: 5px 0;">
+                            <b>สถานะเอกสาร:</b><br>
+                            🪪 ใบขับขี่: {v[7]} &nbsp;|&nbsp; 
+                            📝 ภาษี: {v[8]} &nbsp;|&nbsp; 
+                            🪖 หมวก: {v[9]}
+                        </div>
+                        """, unsafe_allow_html=True)
+                        # ----------------------------------------
                         st.markdown(f"<span style='font-size:1.2rem;font-weight:bold;color:{sc_color};'>คะแนน: {sc}/100</span>", unsafe_allow_html=True)
                         c_img1, c_img2, c_img3 = st.columns(3)
                         c_img1.image(get_img_link(v[14]), caption="เจ้าของ")
