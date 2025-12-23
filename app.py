@@ -231,7 +231,7 @@ def investigation_module():
                     cc1, cc2, cc3, cc4 = st.columns([2.5, 2, 3, 1.5])
                     with cc1: st.button(f"✅ {row['Report_ID']}", key=f"f_{i}", use_container_width=True, on_click=lambda r=row['Report_ID']: st.session_state.update({'selected_case_id': r, 'view_mode': 'detail', 'unlock_password': ""}))
                     cc2.write(row['Timestamp']); cc3.write(row['Incident_Type'])
-                    cc4.markdown("<span style='color:green;font-weight:bold'>✅ ดำเนินการเรียบร้อย</span>", unsafe_allow_html=True); st.divider()
+                    cc4.markdown("<span style='color:green;font-weight:bold'>✅ เรียบร้อย</span>", unsafe_allow_html=True); st.divider()
 
             with tab_dash:
                 tc = len(df_display)
@@ -304,7 +304,7 @@ def investigation_module():
     except Exception as e: st.error(f"Error: {e}")
 
 # ==========================================
-# 3. MODULE: TRAFFIC (แก้ไขตามคำสั่ง: บังคับค้นหา)
+# 3. MODULE: TRAFFIC (ต้นฉบับ 100% - บังคับค้นหา)
 # ==========================================
 def traffic_module():
     user = st.session_state.user_info
@@ -463,32 +463,23 @@ def traffic_module():
         f_br = col_f3.selectbox("🏍️ ยี่ห้อรถ:", ["ทั้งหมด"] + unique_br)
         do_filter = st.button("⚡ กรองข้อมูลตามเงื่อนไข", use_container_width=True)
 
-        # Logic แก้ปัญหา: ไม่กรอกค้นหาแล้วเจอทั้งหมด + ล้างข้อมูลเก่า
         if do_search or do_filter:
-            st.session_state.search_results_df = None # ล้างข้อมูลเก่าทันทีเมื่อเริ่มค้นหาใหม่
+            st.session_state.search_results_df = None # ล้างค่าเก่าก่อนเสมอ
             
-            # ตรวจสอบว่าไม่มีการกรอกข้อความและไม่มีการเลือกตัวกรอง
             if not q.strip() and f_risk == "ทั้งหมด" and f_lv == "ทั้งหมด" and f_br == "ทั้งหมด":
                 st.error("⚠️ กรุณากรอกข้อมูลหรือเลือกตัวกรองเพื่อค้นหา")
             else:
                 if st.session_state.df_tra is None: load_tra_data()
                 if st.session_state.df_tra is not None:
                     df = st.session_state.df_tra.copy()
-                    
-                    # ค้นหาตามข้อความ (ถ้ามี)
                     if q.strip():
                         df = df[df.iloc[:, [1, 2, 6]].apply(lambda r: r.astype(str).str.contains(q, case=False).any(), axis=1)]
-                    
-                    # กรองตามตัวเลือก (ถ้าเลือก)
                     if f_risk != "ทั้งหมด": 
                         idx = 7 if "ใบขับขี่" in f_risk else (8 if "ภาษี" in f_risk else 9)
                         df = df[df.iloc[:, idx].astype(str).str.contains("ไม่มี|ขาด")]
-                    if f_lv != "ทั้งหมด": 
-                        df = df[df.iloc[:, 3].astype(str).str.contains(f_lv)]
-                    if f_br != "ทั้งหมด": 
-                        df = df[df.iloc[:, 4] == f_br]
+                    if f_lv != "ทั้งหมด": df = df[df.iloc[:, 3].astype(str).str.contains(f_lv)]
+                    if f_br != "ทั้งหมด": df = df[df.iloc[:, 4] == f_br]
                     
-                    # กรณีผลลัพธ์เป็นทั้งหมดจากการกรอกเงื่อนไขกว้างๆ เกินไป (ป้องกันการหลุดแสดงทั้งหมดโดยไม่ตั้งใจ)
                     if len(df) == len(st.session_state.df_tra) and not q.strip():
                          st.warning("ℹ️ ข้อมูลกว้างเกินไป กรุณาระบุรายละเอียดเพิ่มเติม")
                          st.session_state.search_results_df = None
@@ -633,14 +624,15 @@ def main():
                 with st.container(border=True):
                     st.subheader("🕵️ งานสอบสวน")
                     if st.button("เข้าใช้งานสอบสวน", use_container_width=True, type='primary', key="btn_to_inv"):
-                        st.session_state.current_dept = "inv"; st.rerun()
+                        st.session_state.current_dept = "inv"; st.session_state.view_mode = "list" # Reset Navigation
+                        st.rerun()
             with c2:
                 with st.container(border=True):
                     st.subheader("🚦 งานจราจร")
                     if st.button("เข้าใช้งานจราจร", use_container_width=True, type='primary', key="btn_to_tra"):
                         st.session_state.current_dept = "tra"
                         st.session_state.traffic_page = 'teacher'
-                        st.session_state.search_results_df = None # ล้างค่าค้นหาเดิมเพื่อความปลอดภัย
+                        st.session_state.search_results_df = None # Reset Search
                         st.rerun()
         else:
             if st.session_state.current_dept == "inv": investigation_module()
