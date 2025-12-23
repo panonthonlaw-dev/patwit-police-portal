@@ -53,19 +53,32 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 1.2 Session & Timeout Logic (15 นาที) ---
-TIMEOUT_SECONDS = 15 * 60 
+# --- 1.2 Session & Timeout Logic (60 นาที) ---
+# ตั้งเวลาตัด Session เป็น 60 นาที (3600 วินาที)
+TIMEOUT_SECONDS = 60 * 60 
 
 def check_inactivity():
+    # ตรวจสอบว่ามีการล็อกอินค้างไว้ใน query params หรือไม่ (แก้ปัญหารีเฟรชแล้วหลุด)
+    # หมายเหตุ: Streamlit Cloud มักจะเคลียร์ session_state เมื่อรีเฟรช
+    # วิธีที่ยั่งยืนที่สุดใน Streamlit คือการตรวจสอบ state ปัจจุบันเทียบกับเวลาล่าสุด
+    
+    current_time = time.time()
+    
     if 'last_active' not in st.session_state:
-        st.session_state.last_active = time.time()
+        st.session_state.last_active = current_time
         return
-    if time.time() - st.session_state.last_active > TIMEOUT_SECONDS:
+
+    # คำนวณเวลาที่ผ่านไป
+    time_passed = current_time - st.session_state.last_active
+    
+    if time_passed > TIMEOUT_SECONDS:
+        # หากเกิน 60 นาที ให้เคลียร์ค่าและแจ้งเตือน
         st.session_state.clear()
-        st.session_state.timeout_msg = "⏳ หมดเวลาการเชื่อมต่อ (15 นาที) กรุณาเข้าสู่ระบบใหม่"
+        st.session_state.timeout_msg = "⏳ หมดเวลาการเชื่อมต่อ (60 นาที) กรุณาเข้าสู่ระบบใหม่"
         st.rerun()
     else:
-        st.session_state.last_active = time.time()
+        # หากยังไม่เกิน ให้อัปเดตเวลาล่าสุดทุกครั้งที่มีการรัน script (คือมีการขยับหรือกดปุ่ม)
+        st.session_state.last_active = current_time
 
 check_inactivity()
 
