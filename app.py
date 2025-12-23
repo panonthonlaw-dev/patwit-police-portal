@@ -24,12 +24,20 @@ import plotly.express as px
 # ==========================================
 st.set_page_config(page_title="ศูนย์ปฏิบัติการกลางฯ", page_icon="👮‍♂️", layout="wide", initial_sidebar_state="collapsed")
 
-# --- 1.1 CSS ซ่อน Sidebar & ตกแต่ง ---
+# --- 1.1 CSS ซ่อน UI Streamlit & ตกแต่ง ---
 st.markdown("""
 <style>
+    /* --- HIDE STREAMLIT UI --- */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    .stDeployButton {display:none;}
+    
+    /* --- HIDE SIDEBAR --- */
     [data-testid="stSidebar"] {display: none;}
     [data-testid="collapsedControl"] {display: none;}
     
+    /* --- CUSTOM STYLES --- */
     .metric-card { background: white; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     .metric-value { font-size: 2.5rem; font-weight: 800; color: #1e293b; } 
     .metric-label { font-size: 1rem; color: #64748b; }
@@ -142,7 +150,6 @@ def create_pdf_inv(row):
 def investigation_module():
     user = st.session_state.user_info
     
-    # --- HEADER: 2 Rows Layout ---
     c_brand, c_nav = st.columns([7, 2.5])
     with c_brand:
         c_logo, c_text = st.columns([1, 6])
@@ -276,6 +283,10 @@ def investigation_module():
                         if ev_img: df_raw.at[idx_raw, 'Evidence_Image'] = process_image(ev_img)
                         df_raw.at[idx_raw, 'Audit_Log'] = f"{clean_val(row['Audit_Log'])}\n[{get_now_th().strftime('%d/%m/%Y %H:%M')}] แก้ไขโดย {user['name']}"
                         conn.update(data=df_raw.fillna("")); st.success("บันทึกเรียบร้อย!"); time.sleep(1); st.rerun()
+                
+                if clean_val(row['Audit_Log']):
+                    with st.expander("📜 ประวัติการบันทึก (Audit Log)"): st.code(row['Audit_Log'])
+
                 st.divider()
                 try:
                     pdf_data = create_pdf_inv(row)
@@ -284,7 +295,7 @@ def investigation_module():
     except Exception as e: st.error(f"Error: {e}")
 
 # ==========================================
-# 3. MODULE: TRAFFIC (New Header Layout 2 Rows)
+# 3. MODULE: TRAFFIC
 # ==========================================
 def traffic_module():
     user = st.session_state.user_info
@@ -292,7 +303,6 @@ def traffic_module():
     st.session_state.officer_role = user.get('role', 'teacher')
     st.session_state.current_user_pwd = st.session_state.current_user_pwd 
 
-    # --- HEADER: 2 Rows Layout ---
     c_brand, c_nav = st.columns([7, 2.5])
     with c_brand:
         c_logo, c_text = st.columns([1, 6])
@@ -318,7 +328,6 @@ def traffic_module():
             st.session_state.clear(); st.rerun()
     st.markdown("---")
 
-    # --- CONNECT ---
     def connect_gsheet_universal():
         if "textkey" in st.secrets and "json_content" in st.secrets["textkey"]:
             try:
@@ -364,7 +373,6 @@ def traffic_module():
         file_id = match.group(1) or match.group(2) if match else None
         return f"https://drive.google.com/thumbnail?id={file_id}&sz=w800" if file_id else url
 
-    # --- PDF ---
     def create_pdf_tra(vals, img_url1, img_url2, face_url=None, printed_by="ระบบอัตโนมัติ"):
         buffer = io.BytesIO(); c = canvas.Canvas(buffer, pagesize=A4); width, height = A4
         if os.path.exists(FONT_FILE):
@@ -410,7 +418,6 @@ def traffic_module():
         c.drawRightString(width - 30, 20, f"พิมพ์โดย: {printed_by} | เมื่อ: {print_time}")
         c.save(); buffer.seek(0); return buffer
 
-    # Logic Page
     if st.session_state.df_tra is None:
         load_tra_data()
 
