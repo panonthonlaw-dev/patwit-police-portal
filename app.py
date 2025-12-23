@@ -510,23 +510,47 @@ def traffic_module():
         do_filter = st.button("⚡ กรองข้อมูลตามเงื่อนไข", use_container_width=True)
 
         if do_search or do_filter:
-            st.session_state.search_results_df = None # ล้างค่าเก่าก่อนเสมอ
+            st.session_state.search_results_df = None # ล้างค่าเก่า
             
-            if not q.strip() and f_risk == "ทั้งหมด" and f_lv == "ทั้งหมด" and f_br == "ทั้งหมด":
+            # ตรวจสอบเงื่อนไข: ต้องมีการกรอกคำค้นหา หรือ เลือกตัวกรองอย่างน้อย 1 อย่าง
+            has_search_term = bool(q.strip())
+            has_filter = (f_risk != "ทั้งหมด" or f_lv != "ทั้งหมด" or f_br != "ทั้งหมด")
+            
+            if not has_search_term and not has_filter:
                 st.error("⚠️ กรุณากรอกข้อมูลหรือเลือกตัวกรองเพื่อค้นหา")
             else:
                 if st.session_state.df_tra is None: load_tra_data()
                 if st.session_state.df_tra is not None:
                     df = st.session_state.df_tra.copy()
-                    if q.strip():
-                        df = df[df.iloc[:, [1, 2, 6]].apply(lambda r: r.astype(str).str.contains(q, case=False).any(), axis=1)]
+                    
+                    # --- [แก้ไข] Logic การค้นหาให้แม่นยำขึ้น ---
+                    if has_search_term:
+                        search_val = q.strip()
+                        # ค้นหาแบบ Exact Match สำหรับรหัส/ทะเบียน (ต้องตรงเป๊ะ) หรือ Partial Match สำหรับชื่อ (มีส่วนคล้าย)
+                        # คอลัมน์: [1]=ชื่อ, [2]=รหัส, [6]=ทะเบียน
+                        mask = (
+                            df.iloc[:, 1].astype(str).str.contains(search_val, case=False) | # ชื่อ: ค้นหาบางส่วนได้
+                            (df.iloc[:, 2].astype(str) == search_val) | # รหัส: ต้องตรงเป๊ะ
+                            (df.iloc[:, 6].astype(str) == search_val)   # ทะเบียน: ต้องตรงเป๊ะ
+                        )
+                        df = df[mask]
+                    # ----------------------------------------
+
+                    # ส่วนการกรอง (Logic เดิม)
                     if f_risk != "ทั้งหมด": 
                         idx = 7 if "ใบขับขี่" in f_risk else (8 if "ภาษี" in f_risk else 9)
                         df = df[df.iloc[:, idx].astype(str).str.contains("ไม่มี|ขาด")]
-                    if f_lv != "ทั้งหมด": df = df[df.iloc[:, 3].astype(str).str.contains(f_lv)]
-                    if f_br != "ทั้งหมด": df = df[df.iloc[:, 4] == f_br]
+                    if f_lv != "ทั้งหมด": 
+                        df = df[df.iloc[:, 3].astype(str).str.contains(f_lv)]
+                    if f_br != "ทั้งหมด": 
+                        df = df[df.iloc[:, 4] == f_br]
                     
-                    if len(df) == len(st.session_state.df_tra) and not q.strip():
+                    # ตรวจสอบผลลัพธ์
+                    if df.empty:
+                         st.warning("❌ ไม่พบข้อมูล")
+                         st.session_state.search_results_df = None
+                    elif len(df) == len(st.session_state.df_tra) and not has_search_term and not has_filter:
+                         # ป้องกันการแสดงทั้งหมดโดยไม่ได้ตั้งใจ (กรณีเงื่อนไขหลวม)
                          st.warning("ℹ️ ข้อมูลกว้างเกินไป กรุณาระบุรายละเอียดเพิ่มเติม")
                          st.session_state.search_results_df = None
                     else:
