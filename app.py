@@ -513,8 +513,8 @@ def traffic_module():
         st.markdown("---")
         if st.session_state.current_user_pwd == "Patwit1510":
             with st.expander("⚙️ ระบบจัดการเลื่อนชั้นเรียน (Super Admin Only)"):
-                st.warning("⚠️ คำเตือน: การเลื่อนชั้นจะปรับระดับชั้นของนักเรียนทุกคน")
-                up_pwd = st.text_input("รหัสเลื่อนชั้น (Patwitnext)", type="password", key="prom_pwd")
+                st.warning("⚠️ คำเตือน:ระบบจะเป็นการแก้ไขถาวรไม่สามารถย้อนกลับได้กรุณาระมัดระวง")
+                up_pwd = st.text_input("รหัสเลื่อนชั้น", type="password", key="prom_pwd")
                 if st.button("ยืนยันเลื่อนชั้น", use_container_width=True) and up_pwd == UPGRADE_PASSWORD:
                     s = connect_gsheet_universal(); d = s.get_all_values(); h = d[0]; r = d[1:]; nr = []
                     for row in r:
