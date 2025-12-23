@@ -24,15 +24,19 @@ import plotly.express as px
 # ==========================================
 st.set_page_config(page_title="ศูนย์ปฏิบัติการกลางฯ", page_icon="👮‍♂️", layout="wide", initial_sidebar_state="collapsed")
 
-# --- 1.1 CSS ซ่อน Sidebar & ตกแต่งปุ่ม ---
+# --- 1.1 CSS ซ่อน Sidebar & ตกแต่ง Header ---
 st.markdown("""
 <style>
-    [data-testid="stSidebar"] {display: none;} /* ซ่อน Sidebar */
-    [data-testid="collapsedControl"] {display: none;} /* ซ่อนปุ่มลูกศร Sidebar */
+    [data-testid="stSidebar"] {display: none;}
+    [data-testid="collapsedControl"] {display: none;}
     
     .metric-card { background: white; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     .metric-value { font-size: 2.5rem; font-weight: 800; color: #1e293b; } 
     .metric-label { font-size: 1rem; color: #64748b; }
+    
+    /* Header Styles */
+    .header-title { font-size: 24px; font-weight: bold; color: #1E3A8A; margin-bottom: 0px; }
+    .header-subtitle { font-size: 14px; color: #64748b; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -40,24 +44,19 @@ st.markdown("""
 TIMEOUT_SECONDS = 15 * 60 
 
 def check_inactivity():
-    # ถ้ายังไม่เคยเก็บเวลา ให้เริ่มเก็บ
     if 'last_active' not in st.session_state:
         st.session_state.last_active = time.time()
         return
-
-    # เช็คว่าเกินเวลาไหม
     if time.time() - st.session_state.last_active > TIMEOUT_SECONDS:
-        st.session_state.clear() # ล้างค่าทั้งหมด
+        st.session_state.clear()
         st.session_state.timeout_msg = "⏳ หมดเวลาการเชื่อมต่อ (15 นาที) กรุณาเข้าสู่ระบบใหม่"
         st.rerun()
     else:
-        # ถ้ายังไม่เกิน ให้อัปเดตเวลาล่าสุด
         st.session_state.last_active = time.time()
 
-# เรียกใช้ฟังก์ชันเช็คเวลาทุกครั้งที่มีการกดปุ่มหรือรีเฟรช
 check_inactivity()
 
-# Session States Initialization
+# Session States
 states = {
     'logged_in': False, 'user_info': {}, 'current_dept': None, 'current_user': None,
     'view_mode': 'list', 'selected_case_id': None, 'unlock_password': "",
@@ -106,7 +105,7 @@ def calculate_pagination(key, total_items, limit=5):
     return start_idx, end_idx, st.session_state[key], total_pages
 
 # ==========================================
-# 2. MODULE: INVESTIGATION (Navigation Modified)
+# 2. MODULE: INVESTIGATION (New Header Layout)
 # ==========================================
 def create_pdf_inv(row):
     rid = str(row.get('Report_ID', '')); date_str = str(row.get('Timestamp', ''))
@@ -145,21 +144,30 @@ def create_pdf_inv(row):
     return HTML(string=html_content, base_url=BASE_DIR).write_pdf(font_config=FontConfiguration())
 
 def investigation_module():
-    st.session_state.current_user = st.session_state.user_info
-    user = st.session_state.current_user
+    user = st.session_state.user_info
     
-    # --- Top Navigation Bar (No Sidebar) ---
-    c_back, c_title, c_logout = st.columns([1, 4, 1])
-    with c_back:
-        if st.button("⬅️ กลับหน้าหลัก", use_container_width=True):
-            setattr(st.session_state, 'current_dept', None)
-            st.rerun()
-    with c_title:
-        st.markdown(f"<div style='text-align:center; font-size: 20px; font-weight: bold; color: #1E3A8A;'>🏢 ระบบสอบสวน คุณ{user['name']}</div>", unsafe_allow_html=True)
-    with c_logout:
-        if st.button("🔴 Logout", key="inv_logout", use_container_width=True):
-            st.session_state.clear()
-            st.rerun()
+    # --- HEADER: Logo(Left) ... Buttons(Right) ---
+    c_brand, c_nav = st.columns([6, 2])
+    with c_brand:
+        c_logo, c_text = st.columns([0.7, 5])
+        with c_logo: 
+            if LOGO_PATH: st.image(LOGO_PATH, width=65)
+        with c_text:
+            st.markdown(f"""
+            <div style="padding-top:5px;">
+                <div class="header-title">🏢 ระบบสอบสวน</div>
+                <div class="header-subtitle">เจ้าหน้าที่: {user['name']}</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+    with c_nav:
+        st.write("") # Spacer
+        b_home, b_logout = st.columns(2)
+        if b_home.button("🏠 หน้าหลัก", use_container_width=True):
+            setattr(st.session_state, 'current_dept', None); st.rerun()
+        if b_logout.button("🚪 ออก", key="inv_out", use_container_width=True):
+            st.session_state.clear(); st.rerun()
+            
     st.markdown("---")
 
     conn = st.connection("gsheets", type=GSheetsConnection)
@@ -277,7 +285,7 @@ def investigation_module():
     except Exception as e: st.error(f"Error: {e}")
 
 # ==========================================
-# 3. MODULE: TRAFFIC (Navigation Modified)
+# 3. MODULE: TRAFFIC (New Header Layout)
 # ==========================================
 def traffic_module():
     user = st.session_state.user_info
@@ -285,21 +293,30 @@ def traffic_module():
     st.session_state.officer_role = user.get('role', 'teacher')
     st.session_state.current_user_pwd = st.session_state.current_user_pwd 
 
-    # --- Top Navigation Bar (No Sidebar) ---
-    c_back, c_title, c_logout = st.columns([1, 4, 1])
-    with c_back:
-        if st.button("⬅️ กลับหน้าหลัก", use_container_width=True, key="tra_back"):
-            setattr(st.session_state, 'current_dept', None)
-            st.rerun()
-    with c_title:
-        st.markdown(f"<div style='text-align:center; font-size: 20px; font-weight: bold; color: #1E3A8A;'>🚦 ระบบงานจราจร คุณ{st.session_state.officer_name}</div>", unsafe_allow_html=True)
-    with c_logout:
-        if st.button("🚪 Logout", key="tra_logout", use_container_width=True):
-            st.session_state.clear()
-            st.rerun()
+    # --- HEADER ---
+    c_brand, c_nav = st.columns([6, 2])
+    with c_brand:
+        c_logo, c_text = st.columns([0.7, 5])
+        with c_logo: 
+            if LOGO_PATH: st.image(LOGO_PATH, width=65)
+        with c_text:
+            st.markdown(f"""
+            <div style="padding-top:5px;">
+                <div class="header-title">🚦 ระบบงานจราจร</div>
+                <div class="header-subtitle">เจ้าหน้าที่: {st.session_state.officer_name}</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+    with c_nav:
+        st.write("") # Spacer
+        b_home, b_logout = st.columns(2)
+        if b_home.button("🏠 หน้าหลัก", key="tra_back", use_container_width=True):
+            setattr(st.session_state, 'current_dept', None); st.rerun()
+        if b_logout.button("🚪 ออก", key="tra_logout", use_container_width=True):
+            st.session_state.clear(); st.rerun()
     st.markdown("---")
 
-    # --- CONNECT (PRIORITY: Textkey First) ---
+    # --- CONNECT ---
     def connect_gsheet_universal():
         if "textkey" in st.secrets and "json_content" in st.secrets["textkey"]:
             try:
@@ -345,7 +362,7 @@ def traffic_module():
         file_id = match.group(1) or match.group(2) if match else None
         return f"https://drive.google.com/thumbnail?id={file_id}&sz=w800" if file_id else url
 
-    # --- PDF Copy-Paste ---
+    # --- PDF ---
     def create_pdf_tra(vals, img_url1, img_url2, face_url=None, printed_by="ระบบอัตโนมัติ"):
         buffer = io.BytesIO(); c = canvas.Canvas(buffer, pagesize=A4); width, height = A4
         if os.path.exists(FONT_FILE):
@@ -393,7 +410,7 @@ def traffic_module():
 
     # Logic Page
     if st.session_state.df_tra is None:
-        load_tra_data() # Silent load
+        load_tra_data()
 
     if st.session_state.traffic_page == 'teacher':
         c1, c2 = st.columns(2)
@@ -407,8 +424,6 @@ def traffic_module():
             st.session_state.traffic_page = 'dash'; st.rerun()
         
         st.write("")
-        
-        # UI ค้นหา
         c_search, c_btn_search, c_btn_clear = st.columns([3, 1, 1])
         q = c_search.text_input("🔍 ค้นหา (ชื่อ/รหัส/ทะเบียน)", key="tra_search_input")
         do_search = c_btn_search.button("ค้นหา", type="primary", use_container_width=True)
@@ -419,7 +434,6 @@ def traffic_module():
             st.session_state.df_tra = None
             st.rerun()
 
-        # UI ตัวกรอง
         st.caption("▼ ตัวกรองข้อมูล (เลือกแล้วกด '⚡ กรองข้อมูล')")
         col_f1, col_f2, col_f3 = st.columns(3)
         unique_lv, unique_br = [], []
@@ -432,7 +446,6 @@ def traffic_module():
         f_br = col_f3.selectbox("🏍️ ยี่ห้อรถ:", ["ทั้งหมด"] + unique_br)
         do_filter = st.button("⚡ กรองข้อมูลตามเงื่อนไข", use_container_width=True)
 
-        # Logic Processing
         if do_search or do_filter:
             if st.session_state.df_tra is None: load_tra_data()
             if st.session_state.df_tra is not None:
@@ -448,7 +461,6 @@ def traffic_module():
             else:
                 st.error("โหลดข้อมูลไม่สำเร็จ")
 
-        # Result Display
         if st.session_state.search_results_df is not None:
             target_df = st.session_state.search_results_df
             if target_df.empty: st.warning("❌ ไม่พบข้อมูล")
@@ -489,7 +501,6 @@ def traffic_module():
         else:
             st.info("ℹ️ กรุณากรอกคำค้นหาหรือใช้ตัวกรองเพื่อแสดงข้อมูล")
 
-        # Promotion System
         st.markdown("---")
         if st.session_state.current_user_pwd == "Patwit1510":
             with st.expander("⚙️ ระบบจัดการเลื่อนชั้นเรียน (Super Admin Only)"):
@@ -538,7 +549,7 @@ def traffic_module():
             with m2: st.markdown(f'<div class="metric-card"><div class="metric-value">{lok}</div><div class="metric-label">มีใบขับขี่</div></div>', unsafe_allow_html=True)
 
 # ==========================================
-# 4. MAIN ENTRY (Timeout Check)
+# 4. MAIN ENTRY
 # ==========================================
 def main():
     if 'timeout_msg' in st.session_state and st.session_state.timeout_msg:
@@ -563,13 +574,14 @@ def main():
                     else: st.error("❌ รหัสผิด")
     else:
         if st.session_state.current_dept is None:
-            c_head, c_out = st.columns([4, 1])
-            with c_head: st.title("🏢 เลือกแผนกปฏิบัติงาน")
-            with c_out:
-                if st.button("🚪 Logout", key="main_logout", use_container_width=True):
-                    st.session_state.clear()
-                    st.rerun()
-                    
+            c_brand, c_nav = st.columns([4, 1.5])
+            with c_brand:
+                if LOGO_PATH: st.image(LOGO_PATH, width=50)
+                st.markdown("### 🏢 เลือกแผนกปฏิบัติงาน")
+            with c_nav:
+                if st.button("🚪 ออกจากระบบ", key="main_logout", use_container_width=True):
+                    st.session_state.clear(); st.rerun()
+            
             c1, c2 = st.columns(2)
             with c1:
                 with st.container(border=True):
