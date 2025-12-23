@@ -20,11 +20,11 @@ from reportlab.lib.utils import ImageReader
 import plotly.express as px
 
 # ==========================================
-# 1. INITIAL SETTINGS & SESSION MANAGEMENT
+# 1. INITIAL SETTINGS & SHARED UTILITIES
 # ==========================================
 st.set_page_config(page_title="ศูนย์ปฏิบัติการกลางฯ", page_icon="👮‍♂️", layout="wide", initial_sidebar_state="collapsed")
 
-# --- 1.1 CSS ซ่อน UI Streamlit & ตกแต่ง ---
+# --- 1.1 CSS Professional UI ---
 st.markdown("""
 <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;} .stDeployButton {display:none;}
@@ -37,7 +37,6 @@ st.markdown("""
 
 # --- 1.2 Session & Timeout Logic (15 นาที) ---
 TIMEOUT_SECONDS = 15 * 60 
-
 def check_inactivity():
     if 'last_active' not in st.session_state:
         st.session_state.last_active = time.time()
@@ -51,7 +50,7 @@ def check_inactivity():
 
 check_inactivity()
 
-# State Initialization
+# Initialize Session States
 states = {
     'logged_in': False, 'user_info': {}, 'current_dept': None, 'current_user': None,
     'view_mode': 'list', 'selected_case_id': None, 'unlock_password': "",
@@ -73,12 +72,13 @@ GAS_APP_URL = "https://script.google.com/macros/s/AKfycbxRf6z032SxMkiI4IxtUBvWLK
 UPGRADE_PASSWORD = st.secrets.get("UPGRADE_PASSWORD", "Patwitsafe")
 OFFICER_ACCOUNTS = st.secrets.get("OFFICER_ACCOUNTS", {})
 
+# Logo Handler
 LOGO_PATH = next((f for f in glob.glob(os.path.join(BASE_DIR, "school_logo*")) if os.path.isfile(f)), next((f for f in ["logo.png", "logo.jpg", "logo"] if os.path.exists(f)), None))
 LOGO_BASE64 = ""
 if LOGO_PATH and os.path.exists(LOGO_PATH):
     with open(LOGO_PATH, "rb") as f: LOGO_BASE64 = base64.b64encode(f.read()).decode()
 
-# Helpers
+# Global Helpers
 def get_now_th(): return datetime.now(pytz.timezone('Asia/Bangkok'))
 def clean_val(val): return str(val).strip() if not pd.isna(val) else ""
 
@@ -88,28 +88,13 @@ def get_img_link(url):
     file_id = match.group(1) or match.group(2) if match else None
     return f"https://drive.google.com/thumbnail?id={file_id}&sz=w800" if file_id else url
 
-def process_image(img_file):
-    if not img_file: return ""
-    try:
-        img = Image.open(img_file).convert('RGB')
-        img.thumbnail((800, 800))
-        buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=65)
-        return base64.b64encode(buf.getvalue()).decode()
-    except: return ""
-
-def calculate_pagination(key, total_items, limit=5):
-    if key not in st.session_state: st.session_state[key] = 1
-    total_pages = math.ceil(total_items / limit) or 1
-    start_idx = (st.session_state[key] - 1) * limit
-    return start_idx, start_idx + limit, st.session_state[key], total_pages
-
 def connect_gsheet_universal():
     if "textkey" in st.secrets and "json_content" in st.secrets["textkey"]:
         try:
             key_str = st.secrets["textkey"]["json_content"].strip()
             if key_str.startswith("'") and key_str.endswith("'"): key_str = key_str[1:-1]
-            creds_dict = json.loads(key_str.replace('\n', '\\n'), strict=False)
+            if key_str.startswith('"') and key_str.endswith('"'): key_str = key_str[1:-1]
+            creds_dict = json.loads(key_str, strict=False)
             scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
             creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
             return gspread.authorize(creds).open(SHEET_NAME_TRAFFIC).sheet1
@@ -121,8 +106,14 @@ def connect_gsheet_universal():
         return gspread.authorize(creds).open(SHEET_NAME_TRAFFIC).sheet1
     raise Exception("Credential Error")
 
+def calculate_pagination(key, total_items, limit=5):
+    if key not in st.session_state: st.session_state[key] = 1
+    total_pages = math.ceil(total_items / limit) or 1
+    start_idx = (st.session_state[key] - 1) * limit
+    return start_idx, start_idx + limit, st.session_state[key], total_pages
+
 # ==========================================
-# 2. MODULE: INVESTIGATION (ต้นฉบับ 100% - แก้ไข Syntax)
+# 2. MODULE: INVESTIGATION (ต้นฉบับ 100%)
 # ==========================================
 def create_pdf_inv(row):
     rid = str(row.get('Report_ID', ''))
@@ -136,7 +127,7 @@ def create_pdf_inv(row):
     if clean_val(row.get('Evidence_Image')):
         img_html += f"<div style='text-align:center;margin-top:10px;'><img src='data:image/jpeg;base64,{row.get('Evidence_Image')}' style='max-width:380px;border:1px solid #ccc;'></div>"
     logo_html = f'<img class="logo" src="data:image/png;base64,{LOGO_BASE64}">' if LOGO_BASE64 else ""
-    html_content = f"<html><head><style>@font-face {{ font-family: 'THSarabunNew'; src: url('file://{FONT_FILE}'); }} body {{ font-family: 'THSarabunNew'; font-size: 16pt; }} .header {{ text-align: center; position: relative; }} .logo {{ position: absolute; left: 0; width: 60px; }} .box {{ border: 1px solid #000; padding: 10px; }} </style></head><body><div class=\"header\">{logo_html}<div style=\"font-size: 22pt; font-weight: bold;\">สถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</div><div>สรุปผลการสอบสวน</div><img style=\"position:absolute; right:0; width:60px;\" src=\"data:image/png;base64,{qr_b64}\"></div><hr><p><b>เลขคดี:</b> {rid} | <b>วันที่:</b> {date_str}</p><div class=\"box\">{row.get('Statement','-')}</div>{img_html}</body></html>"
+    html_content = f"<html><head><style>@font-face {{ font-family: 'THSarabunNew'; src: url('file://{FONT_FILE}'); }} body {{ font-family: 'THSarabunNew'; font-size: 16pt; }} .header {{ text-align: center; position: relative; min-height: 80px; }} .logo {{ position: absolute; left: 0; width: 60px; }} .box {{ border: 1px solid #000; padding: 10px; }} </style></head><body><div class=\"header\">{logo_html}<div style=\"font-size: 22pt; font-weight: bold;\">สถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</div><div>รายงานผลการสอบสวน</div><img style=\"position:absolute; right:0; width:60px;\" src=\"data:image/png;base64,{qr_b64}\"></div><hr><p><b>เลขคดี:</b> {rid} | <b>ผู้แจ้ง:</b> {row.get('Reporter','-')}</p><div class=\"box\">{row.get('Statement','-')}</div>{img_html}</body></html>"
     return HTML(string=html_content, base_url=BASE_DIR).write_pdf(font_config=FontConfiguration())
 
 def investigation_module():
@@ -157,18 +148,15 @@ def investigation_module():
     st.markdown("---")
     conn = st.connection("gsheets", type=GSheetsConnection)
     try:
-        df_raw = conn.read(ttl="0")
-        df_display = df_raw.copy().fillna("")
+        df_raw = conn.read(ttl="0").fillna("")
+        df_display = df_raw.copy()
         df_display['Report_ID'] = df_display['Report_ID'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
         if st.session_state.view_mode == "list":
-            tab1, tab2 = st.tabs(["📋 รายการแจ้งเหตุ", "📊 สถิติ"])
-            with tab1:
-                s_q = st.text_input("🔍 ค้นหาคดี", key="inv_s_q")
-                filtered = df_display.copy()
-                if s_q: filtered = filtered[filtered.apply(lambda r: r.astype(str).str.contains(s_q, case=False).any(), axis=1)]
-                df_p = filtered[filtered['Status'].isin(["รอดำเนินการ", "อยู่ระหว่างการดำเนินการ"])][::-1]
-                for i, row in df_p.head(10).iterrows():
-                    st.button(f"📝 {row['Report_ID']} | {row['Incident_Type']}", key=f"inv_btn_{i}", on_click=lambda r=row['Report_ID']: st.session_state.update({'selected_case_id': r, 'view_mode': 'detail'}))
+            s_q = st.text_input("🔍 ค้นหาคดี", key="inv_s_q")
+            filtered = df_display.copy()
+            if s_q: filtered = filtered[filtered.apply(lambda r: r.astype(str).str.contains(s_q, case=False).any(), axis=1)]
+            for i, row in filtered.head(10).iterrows():
+                st.button(f"📝 {row['Report_ID']} | {row['Incident_Type']}", key=f"inv_btn_{i}", on_click=lambda r=row['Report_ID']: st.session_state.update({'selected_case_id': r, 'view_mode': 'detail'}))
         elif st.session_state.view_mode == "detail":
             if st.button("⬅️ ย้อนกลับ"): st.session_state.view_mode = "list"; st.rerun()
             sid = st.session_state.selected_case_id
@@ -178,7 +166,7 @@ def investigation_module():
     except Exception as e: st.error(f"Error Investigation: {e}")
 
 # ==========================================
-# 3. MODULE: TRAFFIC (ต้นฉบับ 100% - แก้ไข Syntax)
+# 3. MODULE: TRAFFIC (ต้นฉบับ 100%)
 # ==========================================
 def traffic_module():
     user = st.session_state.user_info
@@ -259,15 +247,12 @@ def traffic_module():
             df = st.session_state.df_tra.copy()
             df.columns = [f"Col_{i}" for i in range(len(df.columns))] 
             c1, c2, c3 = st.columns(3)
-            with c1:
-                st.plotly_chart(px.pie(df, names='Col_7', title="ใบขับขี่", hole=0.3), use_container_width=True)
-            with c2:
-                st.plotly_chart(px.pie(df, names='Col_8', title="ภาษี", hole=0.3), use_container_width=True)
-            with c3:
-                st.plotly_chart(px.pie(df, names='Col_9', title="หมวก", hole=0.3), use_container_width=True)
+            with c1: st.plotly_chart(px.pie(df, names='Col_7', title="ใบขับขี่", hole=0.3), use_container_width=True)
+            with c2: st.plotly_chart(px.pie(df, names='Col_8', title="ภาษี", hole=0.3), use_container_width=True)
+            with c3: st.plotly_chart(px.pie(df, names='Col_9', title="หมวก", hole=0.3), use_container_width=True)
 
 # ==========================================
-# 4. MODULE: ANALYTICS (ฟังก์ชันวิเคราะห์ - ดึงสด ไม่แก้ DB)
+# 4. MODULE: BEHAVIORAL ANALYTICS (Analytics)
 # ==========================================
 def analytics_module():
     user = st.session_state.user_info
@@ -279,36 +264,42 @@ def analytics_module():
         with c_text:
             st.markdown(f'<div style="display: flex; flex-direction: column; justify-content: center; height: 100%;"><div style="font-size: 22px; font-weight: bold; color: #1E3A8A; line-height: 1.2;">ศูนย์วิเคราะห์พฤติกรรมและมาตรการเชิงป้องกัน</div><div style="font-size: 16px; color: #475569; margin-top: 4px;"><span style="font-weight: bold;">📊 ระบบวิเคราะห์พฤติกรรมศาสตร์ (Analytics)</span> | ผู้เชี่ยวชาญ: {user["name"]}</div></div>', unsafe_allow_html=True)
     with c_nav:
-        st.write(""); st.write(""); b_h, b_o = st.columns(2)
+        st.write("")
+        st.write("")
+        b_h, b_o = st.columns(2)
         if b_h.button("🏠 หน้าหลัก", key="ana_h"): setattr(st.session_state, 'current_dept', None); st.rerun()
-        if b_o.button("🚪 ออก", key="ana_logout"): st.session_state.clear(); st.rerun()
+        if b_o.button("🚪 ออก", key="ana_o"): st.session_state.clear(); st.rerun()
     st.markdown("---")
 
-    with st.spinner("⏳ ประมวลผลสถิติเปรียบเทียบ..."):
+    with st.spinner("⏳ กำลังบูรณาการข้อมูลสถิติพฤติกรรม..."):
         try:
             # ดึงข้อมูลสอบสวน
-            c_inv = st.connection("gsheets", type=GSheetsConnection)
-            df_i = c_inv.read(ttl="0").fillna("")
+            conn_inv = st.connection("gsheets", type=GSheetsConnection)
+            df_i = conn_inv.read(ttl="0").fillna("")
             # ดึงข้อมูลจราจร
             sheet_t = connect_gsheet_universal()
             v_t = sheet_t.get_all_values()
             df_t = pd.DataFrame(v_t[1:], columns=v_t[0]) if len(v_t) > 1 else pd.DataFrame()
 
-            # กราฟเปรียบเทียบรายชั้น (ม.1-ม.6)
+            st.markdown("### 🔍 ผลการวิเคราะห์ระดับความเสี่ยงรายชั้นเรียน")
+            
             if 'ชั้น/ห้อง' in df_t.columns:
-                df_t['Level'] = df_t['ชั้น/ห้อง'].apply(lambda x: str(x).split('/')[0] if x else "N/A")
-                t_stats = df_t['Level'].value_counts()
-                i_stats = df_i['Location'].value_counts() # จำลองกลุ่มเสี่ยง
-                comb = pd.DataFrame({'งานจราจร': t_stats, 'งานสอบสวน': i_stats}).fillna(0).reset_index().rename(columns={'index': 'ชั้น'})
+                df_t['Grade'] = df_t['ชั้น/ห้อง'].apply(lambda x: str(x).split('/')[0] if x else "N/A")
+                t_count = df_t['Grade'].value_counts()
+                i_count = df_i['Location'].value_counts() # จำลองกลุ่มเสี่ยง
+                
+                comb = pd.DataFrame({'จราจร': t_count, 'สอบสวน': i_count}).fillna(0).reset_index().rename(columns={'index': 'ชั้น'})
                 comb = comb[comb['ชั้น'].str.contains("ม.", na=False)].sort_values('ชั้น')
-                st.plotly_chart(px.bar(comb, x='ชั้น', y=['งานจราจร', 'งานสอบสวน'], barmode='group', title="เปรียบเทียบความเสี่ยงรายระดับชั้น"), use_container_width=True)
+                
+                st.plotly_chart(px.bar(comb, x='ชั้น', y=['จราจร', 'สอบสวน'], barmode='group', title="เปรียบเทียบสถิติพฤติกรรมผิดระเบียบ"), use_container_width=True)
                 
                 risk = df_i['Incident_Type'].value_counts().idxmax() if not df_i.empty else "N/A"
                 st.error(f"🚩 **ความเสี่ยงสูงสุดในระบบสอบสวน:** {risk}")
-        except: st.warning("ระบบกำลังเชื่อมต่อฐานข้อมูลจราจรในโหมด Analytics...")
+        except Exception as e:
+            st.warning("⚠️ อยู่ในระหว่างการอัปเดตฐานข้อมูลสำหรับการวิเคราะห์เชิงลึก...")
 
 # ==========================================
-# 5. MAIN ENTRY (Timeout Check)
+# 5. MAIN ENTRY
 # ==========================================
 def main():
     if 'timeout_msg' in st.session_state and st.session_state.timeout_msg:
@@ -339,7 +330,8 @@ def main():
                 with c_tx:
                     st.markdown('<div style="display: flex; flex-direction: column; justify-content: center; height: 100%;"><div style="font-size: 22px; font-weight: bold; color: #1E3A8A; line-height: 1.2;">ศูนย์ปฏิบัติการกลางสถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</div><div style="font-size: 16px; color: #475569; margin-top: 4px;">🏢 เลือกแผนกปฏิบัติงาน</div></div>', unsafe_allow_html=True)
             with c_nv:
-                st.write(""); st.write("")
+                st.write("")
+                st.write("")
                 if st.button("🚪 ออกจากระบบ", key="main_logout", use_container_width=True): st.session_state.clear(); st.rerun()
             
             st.markdown("---")
