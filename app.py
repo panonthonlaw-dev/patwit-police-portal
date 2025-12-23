@@ -100,7 +100,7 @@ def calculate_pagination(key, total_items, limit=5):
     return start_idx, end_idx, st.session_state[key], total_pages
 
 # ==========================================
-# 2. MODULE: INVESTIGATION (ต้นฉบับ 100%)
+# 2. MODULE: INVESTIGATION (ต้นฉบับ 100% - แก้ไข Syntax)
 # ==========================================
 def create_pdf_inv(row):
     rid = str(row.get('Report_ID', '')); date_str = str(row.get('Timestamp', ''))
@@ -148,12 +148,14 @@ def investigation_module():
         with c_text:
             st.markdown(f'<div style="display: flex; flex-direction: column; justify-content: center; height: 100%;"><div style="font-size: 22px; font-weight: bold; color: #1E3A8A; line-height: 1.2;">ศูนย์ปฏิบัติการกลางสถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</div><div style="font-size: 16px; color: #475569; margin-top: 4px;"><span style="font-weight: bold;">🕵️ ระบบงานสอบสวน</span> | ผู้เข้าใช้: {user["name"]}</div></div>', unsafe_allow_html=True)
     with c_nav:
-        st.write(""); st.write("")
+        st.write("")
+        st.write("")
         b_home, b_logout = st.columns(2)
         if b_home.button("🏠 หน้าหลัก", use_container_width=True, key="inv_home_btn"):
             setattr(st.session_state, 'current_dept', None); st.rerun()
         if b_logout.button("🚪 ออก", key="inv_logout_btn", use_container_width=True):
             st.session_state.clear(); st.rerun()
+            
     st.markdown("---")
 
     conn = st.connection("gsheets", type=GSheetsConnection)
@@ -178,7 +180,8 @@ def investigation_module():
 
                 st.markdown("<h4 style='color:#1E3A8A; background-color:#f0f2f6; padding:10px; border-radius:5px;'>⏳ รายการที่รอการดำเนินการ</h4>", unsafe_allow_html=True)
                 start_p, end_p, cur_p, tot_p = calculate_pagination('page_pending', len(df_p), 5)
-                h1, h2, h3, h4 = st.columns([2.5, 2, 3, 1.5]); h1.markdown("**เลขที่รับแจ้ง**"); h2.markdown("**วันเวลา**"); h3.markdown("**ประเภทเหตุ**"); h4.markdown("**สถานะ**")
+                h1, h2, h3, h4 = st.columns([2.5, 2, 3, 1.5])
+                h1.markdown("**เลขที่รับแจ้ง**"); h2.markdown("**วันเวลา**"); h3.markdown("**ประเภทเหตุ**"); h4.markdown("**สถานะ**")
                 st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
                 if df_p.empty: st.caption("ไม่มีรายการ")
                 for i, row in df_p.iloc[start_p:end_p].iterrows():
@@ -191,6 +194,7 @@ def investigation_module():
                     if cp1.button("⬅️ ย้อนกลับ", disabled=st.session_state.page_pending==1, key="pp"): st.session_state.page_pending-=1; st.rerun()
                     cp2.markdown(f"<div style='text-align:center;'>{st.session_state.page_pending} / {tot_p}</div>", unsafe_allow_html=True)
                     if cp3.button("ถัดไป ➡️", disabled=st.session_state.page_pending==tot_p, key="pn"): st.session_state.page_pending+=1; st.rerun()
+
                 st.markdown("<h4 style='color:#2e7d32; background-color:#e8f5e9; padding:10px; border-radius:5px;'>✅ รายการที่ดำเนินการเรียบร้อย</h4>", unsafe_allow_html=True)
                 start_f, end_f, cur_f, tot_f = calculate_pagination('page_finished', len(df_f), 5)
                 for i, row in df_f.iloc[start_f:end_f].iterrows():
@@ -198,11 +202,19 @@ def investigation_module():
                     with cc1: st.button(f"✅ {row['Report_ID']}", key=f"f_{i}", use_container_width=True, on_click=lambda r=row['Report_ID']: st.session_state.update({'selected_case_id': r, 'view_mode': 'detail', 'unlock_password': ""}))
                     cc2.write(row['Timestamp']); cc3.write(row['Incident_Type'])
                     cc4.markdown("<span style='color:green;font-weight:bold'>✅ เรียบร้อย</span>", unsafe_allow_html=True); st.divider()
+
             with tab_dash:
                 tc = len(df_display)
                 if tc > 0:
                     m1, m2, m3 = st.columns(3); m1.metric("แจ้งเหตุทั้งหมด", f"{tc} ครั้ง"); m2.metric("สถานที่เกิดเหตุบ่อยสุด", df_display['Location'].mode()[0] if not df_display.empty else "-"); m3.metric("เหตุที่เกิดบ่อยสุด", df_display['Incident_Type'].mode()[0] if not df_display.empty else "-")
-                    st.markdown("---"); col1, col2 = st.columns(2)
+                    st.markdown("---"); c_text1, c_text2 = st.columns(2)
+                    with c_text1:
+                        st.markdown("**📌 สรุปยอดตามสถานที่ (Top 5)**")
+                        for l, c in df_display['Location'].value_counts().head(5).items(): p = (c/tc)*100; st.markdown(f"- **{l}**: {c} ครั้ง <span style='color:red; font-size:0.8em;'>({p:.1f}%)</span>", unsafe_allow_html=True)
+                    with c_text2:
+                        st.markdown("**📌 สรุปยอดตามประเภทเหตุ**")
+                        for t, c in df_display['Incident_Type'].value_counts().head(5).items(): p = (c/tc)*100; st.markdown(f"- **{t}**: {c} ครั้ง <span style='color:red; font-size:0.8em;'>({p:.1f}%)</span>", unsafe_allow_html=True)
+                    st.divider(); col1, col2 = st.columns(2)
                     with col1: st.markdown("**🔹 ประเภทเหตุ**"); st.bar_chart(df_display['Incident_Type'].value_counts(), color="#FF4B4B")
                     with col2: st.markdown("**🔹 สถานที่เกิดเหตุ**"); st.bar_chart(df_display['Location'].value_counts(), color="#1E3A8A")
 
@@ -229,13 +241,15 @@ def investigation_module():
                         conn.update(data=df_raw.fillna("")); st.success("บันทึกเรียบร้อย!"); time.sleep(1); st.rerun()
                 if clean_val(row['Audit_Log']):
                     with st.expander("📜 ประวัติการบันทึก (Audit Log)"): st.code(row['Audit_Log'])
-                st.divider(); try:
-                    pdf_data = create_pdf_inv(row); st.download_button(label="📥 ดาวน์โหลด PDF (สำนวนคดี)", data=pdf_data, file_name=f"Report_{sid}.pdf", mime="application/pdf", use_container_width=True, type="primary")
+                st.divider()
+                try:
+                    pdf_data = create_pdf_inv(row)
+                    st.download_button(label="📥 ดาวน์โหลด PDF (สำนวนคดี)", data=pdf_data, file_name=f"Report_{sid}.pdf", mime="application/pdf", use_container_width=True, type="primary")
                 except: st.error("PDF ขัดข้อง")
     except Exception as e: st.error(f"Error: {e}")
 
 # ==========================================
-# 3. MODULE: TRAFFIC (ต้นฉบับ 100% + แก้รูปภาพ)
+# 3. MODULE: TRAFFIC (ต้นฉบับ 100% - แก้ไข Syntax)
 # ==========================================
 def traffic_module():
     user = st.session_state.user_info
@@ -260,7 +274,9 @@ def traffic_module():
                 key_str = st.secrets["textkey"]["json_content"]; key_str = key_str.strip()
                 if key_str.startswith("'") and key_str.endswith("'"): key_str = key_str[1:-1]
                 if key_str.startswith('"') and key_str.endswith('"'): key_str = key_str[1:-1]
-                creds_dict = json.loads(key_str, strict=False); scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]; creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope); return gspread.authorize(creds).open(SHEET_NAME_TRAFFIC).sheet1
+                try: creds_dict = json.loads(key_str, strict=False)
+                except: creds_dict = json.loads(key_str.replace('\n', '\\n'), strict=False)
+                scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]; creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope); return gspread.authorize(creds).open(SHEET_NAME_TRAFFIC).sheet1
             except: pass
         if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
             creds_dict = dict(st.secrets["connections"]["gsheets"]); scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]; creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope); return gspread.authorize(creds).open(SHEET_NAME_TRAFFIC).sheet1
@@ -296,14 +312,14 @@ def traffic_module():
         note_y = height - 455; c.setFont(fb, 16); c.drawString(60, note_y, "ประวัติบันทึกการทำผิดวินัยจราจร:"); c.setFont(fn, 15); text_obj = c.beginText(70, note_y - 25); text_obj.setLeading(20)
         for line in note_text.split('\n'):
             for w_line in textwrap.wrap(line, width=75): text_obj.textLine(w_line)
-        c.drawText(text_obj); sign_y = 180; c.setFont(fn, 16); c.drawString(60, sign_y, "ลงชื่อ ......................................... เจ้าของรถ"); c.drawString(100, sign_y - 20, f"({name})")
+        c.drawText(text_obj); sign_y = 180 ; c.setFont(fn, 16); c.drawString(60, sign_y, "ลงชื่อ ......................................... เจ้าของรถ"); c.drawString(100, sign_y - 20, f"({name})")
         if face_url: draw_img(face_url, 450, height - 200, 90, 110)
         c.drawString(320, sign_y, "ลงชื่อ ......................................... ครูผู้ตรวจสอบ"); c.drawString(340, sign_y - 20, "(.........................................)"); c.setFont(fn, 10); c.setFillColorRGB(0.5, 0.5, 0.5); print_time = (datetime.now() + timedelta(hours=7)).strftime('%d/%m/%Y %H:%M'); c.drawRightString(width - 30, 20, f"พิมพ์โดย: {printed_by} | เมื่อ: {print_time}"); c.save(); buffer.seek(0); return buffer
     
     if st.session_state.df_tra is None: load_tra_data()
     if st.session_state.traffic_page == 'teacher':
         c1, c2 = st.columns(2)
-        if c1.button("🔄 ดึงข้อมูลล่าสุด"): st.session_state.df_tra = None; load_tra_data(); st.rerun()
+        if c1.button("🔄 ดึงข้อมูลล่าสุด"): st.session_state.df_tra = None ; st.session_state.search_results_df = None; load_tra_data(); st.rerun()
         if c2.button("📊 รายงานสถิติ"): 
             if st.session_state.df_tra is None: load_tra_data()
             st.session_state.traffic_page = 'dash'; st.rerun()
@@ -323,11 +339,11 @@ def traffic_module():
                 st.session_state.search_results_df = df
             else: st.error("โหลดข้อมูลไม่สำเร็จ")
         if st.session_state.search_results_df is not None:
-            tdf = st.session_state.search_results_df
-            if tdf.empty: st.warning("❌ ไม่พบข้อมูล")
+            target_df = st.session_state.search_results_df
+            if target_df.empty: st.warning("❌ ไม่พบข้อมูล")
             else:
-                st.success(f"ค้นพบ {len(tdf)} รายการ")
-                for i, row in tdf.iterrows():
+                st.success(f"ค้นพบ {len(target_df)} รายการ")
+                for i, row in target_df.iterrows():
                     v = row.tolist(); sc = int(v[13]) if len(v)>13 and str(v[13]).isdigit() else 100; sc_color = "#22c55e" if sc >= 80 else ("#eab308" if sc >= 50 else "#ef4444")
                     with st.expander(f"📍 {v[6]} | {v[1]}"):
                         c1, c2 = st.columns([1.5, 1])
@@ -335,14 +351,14 @@ def traffic_module():
                         with c2: st.markdown(f"### 🏍️ {v[6]}")
                         st.markdown(f"<span style='font-size:1.2rem;font-weight:bold;color:{sc_color};'>คะแนน: {sc}/100</span>", unsafe_allow_html=True); c_img1, c_img2, c_img3 = st.columns(3); c_img1.image(get_img_link(v[14]), caption="เจ้าของ"); c_img2.image(get_img_link(v[10]), caption="หลัง"); c_img3.image(get_img_link(v[11]), caption="ข้าง")
                         if st.session_state.officer_role == "admin":
-                            col_act1, col_act2 = st.columns(2); col_act1.download_button("📥 โหลด PDF", create_pdf_tra(v, v[10], v[11], v[14], st.session_state.officer_name), f"{v[6]}.pdf", use_container_width=True)
+                            col_act1, col_act2 = st.columns(2); col_act1.download_button("📥 โหลด PDF", create_pdf_tra(v, v[10], v[11], v[14], st.session_state.officer_name), f"{v[6]}.pdf", key=f"pdf_{i}", use_container_width=True)
                             if col_act2.button("✏️ แก้ไขข้อมูล", key=f"ed_{i}", use_container_width=True): st.session_state.edit_data = v; st.session_state.traffic_page = 'edit'; st.rerun()
                             with st.form(key=f"sc_form_{i}"):
                                 pts = st.number_input("แต้ม", 1, 50, 5); note = st.text_area("เหตุผล"); pwd = st.text_input("รหัสยืนยัน", type="password"); c_sub1, c_sub2 = st.columns(2); deduct = c_sub1.form_submit_button("🔴 หักแต้ม", use_container_width=True); add = c_sub2.form_submit_button("🟢 เพิ่มแต้ม", use_container_width=True)
                                 if (deduct or add) and note and pwd == st.session_state.current_user_pwd:
                                     sheet = connect_gsheet_universal(); cell = sheet.find(str(v[2])); ns = max(0, sc-pts) if deduct else min(100, sc+pts); action = "หัก" if deduct else "เพิ่ม"; tn = (datetime.now()+timedelta(hours=7)).strftime('%d/%m/%Y %H:%M'); old_log = str(v[12]).strip() if str(v[12]).lower()!="nan" else ""; new_log = f"{old_log}\n[{tn}] {action} {pts} คะแนน: {note} (โดย: {st.session_state.officer_name})"; sheet.update(f'M{cell.row}:N{cell.row}', [[new_log, str(ns)]]); st.success("บันทึกแล้ว"); load_tra_data(); st.rerun()
                                 elif (deduct or add): st.error("รหัสผิดหรือข้อมูลไม่ครบ")
-        else: st.info("ℹ️ กรุณากรอกคำค้นหาหรือใช้ตัวกรองเพื่อแสดงข้อมูล")
+        else: st.info("ℹ️ กรุณากรอกคำค้นหาหรือใช้ตัวกรอกเพื่อแสดงข้อมูล")
         st.markdown("---")
         if st.session_state.current_user_pwd == "Patwit1510":
             with st.expander("⚙️ ระบบจัดการเลื่อนชั้นเรียน (Super Admin Only)"):
@@ -369,8 +385,7 @@ def traffic_module():
                 if ns: l2 = upload_to_drive(ns, f"{v[2]}_S_n.jpg")
                 sheet.update(f'B{cell.row}:L{cell.row}', [[nm, v[2], cl, br, co, pl, lc, tx, hl, l1, l2]]); load_tra_data(); st.success("เสร็จสิ้น"); st.session_state.traffic_page = 'teacher'; st.rerun()
         if st.button("ยกเลิก", use_container_width=True): st.session_state.traffic_page = 'teacher'; st.rerun()
-    
-    # --- แก้ไข Syntax Error บรรทัดนี้ ---
+
     elif st.session_state.traffic_page == 'dash':
         if st.button("⬅️ กลับ"):
             st.session_state.traffic_page = 'teacher'
@@ -385,9 +400,7 @@ def traffic_module():
                 st.plotly_chart(px.pie(df, names='Col_8', title="ภาษี", hole=0.3), use_container_width=True)
             with c3:
                 st.plotly_chart(px.pie(df, names='Col_9', title="หมวก", hole=0.3), use_container_width=True)
-            
-            total = len(df)
-            lok = df[df['Col_7'].str.contains("มี", na=False)].shape[0]
+            total = len(df); lok = df[df['Col_7'].str.contains("มี", na=False)].shape[0]
             m1, m2 = st.columns(2)
             with m1:
                 st.markdown(f'<div class="metric-card"><div class="metric-value">{total}</div><div class="metric-label">รถทั้งหมด</div></div>', unsafe_allow_html=True)
@@ -395,7 +408,7 @@ def traffic_module():
                 st.markdown(f'<div class="metric-card"><div class="metric-value">{lok}</div><div class="metric-label">มีใบขับขี่</div></div>', unsafe_allow_html=True)
 
 # ==========================================
-# 4. MODULE: BEHAVIORAL ANALYTICS (ฟังก์ชันใหม่)
+# 4. MODULE: ANALYTICS (ฟังก์ชันใหม่ - แก้ไขโครงสร้างบรรทัด)
 # ==========================================
 def analytics_module():
     user = st.session_state.user_info
@@ -414,24 +427,24 @@ def analytics_module():
 
     with st.spinner("⏳ กำลังวิเคราะห์ข้อมูลรายระดับชั้น..."):
         try:
-            conn = st.connection("gsheets", type=GSheetsConnection); df_inv = conn.read(ttl="0").fillna("")
+            conn = st.connection("gsheets", type=GSheetsConnection)
+            df_inv = conn.read(ttl="0").fillna("")
             def connect_tra_local():
                 if "textkey" in st.secrets and "json_content" in st.secrets["textkey"]:
                     key_str = st.secrets["textkey"]["json_content"].strip(); creds_dict = json.loads(key_str.replace('\n', '\\n'), strict=False); scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]; creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope); return gspread.authorize(creds).open(SHEET_NAME_TRAFFIC).sheet1
             sheet_tra = connect_tra_local(); vals_tra = sheet_tra.get_all_values()
             df_tra = pd.DataFrame(vals_tra[1:], columns=vals_tra[0]) if len(vals_tra) > 1 else pd.DataFrame()
-            
             top_inv_risk = df_inv['Incident_Type'].value_counts().idxmax() if 'Incident_Type' in df_inv.columns and not df_inv.empty else "N/A"
             if 'ชั้น/ห้อง' in df_tra.columns:
                 df_tra['Level'] = df_tra['ชั้น/ห้อง'].apply(lambda x: str(x).split('/')[0] if x else "N/A")
                 tra_stats = df_tra['Level'].value_counts()
-                inv_stats = df_inv['Location'].value_counts() # จำลองใช้สถานที่
+                inv_stats = df_inv['Location'].value_counts()
                 comb = pd.DataFrame({'จราจร': tra_stats, 'สอบสวน': inv_stats}).fillna(0).reset_index().rename(columns={'index': 'ชั้น'})
                 comb = comb[comb['ชั้น'].str.contains("ม.", na=False)].sort_values('ชั้น')
                 fig = px.bar(comb, x='ชั้น', y=['จราจร', 'สอบสวน'], barmode='group', title="สถิติการทำผิดระเบียบโรงเรียน")
                 st.plotly_chart(fig, use_container_width=True)
                 st.error(f"🚩 **ความเสี่ยงทางคดีสูงสุด:** {top_inv_risk}")
-        except: st.warning("กำลังประมวลผลข้อมูล...")
+        except: st.warning("ระบบวิเคราะห์กำลังดึงข้อมูลฐานข้อมูลจราจร...")
 
 # ==========================================
 # 5. MAIN ENTRY
@@ -446,7 +459,8 @@ def main():
                 st.markdown("<h3 style='text-align:center;'>ศูนย์ปฏิบัติการกลาง<br>สถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</h3>", unsafe_allow_html=True)
                 pwd_in = st.text_input("รหัสผ่านเจ้าหน้าที่", type="password")
                 if st.button("เข้าสู่ระบบ", width='stretch', type='primary'):
-                    if pwd_in in OFFICER_ACCOUNTS: st.session_state.logged_in = True; st.session_state.user_info = OFFICER_ACCOUNTS[pwd_in]; st.session_state.current_user_pwd = pwd_in; st.rerun()
+                    accs = st.secrets.get("OFFICER_ACCOUNTS", {})
+                    if pwd_in in accs: st.session_state.logged_in = True; st.session_state.user_info = accs[pwd_in]; st.session_state.current_user_pwd = pwd_in; st.rerun()
                     else: st.error("❌ รหัสผิด")
     else:
         if st.session_state.current_dept is None:
@@ -468,7 +482,7 @@ def main():
             with c2:
                 with st.container(border=True):
                     st.subheader("🚦 งานจราจร")
-                    if st.button("เข้าใช้งานจราจร", key="btn_tra", use_container_width=True, type='primary'): st.session_state.current_dept = "tra"; st.rerun()
+                    if st.button("เข้าใช้งานจราจร", key="btn_tra", use_container_width=True, type='primary'): st.session_state.current_dept = "tra"; st.session_state.traffic_page = 'teacher'; st.rerun()
             with c3:
                 with st.container(border=True):
                     st.subheader("📊 วิเคราะห์พฤติกรรม")
