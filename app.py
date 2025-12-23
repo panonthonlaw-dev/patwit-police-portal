@@ -38,7 +38,7 @@ for key, val in states.items():
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FONT_FILE = os.path.join(BASE_DIR, "THSarabunNew.ttf")
 FONT_BOLD = os.path.join(BASE_DIR, "THSarabunNewBold.ttf")
-SHEET_NAME_TRAFFIC = "Motorcycle_DB" # ชื่อไฟล์ Google Sheet จราจรต้องตรงเป๊ะ
+SHEET_NAME_TRAFFIC = "Motorcycle_DB"
 
 # Logo
 LOGO_PATH = next((f for f in glob.glob(os.path.join(BASE_DIR, "school_logo*")) if os.path.isfile(f)), 
@@ -67,7 +67,7 @@ def calculate_pagination(key, total_items, limit=5):
     return start_idx, end_idx, st.session_state[key], total_pages
 
 # ==========================================
-# 2. MODULE: INVESTIGATION (คงเดิม 100% ห้ามแก้)
+# 2. MODULE: INVESTIGATION (คงเดิม 100%)
 # ==========================================
 def create_pdf_inv(row):
     rid = str(row.get('Report_ID', '')); date_str = str(row.get('Timestamp', ''))
@@ -232,7 +232,7 @@ def investigation_module():
     except Exception as e: st.error(f"Error: {e}")
 
 # ==========================================
-# 3. MODULE: TRAFFIC (แก้ Connection โดยแปลง String JSON เป็น Dict)
+# 3. MODULE: TRAFFIC (Robust Credential Parser)
 # ==========================================
 def traffic_module():
     user = st.session_state.user_info
@@ -245,34 +245,59 @@ def traffic_module():
 
     def load_tra_data():
         try:
-            # *** FIX: ดึงค่าจาก textkey.json_content แล้วแปลงเป็น Dict ***
-            # เพราะใน secrets.toml เก็บเป็น String ยาวๆ ต้องใช้ json.loads()
+            # 1. พยายามอ่าน Key จาก textkey.json_content
             if "textkey" in st.secrets and "json_content" in st.secrets["textkey"]:
-                json_str = st.secrets["textkey"]["json_content"]
-                # ทำความสะอาด String ก่อนแปลง (เผื่อมี Newline)
-                creds_dict = json.loads(json_str.replace('\n', '\\n'), strict=False)
+                raw_data = st.secrets["textkey"]["json_content"]
                 
-                # เชื่อมต่อ
-                scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-                creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-                client = gspread.authorize(creds)
+                # --- ROBUST PARSING LOGIC ---
+                creds_dict = None
                 
-                # เปิดไฟล์
-                try:
-                    sheet = client.open(SHEET_NAME_TRAFFIC).sheet1
-                    vals = sheet.get_all_values()
-                    if len(vals) > 1:
-                        st.session_state.df_tra = pd.DataFrame(vals[1:], columns=[f"C{i}" for i, h in enumerate(vals[0])])
-                        return True
-                except gspread.exceptions.SpreadsheetNotFound:
-                    st.error(f"❌ ไม่พบไฟล์ชื่อ '{SHEET_NAME_TRAFFIC}' หรือระบบไม่มีสิทธิ์เข้าถึง")
-                    st.warning(f"กรุณาแชร์ไฟล์ Google Sheet ให้กับอีเมล: **moto-bot@school-moto.iam.gserviceaccount.com** (Editor Role)")
-                    return False
+                # ถ้าเป็น Dict อยู่แล้ว (Streamlit อาจจะ parse ให้แล้ว)
+                if isinstance(raw_data, dict):
+                    creds_dict = raw_data
+                # ถ้าเป็น String
+                elif isinstance(raw_data, str):
+                    # ลอง JSON ปกติ
+                    try:
+                        creds_dict = json.loads(raw_data, strict=False)
+                    except json.JSONDecodeError:
+                        # ลองแก้ Newline
+                        try:
+                            creds_dict = json.loads(raw_data.replace('\n', '\\n'), strict=False)
+                        except json.JSONDecodeError:
+                            # ไม้ตาย: ลองใช้ ast.literal_eval (เผื่อเป็น Python Dict String)
+                            try:
+                                creds_dict = ast.literal_eval(raw_data)
+                            except:
+                                st.error("Error Parsing: รูปแบบ Key ใน secrets.toml ไม่ถูกต้อง (ไม่ใช่ JSON หรือ Dict)")
+                                return False
+
+                if creds_dict:
+                    # แก้ไข Private Key Newline (สำคัญมาก)
+                    if "private_key" in creds_dict:
+                        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+
+                    # เชื่อมต่อ
+                    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+                    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+                    client = gspread.authorize(creds)
+                    
+                    try:
+                        sheet = client.open(SHEET_NAME_TRAFFIC).sheet1
+                        vals = sheet.get_all_values()
+                        if len(vals) > 1:
+                            st.session_state.df_tra = pd.DataFrame(vals[1:], columns=[f"C{i}" for i, h in enumerate(vals[0])])
+                            return True
+                    except gspread.exceptions.SpreadsheetNotFound:
+                        client_email = creds_dict.get("client_email", "ไม่ทราบ")
+                        st.error(f"❌ ไม่พบไฟล์ '{SHEET_NAME_TRAFFIC}' หรือยังไม่แชร์สิทธิ์")
+                        st.warning(f"กรุณาแชร์ไฟล์ให้: **{client_email}** (Editor Role)")
+                        return False
             else:
                 st.error("ไม่พบ [textkey] ใน secrets.toml")
                 return False
         except Exception as e:
-            st.error(f"Traffic Connection Error: {e}")
+            st.error(f"Traffic Error: {e}")
             return False
 
     def get_img_tra(url):
@@ -302,7 +327,7 @@ def traffic_module():
 
     # Force Load
     if st.session_state.df_tra is None:
-        with st.spinner("⏳ กำลังเชื่อมต่อฐานข้อมูลจราจร..."): 
+        with st.spinner("⏳ กำลังเชื่อมต่อข้อมูลจราจร..."): 
             load_tra_data()
 
     if st.session_state.df_tra is not None:
