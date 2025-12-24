@@ -61,36 +61,53 @@ st.markdown("""
 TIMEOUT_SECONDS = 60 * 60  # ตั้งเวลา 60 นาที
 
 def check_inactivity():
-    # 1. ตรวจสอบเวลา Timeout
+    # 1. เช็ก Timeout ตามปกติ
     if 'last_active' not in st.session_state:
         st.session_state.last_active = time.time()
-        
+    
     if time.time() - st.session_state.last_active > TIMEOUT_SECONDS:
         st.session_state.clear()
-        st.query_params.clear() # ล้างค่าใน URL ด้วย
-        st.session_state.timeout_msg = "⏳ หมดเวลาการเชื่อมต่อ (60 นาที) กรุณาเข้าสู่ระบบใหม่"
+        st.query_params.clear()
+        st.session_state.timeout_msg = "⏳ หมดเวลาการเชื่อมต่อ กรุณาเข้าสู่ระบบใหม่"
         st.rerun()
     else:
         st.session_state.last_active = time.time()
 
-    # 2. ระบบกู้คืนสถานะเมื่อกด Refresh (ดึงค่าจาก URL กลับมา)
+    # 2. --- [จุดสำคัญ] กู้คืนสถานะจาก URL (Fix Refresh Issue) ---
+    # ถ้าใน Session ยังไม่ล็อกอิน แต่ใน URL บอกว่าล็อกอินแล้ว -> ให้กู้คืนทันที
     if not st.session_state.get('logged_in') and st.query_params.get("logged_in") == "true":
         st.session_state.logged_in = True
-        st.session_state.user_info = {
-            'name': st.query_params.get("name", ""),
-            'role': st.query_params.get("role", "")
-        }
-        st.session_state.current_user_pwd = st.query_params.get("pwd", "")
-        st.rerun() # รีโหลดเพื่อเข้าสู่ระบบทันที
+        
+        # กู้คืนข้อมูล User
+        accs = st.secrets.get("OFFICER_ACCOUNTS", {})
+        pwd = st.query_params.get("pwd", "")
+        if pwd in accs:
+            st.session_state.user_info = accs[pwd]
+            st.session_state.current_user_pwd = pwd
+        else:
+            # กรณีข้อมูลใน URL มั่ว ให้เคลียร์ทิ้งกัน Error
+            st.session_state.clear()
+            st.query_params.clear()
+            st.rerun()
 
-    # 3. บันทึกสถานะปัจจุบันลง URL (เพื่อให้กด Refresh แล้วไม่หาย)
+        # กู้คืนหน้างาน (สำคัญมากสำหรับ War Room)
+        if st.query_params.get("dept"): 
+            st.session_state.current_dept = st.query_params.get("dept")
+        if st.query_params.get("v_mode"): 
+            st.session_state.view_mode = st.query_params.get("v_mode")
+        if st.query_params.get("case_id"): 
+            st.session_state.selected_case_id = st.query_params.get("case_id")
+        
+        st.rerun() # รีโหลด 1 ครั้งเพื่อให้ค่า Session ทำงาน
+
+    # 3. บันทึกสถานะปัจจุบันลง URL เสมอ (Sync State -> URL)
     if st.session_state.get('logged_in'):
-        # อัปเดต URL เฉพาะเมื่อค่ายังไม่ตรง
-        if st.query_params.get("logged_in") != "true":
-            st.query_params["logged_in"] = "true"
-            st.query_params["name"] = st.session_state.user_info.get("name", "")
-            st.query_params["role"] = st.session_state.user_info.get("role", "")
-            st.query_params["pwd"] = st.session_state.current_user_pwd
+        st.query_params["logged_in"] = "true"
+        st.query_params["pwd"] = st.session_state.get("current_user_pwd", "")
+        
+        # บันทึกหน้าปัจจุบัน
+        if st.session_state.get("current_dept"):
+            st.query_params["dept"] = st.session_state.current_dept
 
 check_inactivity()
 
@@ -992,13 +1009,22 @@ def monitor_center_module():
                     </div>
                     """, unsafe_allow_html=True)
 
-        # 5. Refresh Logic
-        time.sleep(30)
-        st.rerun()
+        # ... (โค้ดแสดงผลด้านบนเหมือนเดิม) ...
+
+        # 5. --- [จุดแก้ไข] ระบบ Auto-Refresh 30 วินาที ---
+        # ย้ำค่าลง URL ก่อน Refresh เพื่อกันหลุด
+        st.query_params["dept"] = "monitor_view"
+        st.query_params["logged_in"] = "true"
+        
+        time.sleep(30) # รอ 30 วินาที
+        st.rerun()     # สั่งโหลดหน้าใหม่ (เพื่อดึงข้อมูลใหม่)
 
     except Exception as e:
-        st.warning(f"⏳ รอข้อมูล... ({cur_year})")
-        time.sleep(10)
+        # กรณี Error ก็ให้รอแล้วโหลดใหม่เหมือนกัน
+        st.warning(f"⏳ กำลังเชื่อมต่อฐานข้อมูล... ({cur_year})")
+        
+        st.query_params["dept"] = "monitor_view" # ย้ำ URL แม้จะ Error
+        time.sleep(30)
         st.rerun()
 def main():
     if 'timeout_msg' in st.session_state and st.session_state.timeout_msg:
