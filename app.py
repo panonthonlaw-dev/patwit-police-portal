@@ -878,7 +878,7 @@ def main():
             # --------------------------------
             
             st.markdown("---")
-            c1, c2 = st.columns(2)
+            c1, c2, c3 = st.columns(3) # เปลี่ยนจาก 2 เป็น 3 คอลัมน์
             with c1:
                 with st.container(border=True):
                     st.subheader("🕵️ งานสอบสวน")
@@ -892,6 +892,13 @@ def main():
                         st.session_state.current_dept = "tra"
                         st.session_state.traffic_page = 'teacher'
                         st.session_state.search_results_df = None
+                        st.rerun()
+            # --- วางปุ่มใหม่ในคอลัมน์ที่ 3 ---
+            with c3:
+                with st.container(border=True):
+                    st.subheader("🖥️ War Room")
+                    if st.button("เปิดจอเฝ้าระวังเหตุ", use_container_width=True, type='primary', key="btn_to_monitor"):
+                        st.session_state.current_dept = "monitor_view"
                         st.rerun()
         else:
             if st.session_state.current_dept == "inv": investigation_module()
