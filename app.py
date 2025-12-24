@@ -64,48 +64,37 @@ st.markdown("""
 TIMEOUT_SECONDS = 60 * 60  # ตั้งเวลา 60 นาที
 
 def check_inactivity():
+    # 1. ตรวจสอบเวลา Timeout
     if 'last_active' not in st.session_state:
         st.session_state.last_active = time.time()
+        
     if time.time() - st.session_state.last_active > TIMEOUT_SECONDS:
         st.session_state.clear()
-        st.query_params.clear()
+        st.query_params.clear() # ล้างค่าใน URL ด้วย
+        st.session_state.timeout_msg = "⏳ หมดเวลาการเชื่อมต่อ (60 นาที) กรุณาเข้าสู่ระบบใหม่"
         st.rerun()
     else:
         st.session_state.last_active = time.time()
 
-    # ระบบกู้คืนสถานะจาก URL
-    if st.query_params.get("logged_in") == "true":
-        if not st.session_state.get('logged_in'):
-            st.session_state.logged_in = True
-            accs = st.secrets.get("OFFICER_ACCOUNTS", {})
-            pwd = st.query_params.get("pwd", "")
-            if pwd in accs:
-                st.session_state.user_info = accs[pwd]
-                st.session_state.current_user_pwd = pwd
-        
-        # กู้คืนหน้าปัจจุบันและ ID เคส
-        if st.query_params.get("dept"):
-            st.session_state.current_dept = st.query_params.get("dept")
-        if st.query_params.get("v_mode"):
-            st.session_state.view_mode = st.query_params.get("v_mode")
-        if st.query_params.get("case_id"):
-            st.session_state.selected_case_id = st.query_params.get("case_id")
+    # 2. ระบบกู้คืนสถานะเมื่อกด Refresh (ดึงค่าจาก URL กลับมา)
+    if not st.session_state.get('logged_in') and st.query_params.get("logged_in") == "true":
+        st.session_state.logged_in = True
+        st.session_state.user_info = {
+            'name': st.query_params.get("name", ""),
+            'role': st.query_params.get("role", "")
+        }
+        st.session_state.current_user_pwd = st.query_params.get("pwd", "")
+        st.rerun() # รีโหลดเพื่อเข้าสู่ระบบทันที
 
-    # บันทึกสถานะลง URL
+    # 3. บันทึกสถานะปัจจุบันลง URL (เพื่อให้กด Refresh แล้วไม่หาย)
     if st.session_state.get('logged_in'):
-        st.query_params["logged_in"] = "true"
-        st.query_params["pwd"] = st.session_state.current_user_pwd
-        if st.session_state.current_dept:
-            st.query_params["dept"] = st.session_state.current_dept
-            st.query_params["v_mode"] = st.session_state.get("view_mode", "list")
-            if st.session_state.get("selected_case_id"):
-                st.query_params["case_id"] = st.session_state.selected_case_id
-        else:
-            # ล้างค่าเมื่ออยู่หน้าหลัก
-            for k in ["dept", "v_mode", "case_id", "t_page"]:
-                if k in st.query_params: del st.query_params[k]
+        # อัปเดต URL เฉพาะเมื่อค่ายังไม่ตรง
+        if st.query_params.get("logged_in") != "true":
+            st.query_params["logged_in"] = "true"
+            st.query_params["name"] = st.session_state.user_info.get("name", "")
+            st.query_params["role"] = st.session_state.user_info.get("role", "")
+            st.query_params["pwd"] = st.session_state.current_user_pwd
 
-# เรียกใช้งานฟังก์ชัน
 check_inactivity()
 
 # Session States
@@ -159,18 +148,6 @@ def calculate_pagination(key, total_items, limit=5):
 # ==========================================
 # 2. MODULE: INVESTIGATION
 # ==========================================
-# สร้างฟังก์ชันช่วยเปลี่ยนหน้า (วางไว้ด้านบนภายใน investigation_module)
-def investigation_module():
-    user = st.session_state.user_info
-
-    # --- เพิ่มฟังก์ชันนี้ไว้ส่วนบนของ Module ---
-    def nav_to_detail(case_id):
-        st.session_state.selected_case_id = case_id
-        st.session_state.view_mode = 'detail'
-        st.query_params["v_mode"] = "detail"
-        st.query_params["case_id"] = case_id
-    # ---------------------------------------
-
 def create_pdf_inv(row):
     rid = str(row.get('Report_ID', '')); date_str = str(row.get('Timestamp', ''))
     audit_log = str(row.get('Audit_Log', '')); latest_date = "-"
@@ -229,9 +206,11 @@ def investigation_module():
         st.write("")
         st.write("")
         b_home, b_logout = st.columns(2)
-        if st.button("🏠 หน้าหลัก"):
-            st.session_state.current_dept = None
-            if "dept" in st.query_params: del st.query_params["dept"] # ล้างค่าใน URL
+        if b_home.button("🏠 หน้าหลัก", use_container_width=True, key="inv_home_btn"):
+            setattr(st.session_state, 'current_dept', None); st.rerun()
+        if b_logout.button("🚪 ออก", key="inv_logout_btn", use_container_width=True):
+            st.query_params.clear()  # <--- เพิ่มบรรทัดนี้ เพื่อล้างค่าใน URL
+            st.session_state.clear()
             st.rerun()
             
     
@@ -333,25 +312,18 @@ def investigation_module():
                 df_p = filtered[filtered['Status'].isin(["รอดำเนินการ", "อยู่ระหว่างการดำเนินการ"])][::-1]
                 df_f = filtered[filtered['Status'] == "ดำเนินการเรียบร้อย"][::-1]
 
-                # --- ส่วนที่แสดงรายการที่ดำเนินการเรียบร้อย (ประมาณบรรทัด 340 เป็นต้นไป) ---
-                st.markdown("<h4 style='color:#2e7d32; background-color:#e8f5e9; padding:10px; border-radius:5px;'>✅ รายการที่ดำเนินการเรียบร้อย</h4>", unsafe_allow_html=True)
-                start_f, end_f, cur_f, tot_f = calculate_pagination('page_finished', len(df_f), 5)
+                st.markdown("<h4 style='color:#1E3A8A; background-color:#f0f2f6; padding:10px; border-radius:5px;'>⏳ รายการที่รอการดำเนินการ</h4>", unsafe_allow_html=True)
+                start_p, end_p, cur_p, tot_p = calculate_pagination('page_pending', len(df_p), 5)
+                h1, h2, h3, h4 = st.columns([2.5, 2, 3, 1.5])
+                h1.markdown("**เลขที่รับแจ้ง**"); h2.markdown("**วันเวลา**"); h3.markdown("**ประเภทเหตุ**"); h4.markdown("**สถานะ**")
+                st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
                 
-                for i, row in df_f.iloc[start_f:end_f].iterrows():
-                    # ✅ บรรทัด 346: ต้องเคาะเว้นวรรคเข้ามา 4 ช่องให้ตรงกันแบบนี้
+                if df_p.empty: st.caption("ไม่มีรายการ")
+                for i, row in df_p.iloc[start_p:end_p].iterrows():
                     cc1, cc2, cc3, cc4 = st.columns([2.5, 2, 3, 1.5])
-                    
-                    with cc1: 
-                        # เปลี่ยนปุ่มเป็นแบบ if เพื่อให้อัปเดตหน้าได้ชัวร์
-                        if st.button(f"✅ {row['Report_ID']}", key=f"f_{i}", use_container_width=True):
-                            navigate_to_detail(row['Report_ID']) # เรียกฟังก์ชันที่เราสร้างไว้
-                            st.session_state.unlock_password = ""
-                            st.rerun()
-                            
-                    cc2.write(row['Timestamp'])
-                    cc3.write(row['Incident_Type'])
-                    cc4.markdown("<span style='color:green;font-weight:bold'>✅ เรียบร้อย</span>", unsafe_allow_html=True)
-                    st.divider()
+                    with cc1: st.button(f"📝 {row['Report_ID']}", key=f"p_{i}", use_container_width=True, on_click=lambda r=row['Report_ID']: st.session_state.update({'selected_case_id': r, 'view_mode': 'detail', 'unlock_password': ""}))
+                    cc2.write(row['Timestamp']); cc3.write(row['Incident_Type'])
+                    cc4.markdown(f"<span style='color:orange;font-weight:bold'>⏳ {row['Status']}</span>", unsafe_allow_html=True); st.divider()
                 
                 if tot_p > 1:
                     cp1, cp2, cp3 = st.columns([1, 2, 1])
@@ -363,14 +335,9 @@ def investigation_module():
                 start_f, end_f, cur_f, tot_f = calculate_pagination('page_finished', len(df_f), 5)
                 for i, row in df_f.iloc[start_f:end_f].iterrows():
                     cc1, cc2, cc3, cc4 = st.columns([2.5, 2, 3, 1.5])
-                    with cc1: 
-                        # เปลี่ยนเป็นใช้ nav_to_detail เช่นกัน
-                        st.button(f"✅ {row['Report_ID']}", key=f"f_{i}", use_container_width=True, 
-                                  on_click=nav_to_detail, args=(row['Report_ID'],))
-                    cc2.write(row['Timestamp']) # เพิ่มบรรทัดที่หายไป
-                    cc3.write(row['Incident_Type']) # เพิ่มบรรทัดที่หายไป
-                    cc4.markdown("<span style='color:green;font-weight:bold'>✅ ดำเนินการเรียบร้อย</span>", unsafe_allow_html=True)
-                    st.divider()
+                    with cc1: st.button(f"✅ {row['Report_ID']}", key=f"f_{i}", use_container_width=True, on_click=lambda r=row['Report_ID']: st.session_state.update({'selected_case_id': r, 'view_mode': 'detail', 'unlock_password': ""}))
+                    cc2.write(row['Timestamp']); cc3.write(row['Incident_Type'])
+                    cc4.markdown("<span style='color:green;font-weight:bold'>✅ ดำเนินการเรียบร้อย</span>", unsafe_allow_html=True); st.divider()
 
             with tab_dash:
                 tc = len(df_display)
@@ -395,21 +362,7 @@ def investigation_module():
                     with col2: st.markdown("**🔹 สถานที่เกิดเหตุ**"); st.bar_chart(df_display['Location'].value_counts(), color="#1E3A8A")
 
         elif st.session_state.view_mode == "detail":
-            elif st.session_state.view_mode == "detail":
-            # --- แก้ไขปุ่มย้อนกลับให้ล้างค่า URL ด้วย ---
-            if st.button("⬅️ กลับหน้ารายการ", use_container_width=True):
-                st.session_state.view_mode = 'list'
-                st.session_state.selected_case_id = None
-                
-                # ล้างค่าใน URL ทันที
-                st.query_params["v_mode"] = "list"
-                if "case_id" in st.query_params:
-                    del st.query_params["case_id"]
-                st.rerun()
-            # ---------------------------------------
-
-            sid = st.session_state.selected_case_id
-            # ... โค้ดส่วนแสดงรายละเอียดคดีเดิมของคุณครู ...
+            st.button("⬅️ กลับหน้ารายการ", on_click=lambda: st.session_state.update({'view_mode': 'list'}), use_container_width=True)
             sid = st.session_state.selected_case_id
             sel = df_display[df_display['Report_ID'] == sid]
             if not sel.empty:
@@ -484,11 +437,11 @@ def traffic_module():
         st.write("") 
         st.write("")
         b_home, b_logout = st.columns(2)
-        # ค้นหาปุ่ม Home เดิม แล้วเปลี่ยนเป็นแบบนี้ครับ
-        if b_home.button("🏠 หน้าหลัก", use_container_width=True, key="inv_home_btn"):
-            st.session_state.current_dept = None
-            if "dept" in st.query_params: 
-                del st.query_params["dept"]
+        if b_home.button("🏠 หน้าหลัก", key="tra_home_btn", use_container_width=True):
+            setattr(st.session_state, 'current_dept', None); st.rerun()
+        if b_logout.button("🚪 ออก", key="inv_logout_btn", use_container_width=True):
+            st.query_params.clear()  # <--- เพิ่มบรรทัดนี้ เพื่อล้างค่าใน URL
+            st.session_state.clear()
             st.rerun()
     st.markdown("---")
 
@@ -619,9 +572,7 @@ def traffic_module():
             st.rerun()
         if c2.button("📊 รายงานสถิติ"): 
             if st.session_state.df_tra is None: load_tra_data()
-            st.session_state.traffic_page = 'dash'
-            st.query_params["t_page"] = "dash" # เพิ่มบรรทัดนี้เพื่อให้ URL เปลี่ยน
-            st.rerun()
+            st.session_state.traffic_page = 'dash'; st.rerun()
         
         st.write("")
         c_search, c_btn_search, c_btn_clear = st.columns([3, 1, 1])
@@ -778,9 +729,7 @@ def traffic_module():
 
     elif st.session_state.traffic_page == 'dash':
         if st.button("⬅️ กลับหน้าจัดการจราจร", use_container_width=True): 
-            st.session_state.traffic_page = 'teacher'
-            st.query_params["t_page"] = "teacher" # เพิ่มบรรทัดนี้
-            st.rerun()
+            st.session_state.traffic_page = 'teacher'; st.rerun()
             
         if st.session_state.df_tra is not None:
             df = st.session_state.df_tra.copy()
@@ -880,123 +829,12 @@ def traffic_module():
 # ==========================================
 # 4. MAIN ENTRY (แก้ไขย่อหน้าให้ถูกต้อง)
 # ==========================================
-
-# ==========================================
-# MODULE: MONITOR REAL-TIME (ฉบับสมบูรณ์ - กะพริบถี่ & รีเฟรช 30 วิ)
-# ==========================================
-def monitor_center_module():
-    # ระบบจำค่าเหตุการณ์ล่าสุด
-    if "last_seen_id" not in st.session_state:
-        st.session_state.last_seen_id = None
-    if "new_arrival" not in st.session_state:
-        st.session_state.new_arrival = False
-
-    # CSS ปรับแต่งใหม่: กะพริบถี่ขึ้น (0.5s) และ Style กลมกลืน
-    st.markdown("""
-        <style>
-            @keyframes fast_pulse {
-                0% { background-color: #ffffff; border: 1px solid #e2e8f0; }
-                50% { background-color: #fff1f2; border: 2px solid #be123c; transform: scale(1.01); }
-                100% { background-color: #ffffff; border: 1px solid #e2e8f0; }
-            }
-            .incident-card {
-                padding: 12px; border-radius: 10px; border: 1px solid #e2e8f0;
-                margin-bottom: 8px; background-color: #ffffff;
-                transition: all 0.3s ease;
-                font-family: 'Sarabun', sans-serif;
-            }
-            /* คลาสสำหรับการกะพริบถี่ๆ */
-            .new-incident-card {
-                animation: fast_pulse 0.5s infinite; /* กะพริบเร็ว 0.5 วินาที */
-                border-left: 10px solid #be123c !important; /* สีแดงเข้มขึ้นให้ดูเข้ากับธีม */
-                box-shadow: 0 4px 12px rgba(190, 18, 60, 0.15);
-            }
-            .status-pending { border-left: 8px solid #f59e0b; }
-            .status-done { border-left: 8px solid #10b981; }
-            
-            .new-badge {
-                background-color: #be123c; color: white; padding: 2px 8px;
-                border-radius: 20px; font-size: 11px; font-weight: bold;
-                vertical-align: middle; margin-right: 8px;
-            }
-        </style>
-        <div style="text-align:center; padding:10px; border-bottom:2px solid #f0f2f6; margin-bottom:15px;">
-            <h2 style="color:#1E3A8A; margin:0;">🚨 LIVE MONITOR (War Room)</h2>
-            <p style="color:#64748b; margin:0; font-size:14px;">อัปเดตอัตโนมัติทุก 30 วินาที</p>
-        </div>
-    """, unsafe_allow_html=True)
-
-    # ค้นหาปุ่ม กลับหน้าหลัก ใน monitor_center_module
-    if st.button("⬅️ กลับหน้าเลือกแผนก", use_container_width=True):
-        # 1. ล้างค่าใน Session
-        st.session_state.current_dept = None
-        
-        # 2. ล้างค่าใน URL (ป้องกันไม่ให้มันดึงกลับมาหน้าเดิม)
-        if "dept" in st.query_params:
-            del st.query_params["dept"]
-        if "t_page" in st.query_params:
-            del st.query_params["t_page"]
-        if "v_mode" in st.query_params:
-            del st.query_params["v_mode"]
-            
-        # 3. สั่งรันใหม่เพื่อกลับไปหน้าเมนูหลัก
-        st.rerun()
-
-    conn = st.connection("gsheets", type=GSheetsConnection)
-    now_th = get_now_th()
-    cur_year = (now_th.year + 543) if now_th.month >= 5 else (now_th.year + 542)
-    
-    try:
-        df = conn.read(worksheet=f"Investigation_{cur_year}", ttl=2).fillna("")
-        
-        if not df.empty:
-            latest_id = len(df)
-            if st.session_state.last_seen_id is not None and latest_id > st.session_state.last_seen_id:
-                st.session_state.new_arrival = True
-            st.session_state.last_seen_id = latest_id
-
-            display_df = df.iloc[::-1].head(15)
-            
-            for i, (_, row) in enumerate(display_df.iterrows()):
-                # รายการบนสุดกะพริบเมื่อมีเหตุใหม่
-                is_new = (i == 0 and st.session_state.new_arrival)
-                card_class = "new-incident-card" if is_new else "incident-card"
-                status_side = "" if is_new else ("status-pending" if row['Status'] == 'รอดำเนินการ' else "status-done")
-                
-                # ทำ Badge NEW ให้ดูสวยขึ้น
-                new_tag = "<span class='new-badge'>NEW</span>" if is_new else ""
-
-                st.markdown(f"""
-                    <div class="{card_class} {status_side}">
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <span style="font-size:18px; font-weight:bold; color:#1e293b;">{new_tag}📍 {row['Location']}</span>
-                            <span style="font-size:12px; color:#94a3b8;">{row['Timestamp']}</span>
-                        </div>
-                        <div style="margin-top:6px; font-size:14px;">
-                            <b style="color:#1E3A8A; font-size:15px;">{row['Incident_Type']}</b> 
-                            <span style="color:#64748b; margin-left:12px;">👤 ผู้แจ้ง: {row['Reporter']}</span>
-                        </div>
-                        <div style="margin-top:4px; font-size:13px; color:#475569; border-top: 1px solid #f1f5f9; padding-top:4px;">
-                            📝 {row['Details']}
-                        </div>
-                    </div>
-                """, unsafe_allow_html=True)
-
-        # ปรับรีเฟรชเป็น 30 วินาที
-        time.sleep(30)
-        st.rerun()
-
-    except Exception as e:
-        st.error(f"⚠️ การเชื่อมต่อขัดข้อง หรือไม่พบข้อมูลปี {cur_year}")
 def main():
-    # 1. แสดงข้อความแจ้งเตือนถ้ามี (ย่อหน้า 4 ช่อง)
     if 'timeout_msg' in st.session_state and st.session_state.timeout_msg:
         st.error(st.session_state.timeout_msg)
         del st.session_state.timeout_msg
 
-    # 2. ตรวจสอบสถานะการเข้าระบบ
     if not st.session_state.logged_in:
-        # --- หน้า Login (ย่อหน้า 8 ช่อง) ---
         _, col, _ = st.columns([1, 1.2, 1])
         with col:
             st.markdown("<br><br>", unsafe_allow_html=True)
@@ -1005,73 +843,58 @@ def main():
                     st.image(LOGO_PATH, width=120)
                 st.markdown("<h3 style='text-align:center;'>ศูนย์ปฏิบัติการกลาง<br>สถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</h3>", unsafe_allow_html=True)
                 pwd_in = st.text_input("รหัสผ่านเจ้าหน้าที่", type="password")
-                if st.button("เข้าสู่ระบบ", use_container_width=True, type='primary'):
+                if st.button("เข้าสู่ระบบ", width='stretch', type='primary'):
                     accs = st.secrets.get("OFFICER_ACCOUNTS", {})
                     if pwd_in in accs:
                         st.session_state.logged_in = True
                         st.session_state.user_info = accs[pwd_in]
                         st.session_state.current_user_pwd = pwd_in
-                        st.query_params["logged_in"] = "true"
-                        st.query_params["pwd"] = pwd_in
                         st.rerun()
-                    else:
-                        st.error("❌ รหัสผิด")
+                    else: st.error("❌ รหัสผิด")
     else:
-        # --- กรณีเข้าระบบเรียบร้อยแล้ว (ย่อหน้า 8 ช่อง) ---
-        
         if st.session_state.current_dept is None:
-            # ✅ ก) หน้าเลือกแผนก (ย่อหน้า 12 ช่อง)
-            st.markdown(f"""
-                <div style="text-align:center; padding:20px; border-bottom:2px solid #f0f2f6; margin-bottom:20px;">
-                    <h1 style="color:#1E3A8A; margin:0;">🏢 เลือกแผนกปฏิบัติงาน</h1>
-                    <p style="color:#64748b;">เจ้าหน้าที่: {st.session_state.user_info.get('name')}</p>
-                </div>
-            """, unsafe_allow_html=True)
-
-            # สร้างคอลัมน์ 3 ช่อง
-            c1, c2, c3 = st.columns(3) 
-
+            c_brand, c_nav = st.columns([7, 2.5])
+            with c_brand:
+                c_logo, c_text = st.columns([1, 6])
+                with c_logo:
+                    if LOGO_PATH: st.image(LOGO_PATH, use_column_width=True)
+                with c_text:
+                    st.markdown("""
+                    <div style="display: flex; flex-direction: column; justify-content: center; height: 100%;">
+                        <div style="font-size: 22px; font-weight: bold; color: #1E3A8A; line-height: 1.2;">ศูนย์ปฏิบัติการกลางสถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</div>
+                        <div style="font-size: 16px; color: #475569; margin-top: 4px;">🏢 เลือกแผนกปฏิบัติงาน</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            # --- จุดที่เคย Error (แก้ไขแล้ว) ---
+            with c_nav:
+                st.write("")
+                st.write("")
+                # สังเกตการย่อหน้าใต้ if ต้องขยับเข้ามา
+                if st.button("🚪 ออกจากระบบ", key="main_logout", use_container_width=True):
+                    st.query_params.clear() 
+                    st.session_state.clear()
+                    st.rerun()
+            # --------------------------------
+            
+            st.markdown("---")
+            c1, c2 = st.columns(2)
             with c1:
                 with st.container(border=True):
                     st.subheader("🕵️ งานสอบสวน")
-                    if st.button("เข้าใช้งานสอบสวน", use_container_width=True, type='primary', key="btn_main_inv"):
-                        st.session_state.current_dept = "inv"
-                        st.session_state.view_mode = "list"
-                        st.query_params["dept"] = "inv"
+                    if st.button("เข้าใช้งานสอบสวน", use_container_width=True, type='primary', key="btn_to_inv"):
+                        st.session_state.current_dept = "inv"; st.session_state.view_mode = "list"
                         st.rerun()
-
             with c2:
                 with st.container(border=True):
                     st.subheader("🚦 งานจราจร")
-                    if st.button("เข้าใช้งานจราจร", use_container_width=True, type='primary', key="btn_main_tra"):
+                    if st.button("เข้าใช้งานจราจร", use_container_width=True, type='primary', key="btn_to_tra"):
                         st.session_state.current_dept = "tra"
                         st.session_state.traffic_page = 'teacher'
-                        st.query_params["dept"] = "tra"
+                        st.session_state.search_results_df = None
                         st.rerun()
-
-            with c3:
-                with st.container(border=True):
-                    st.subheader("🖥️ War Room")
-                    if st.button("เปิดจอเฝ้าระวังเหตุ", use_container_width=True, type='primary', key="btn_main_mon"):
-                        st.session_state.current_dept = "monitor_view"
-                        st.query_params["dept"] = "monitor_view"
-                        st.rerun()
-            
-            st.write("")
-            if st.button("🚪 ออกจากระบบ", use_container_width=True, key="main_logout_btn"):
-                st.query_params.clear()
-                st.session_state.clear()
-                st.rerun()
-        
         else:
-            # ✅ ข) หน้า Module ต่างๆ (บรรทัด else นี้ต้องตรงกับ if st.session_state.current_dept is None)
-            if st.session_state.current_dept == "inv":
-                investigation_module()
-            elif st.session_state.current_dept == "tra":
-                traffic_module()
-            elif st.session_state.current_dept == "monitor_view":
-                monitor_center_module()
+            if st.session_state.current_dept == "inv": investigation_module()
+            elif st.session_state.current_dept == "tra": traffic_module()
 
-# --- บรรทัดสุดท้ายของไฟล์ (ห้ามมี st.button อื่นๆ มาวางลอยไว้ตรงนี้) ---
-if __name__ == "__main__":
-    main()
+if __name__ == "__main__": main()
