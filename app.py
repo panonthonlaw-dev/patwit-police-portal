@@ -728,6 +728,7 @@ def traffic_module():
         if st.button("ยกเลิก", use_container_width=True): st.session_state.traffic_page = 'teacher'; st.rerun()
 
     elif st.session_state['page'] == 'dashboard':
+    # บรรทัดนี้ต้องย่อหน้าเข้ามาเพื่อให้ Python รู้ว่าอยู่ภายใต้ elif ด้านบน
     if st.button("⬅️ กลับหน้าจัดการ", use_container_width=True): 
         go_to_page('teacher')
     
@@ -737,7 +738,6 @@ def traffic_module():
         df = st.session_state.df.copy()
         
         # --- 1. เตรียมข้อมูล ---
-        # ปรับปรุงการเข้าถึงคอลัมน์ให้ปลอดภัยขึ้น
         df.columns = [f"Col_{i}" for i in range(len(df.columns))]
         score_col = 'Col_13'
         class_col = 'Col_3'
@@ -756,7 +756,7 @@ def traffic_module():
         m2.markdown(f'<div class="metric-card"><div class="metric-label">คะแนนวินัยเฉลี่ย</div><div class="metric-value" style="font-size:2rem; color:#16a34a;">{avg_score:.1f}</div></div>', unsafe_allow_html=True)
         st.write("")
 
-        # --- 3. ฟังก์ชันช่วยสร้าง Pie Chart เพื่อลดการเขียนซ้ำและคุม Layout ---
+        # --- 3. ฟังก์ชันช่วยสร้าง Pie Chart ---
         def create_safe_pie(df, col_name, title_text):
             fig = px.pie(df, names=col_name, title=title_text, hole=0.4,
                          color_discrete_sequence=px.colors.qualitative.Pastel)
@@ -764,7 +764,7 @@ def traffic_module():
                 margin=dict(t=50, b=0, l=10, r=10),
                 legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
                 title_x=0.5,
-                height=350 # คุมความสูงไม่ให้เบียดกัน
+                height=350 
             )
             return fig
 
@@ -778,9 +778,7 @@ def traffic_module():
 
         # --- 5. แสดงผลกราฟแท่ง (2 คอลัมน์) ---
         c4, c5 = st.columns(2)
-        
         with c4:
-            # กราฟคะแนนเฉลี่ยรายชั้น
             avg_by_lv = df[['LV', score_col]].groupby('LV').mean().reset_index()
             fig_bar1 = px.bar(avg_by_lv, x='LV', y=score_col, title="คะแนนเฉลี่ยรายระดับชั้น",
                              labels={'LV': 'ระดับชั้น', score_col: 'คะแนน'},
@@ -789,7 +787,6 @@ def traffic_module():
             st.plotly_chart(fig_bar1, use_container_width=True)
             
         with c5:
-            # กราฟจำนวนรถรายชั้น
             count_by_lv = df.groupby('LV').size().reset_index(name='จำนวน')
             fig_bar2 = px.bar(count_by_lv, x='LV', y='จำนวน', title="จำนวนรถแยกตามระดับชั้น",
                              labels={'LV': 'ระดับชั้น', 'จำนวน': 'คัน'},
