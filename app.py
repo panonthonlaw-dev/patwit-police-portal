@@ -333,24 +333,24 @@ def investigation_module():
                 df_p = filtered[filtered['Status'].isin(["รอดำเนินการ", "อยู่ระหว่างการดำเนินการ"])][::-1]
                 df_f = filtered[filtered['Status'] == "ดำเนินการเรียบร้อย"][::-1]
 
-                st.markdown("<h4 style='color:#1E3A8A; background-color:#f0f2f6; padding:10px; border-radius:5px;'>⏳ รายการที่รอการดำเนินการ</h4>", unsafe_allow_html=True)
-                start_p, end_p, cur_p, tot_p = calculate_pagination('page_pending', len(df_p), 5)
-                h1, h2, h3, h4 = st.columns([2.5, 2, 3, 1.5])
-                h1.markdown("**เลขที่รับแจ้ง**"); h2.markdown("**วันเวลา**"); h3.markdown("**ประเภทเหตุ**"); h4.markdown("**สถานะ**")
-                st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
+                # --- ส่วนที่แสดงรายการที่ดำเนินการเรียบร้อย (ประมาณบรรทัด 340 เป็นต้นไป) ---
+                st.markdown("<h4 style='color:#2e7d32; background-color:#e8f5e9; padding:10px; border-radius:5px;'>✅ รายการที่ดำเนินการเรียบร้อย</h4>", unsafe_allow_html=True)
+                start_f, end_f, cur_f, tot_f = calculate_pagination('page_finished', len(df_f), 5)
                 
-                if df_p.empty: 
-                    st.caption("ไม่มีรายการ")
-                else:
-                    for i, row in df_p.iloc[start_p:end_p].iterrows():
-                    cc1, cc2, cc3, cc4 = st.columns([2.5, 2, 3, 1.5]) 
+                for i, row in df_f.iloc[start_f:end_f].iterrows():
+                    # ✅ บรรทัด 346: ต้องเคาะเว้นวรรคเข้ามา 4 ช่องให้ตรงกันแบบนี้
+                    cc1, cc2, cc3, cc4 = st.columns([2.5, 2, 3, 1.5])
+                    
                     with cc1: 
-                        # เปลี่ยนเป็นใช้ nav_to_detail
-                        st.button(f"📝 {row['Report_ID']}", key=f"p_{i}", use_container_width=True, 
-                                  on_click=nav_to_detail, args=(row['Report_ID'],))
+                        # เปลี่ยนปุ่มเป็นแบบ if เพื่อให้อัปเดตหน้าได้ชัวร์
+                        if st.button(f"✅ {row['Report_ID']}", key=f"f_{i}", use_container_width=True):
+                            navigate_to_detail(row['Report_ID']) # เรียกฟังก์ชันที่เราสร้างไว้
+                            st.session_state.unlock_password = ""
+                            st.rerun()
+                            
                     cc2.write(row['Timestamp'])
                     cc3.write(row['Incident_Type'])
-                    cc4.markdown(f"<span style='color:orange;font-weight:bold'>⏳ {row['Status']}</span>", unsafe_allow_html=True)
+                    cc4.markdown("<span style='color:green;font-weight:bold'>✅ เรียบร้อย</span>", unsafe_allow_html=True)
                     st.divider()
                 
                 if tot_p > 1:
