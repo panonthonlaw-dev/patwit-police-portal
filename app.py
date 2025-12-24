@@ -213,12 +213,7 @@ def investigation_module():
             st.session_state.clear()
             st.rerun()
             
-    st.markdown("---")
-
-    st.markdown("---")
-
-    st.markdown("---")
-
+    
     # --- [ส่วนที่เพิ่ม: คำนวณปีการศึกษา (พ.ค. - เม.ย.) + เผื่อปีหน้า] ---
     now_th = get_now_th()
     current_buddhist_year = now_th.year + 543
