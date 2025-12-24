@@ -727,52 +727,57 @@ def traffic_module():
                 load_tra_data(); st.success("เสร็จสิ้น"); st.session_state.traffic_page = 'teacher'; st.rerun()
         if st.button("ยกเลิก", use_container_width=True): st.session_state.traffic_page = 'teacher'; st.rerun()
 
-    elif st.session_state['page'] == 'dashboard':
-        # บรรทัดเหล่านี้ต้อง "ย่อหน้า" เข้าไป 1 ระดับ (4 ช่อง) จากแนว elif ด้านบน
+    elif st.session_state.traffic_page == 'dash':
+        # เปลี่ยนปุ่มกลับให้ไปที่สถานะ 'teacher' ของแอปหลัก
         if st.button("⬅️ กลับหน้าจัดการ", use_container_width=True): 
-            go_to_page('teacher')
+            st.session_state.traffic_page = 'teacher'
+            st.rerun()
         
         st.subheader("📊 รายงานสถิติจราจรภาพรวม")
         
-        if 'df' in st.session_state:
-            df = st.session_state.df.copy()
+        # เปลี่ยนจาก 'df' เป็น 'df_tra' ให้ตรงกับตัวแปรที่แอปหลักใช้โหลดข้อมูล
+        if st.session_state.df_tra is not None:
+            df = st.session_state.df_tra.copy()
             
-            # --- 1. เตรียมข้อมูล (ใช้ชื่อคอลัมน์แบบรัดกุม) ---
+            # --- 1. เตรียมข้อมูล ---
             df.columns = [f"Col_{i}" for i in range(len(df.columns))]
-            score_col, class_col = 'Col_13', 'Col_3'
-            lic_col, tax_col, helmet_col = 'Col_7', 'Col_8', 'Col_9'
+            score_col = 'Col_13'
+            class_col = 'Col_3'
+            lic_col = 'Col_7'
+            tax_col = 'Col_8'
+            helmet_col = 'Col_9'
             
             df[score_col] = pd.to_numeric(df[score_col], errors='coerce').fillna(100)
             df['LV'] = df[class_col].apply(lambda x: str(x).split('/')[0] if '/' in str(x) else str(x))
-    
-            # --- 2. ส่วนสรุปตัวเลข (Metric Cards) ---
+
+            # --- 2. ส่วนสรุปตัวเลข ---
             total_cars = len(df)
             avg_score = df[score_col].mean()
             m1, m2 = st.columns(2)
-            m1.markdown(f'<div class="metric-card"><div class="metric-label">จำนวนรถทั้งหมด</div><div class="metric-value" style="font-size:1.8rem;">{total_cars} คัน</div></div>', unsafe_allow_html=True)
-            m2.markdown(f'<div class="metric-card"><div class="metric-label">คะแนนวินัยเฉลี่ย</div><div class="metric-value" style="font-size:1.8rem; color:#16a34a;">{avg_score:.1f}</div></div>', unsafe_allow_html=True)
+            m1.markdown(f'<div class="metric-card"><div class="metric-label">จำนวนรถทั้งหมด</div><div class="metric-value" style="font-size:2rem;">{total_cars} คัน</div></div>', unsafe_allow_html=True)
+            m2.markdown(f'<div class="metric-card"><div class="metric-label">คะแนนวินัยเฉลี่ย</div><div class="metric-value" style="font-size:2rem; color:#16a34a;">{avg_score:.1f}</div></div>', unsafe_allow_html=True)
             st.write("")
-    
-            # --- 3. ฟังก์ชันสร้างกราฟ Pie (แก้ปัญหาตัวหนังสือทับกัน) ---
-            def create_clean_pie(df, col_name, title_text):
-                fig = px.pie(df, names=col_name, title=title_text, hole=0.4)
+
+            # --- 3. ฟังก์ชันสร้างกราฟ Pie ---
+            def create_safe_pie(df, col_name, title_text):
+                fig = px.pie(df, names=col_name, title=title_text, hole=0.4,
+                             color_discrete_sequence=px.colors.qualitative.Pastel)
                 fig.update_layout(
                     margin=dict(t=50, b=0, l=10, r=10),
-                    legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5), # ย้ายคำอธิบายลงล่าง
-                    title_x=0.5,
-                    height=350 
+                    legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
+                    title_x=0.5, height=350 
                 )
                 return fig
-    
-            # --- 4. แสดงผลกราฟวงกลม 3 คอลัมน์ ---
+
+            # --- 4. แสดงผลกราฟวงกลม ---
             c1, c2, c3 = st.columns(3)
-            with c1: st.plotly_chart(create_clean_pie(df, lic_col, "ใบขับขี่"), use_container_width=True)
-            with c2: st.plotly_chart(create_clean_pie(df, tax_col, "ภาษี/พรบ."), use_container_width=True)
-            with c3: st.plotly_chart(create_clean_pie(df, helmet_col, "หมวกกันน็อค"), use_container_width=True)
-    
+            with c1: st.plotly_chart(create_safe_pie(df, lic_col, "ใบขับขี่"), use_container_width=True)
+            with c2: st.plotly_chart(create_safe_pie(df, tax_col, "ภาษี/พรบ."), use_container_width=True)
+            with c3: st.plotly_chart(create_safe_pie(df, helmet_col, "หมวกกันน็อค"), use_container_width=True)
+
             st.divider()
-    
-            # --- 5. แสดงผลกราฟแท่ง 2 คอลัมน์ ---
+
+            # --- 5. แสดงผลกราฟแท่ง ---
             c4, c5 = st.columns(2)
             with c4:
                 avg_by_lv = df[['LV', score_col]].groupby('LV').mean().reset_index()
@@ -784,9 +789,9 @@ def traffic_module():
                 
             with c5:
                 count_by_lv = df.groupby('LV').size().reset_index(name='จำนวน')
-                fig_bar2 = px.bar(count_by_lv, x='LV', y='จำนวน', title="จำนวนรถรายระดับชั้น",
+                fig_bar2 = px.bar(count_by_lv, x='LV', y='จำนวน', title="จำนวนรถแยกตามระดับชั้น",
                                  labels={'LV': 'ระดับชั้น', 'จำนวน': 'คัน'},
-                                 color='LV')
+                                 color='LV', color_discrete_sequence=px.colors.qualitative.Safe)
                 fig_bar2.update_layout(margin=dict(t=50, b=20, l=20, r=20), title_x=0.5, showlegend=False)
                 st.plotly_chart(fig_bar2, use_container_width=True)
 # ==========================================
