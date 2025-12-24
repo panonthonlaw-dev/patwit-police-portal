@@ -976,6 +976,8 @@ def monitor_center_module():
         conn = st.connection("gsheets", type=GSheetsConnection)
         now_th = get_now_th()
         cur_year = (now_th.year + 543) if now_th.month >= 5 else (now_th.year + 542)
+        
+        # บังคับโหลดใหม่ (ttl=0)
         df = conn.read(worksheet=f"Investigation_{cur_year}", ttl=0).fillna("")
         
         if not df.empty and 'Status' in df.columns:
@@ -1004,7 +1006,6 @@ def monitor_center_module():
             with c1:
                 st.markdown('<div class="header-badge" style="background:#dc2626;">🔥 แจ้งใหม่ (ทั้งหมด)</div>', unsafe_allow_html=True)
                 
-                # สร้าง HTML ก้อนรวม
                 cards_html = "".join([make_card_html(row, "new") for _, row in df_new.iterrows()])
                 
                 if df_new.empty:
@@ -1013,12 +1014,13 @@ def monitor_center_module():
                     # น้อยกว่า 10: แสดงนิ่งๆ
                     st.markdown(f'<div class="monitor-box"><div>{cards_html}</div></div>', unsafe_allow_html=True)
                 else:
-                    # มากกว่า 10: เลื่อน Animation
+                    # มากกว่า 10: เลื่อน Animation (ใส่ข้อมูลซ้ำ 2 รอบเพื่อให้เลื่อนเนียน)
                     st.markdown(f"""
                     <div class="monitor-box">
                         <div class="animate-scroll">
                             {cards_html}
-                            {cards_html} </div>
+                            {cards_html} 
+                        </div>
                     </div>
                     """, unsafe_allow_html=True)
 
@@ -1031,15 +1033,14 @@ def monitor_center_module():
                 if df_prog.empty:
                     st.caption("- ว่าง -")
                 elif len(df_prog) <= 10:
-                    # น้อยกว่า 10: แสดงนิ่งๆ
                     st.markdown(f'<div class="monitor-box"><div>{cards_html}</div></div>', unsafe_allow_html=True)
                 else:
-                    # มากกว่า 10: เลื่อน Animation
                     st.markdown(f"""
                     <div class="monitor-box">
                         <div class="animate-scroll">
                             {cards_html}
-                            {cards_html} </div>
+                            {cards_html} 
+                        </div>
                     </div>
                     """, unsafe_allow_html=True)
 
