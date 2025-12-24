@@ -659,7 +659,7 @@ def traffic_module():
             with m2: st.markdown(f'<div class="metric-card"><div class="metric-value">{lok}</div><div class="metric-label">มีใบขับขี่</div></div>', unsafe_allow_html=True)
 
 # ==========================================
-# 4. MAIN ENTRY
+# 4. MAIN ENTRY (แก้ไขย่อหน้าให้ถูกต้อง)
 # ==========================================
 def main():
     if 'timeout_msg' in st.session_state and st.session_state.timeout_msg:
@@ -678,8 +678,10 @@ def main():
                 if st.button("เข้าสู่ระบบ", width='stretch', type='primary'):
                     accs = st.secrets.get("OFFICER_ACCOUNTS", {})
                     if pwd_in in accs:
-                        st.session_state.logged_in = True; st.session_state.user_info = accs[pwd_in]
-                        st.session_state.current_user_pwd = pwd_in; st.rerun()
+                        st.session_state.logged_in = True
+                        st.session_state.user_info = accs[pwd_in]
+                        st.session_state.current_user_pwd = pwd_in
+                        st.rerun()
                     else: st.error("❌ รหัสผิด")
     else:
         if st.session_state.current_dept is None:
@@ -695,13 +697,17 @@ def main():
                         <div style="font-size: 16px; color: #475569; margin-top: 4px;">🏢 เลือกแผนกปฏิบัติงาน</div>
                     </div>
                     """, unsafe_allow_html=True)
+            
+            # --- จุดที่เคย Error (แก้ไขแล้ว) ---
             with c_nav:
                 st.write("")
                 st.write("")
-                if b_logout.button("🚪 ออก", key="inv_logout_btn", use_container_width=True):
-            st.query_params.clear()  # <--- เพิ่มบรรทัดนี้ เพื่อล้างค่าใน URL
-            st.session_state.clear()
-            st.rerun()
+                # สังเกตการย่อหน้าใต้ if ต้องขยับเข้ามา
+                if st.button("🚪 ออกจากระบบ", key="main_logout", use_container_width=True):
+                    st.query_params.clear() 
+                    st.session_state.clear()
+                    st.rerun()
+            # --------------------------------
             
             st.markdown("---")
             c1, c2 = st.columns(2)
@@ -709,7 +715,7 @@ def main():
                 with st.container(border=True):
                     st.subheader("🕵️ งานสอบสวน")
                     if st.button("เข้าใช้งานสอบสวน", use_container_width=True, type='primary', key="btn_to_inv"):
-                        st.session_state.current_dept = "inv"; st.session_state.view_mode = "list" # Reset Navigation
+                        st.session_state.current_dept = "inv"; st.session_state.view_mode = "list"
                         st.rerun()
             with c2:
                 with st.container(border=True):
@@ -717,7 +723,7 @@ def main():
                     if st.button("เข้าใช้งานจราจร", use_container_width=True, type='primary', key="btn_to_tra"):
                         st.session_state.current_dept = "tra"
                         st.session_state.traffic_page = 'teacher'
-                        st.session_state.search_results_df = None # Reset Search
+                        st.session_state.search_results_df = None
                         st.rerun()
         else:
             if st.session_state.current_dept == "inv": investigation_module()
