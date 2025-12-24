@@ -733,82 +733,69 @@ def traffic_module():
             
         if st.session_state.df_tra is not None:
             df = st.session_state.df_tra.copy()
-            # เตรียมข้อมูลพื้นฐาน
+            # 1. เตรียมข้อมูลพื้นฐาน
             df['Score'] = pd.to_numeric(df['C13'], errors='coerce').fillna(100)
             df['LV'] = df['C3'].apply(lambda x: str(x).split('/')[0] if pd.notna(x) and '/' in str(x) else str(x))
+            
             total_all = len(df)
+            avg_all = df['Score'].mean()
+            at_risk = len(df[df['Score'] < 60])
+            lic_total = (df['C7'].str.contains("มี", na=False)).sum()
+            tax_total = (df['C8'].str.contains("ปกติ|✅", na=False)).sum()
+            hel_total = (df['C9'].str.contains("มี", na=False)).sum()
 
-            st.markdown("<h2 style='text-align:center; color:#1E3A8A; margin-bottom:20px;'>📋 รายงานสรุปผลการดำเนินงานด้านวินัยจราจร</h2>", unsafe_allow_html=True)
+            lic_p = (lic_total / total_all * 100) if total_all > 0 else 0
+            tax_p = (tax_total / total_all * 100) if total_all > 0 else 0
+            hel_p = (hel_total / total_all * 100) if total_all > 0 else 0
 
-            # --- หมวดหมู่ที่ 1: กรอบภาพรวม (ดีไซน์ทางการ) ---
-# 1. คำนวณค่าสถิติพื้นฐาน
-total_all = len(df)
-avg_all = df['Score'].mean()
-at_risk = len(df[df['Score'] < 60])
+            st.markdown("<h2 style='text-align:center; color:#1E3A8A;'>📋 รายงานสรุปผลการดำเนินงานจราจร</h2>", unsafe_allow_html=True)
 
-# 2. คำนวณสถิติเพิ่มเติม (ใบขับขี่, ภาษี, หมวก)
-lic_total = (df['C7'].str.contains("มี", na=False)).sum()
-tax_total = (df['C8'].str.contains("ปกติ|✅", na=False)).sum()
-hel_total = (df['C9'].str.contains("มี", na=False)).sum()
+            # --- หมวดหมู่ที่ 1: บทสรุปผู้บริหาร ---
+            st.markdown(f"""
+            <div style="border: 2px solid #1E3A8A; border-radius: 15px; padding: 20px; background-color: #f8fafc; margin-bottom: 25px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+                <h4 style="color: #1E3A8A; margin-top: 0; border-bottom: 2px solid #1E3A8A; padding-bottom: 10px; text-align: center; font-weight: bold;">📊 บทสรุปผู้บริหาร (Executive Summary)</h4>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; padding: 15px 0; text-align: center;">
+                    <div style="background: white; padding: 10px; border-radius: 10px; border: 1px solid #e2e8f0;">
+                        <div style="font-size: 12px; color: #64748b; font-weight: bold;">พาหนะลงทะเบียน</div>
+                        <div style="font-size: 24px; font-weight: 800; color: #1e293b;">{total_all} <span style="font-size: 14px;">คัน</span></div>
+                    </div>
+                    <div style="background: white; padding: 10px; border-radius: 10px; border: 1px solid #e2e8f0;">
+                        <div style="font-size: 12px; color: #64748b; font-weight: bold;">คะแนนวินัยเฉลี่ย</div>
+                        <div style="font-size: 24px; font-weight: 800; color: #16a34a;">{avg_all:.1f} <span style="font-size: 14px;">แต้ม</span></div>
+                    </div>
+                    <div style="background: white; padding: 10px; border-radius: 10px; border: 1px solid #e2e8f0;">
+                        <div style="font-size: 12px; color: #64748b; font-weight: bold;">กลุ่มเฝ้าระวัง (<60)</div>
+                        <div style="font-size: 24px; font-weight: 800; color: #ef4444;">{at_risk} <span style="font-size: 14px;">คน</span></div>
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; text-align: center;">
+                    <div style="background: #eff6ff; padding: 10px; border-radius: 10px; border: 1px solid #bfdbfe;">
+                        <div style="font-size: 12px; color: #1e40af; font-weight: bold;">🪪 มีใบขับขี่</div>
+                        <div style="font-size: 20px; font-weight: 800; color: #1e3a8a;">{lic_total} คน</div>
+                        <div style="font-size: 11px; color: #3b82f6;">({lic_p:.1f}%)</div>
+                    </div>
+                    <div style="background: #f0fdf4; padding: 10px; border-radius: 10px; border: 1px solid #bbf7d0;">
+                        <div style="font-size: 12px; color: #166534; font-weight: bold;">📝 ภาษี/พรบ. ปกติ</div>
+                        <div style="font-size: 20px; font-weight: 800; color: #14532d;">{tax_total} คัน</div>
+                        <div style="font-size: 11px; color: #22c55e;">({tax_p:.1f}%)</div>
+                    </div>
+                    <div style="background: #fffbeb; padding: 10px; border-radius: 10px; border: 1px solid #fef3c7;">
+                        <div style="font-size: 12px; color: #92400e; font-weight: bold;">🪖 สวมหมวกนิรภัย</div>
+                        <div style="font-size: 20px; font-weight: 800; color: #78350f;">{hel_total} คน</div>
+                        <div style="font-size: 11px; color: #f59e0b;">({hel_p:.1f}%)</div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
 
-# คำนวณร้อยละ
-lic_p = (lic_total / total_all * 100) if total_all > 0 else 0
-tax_p = (tax_total / total_all * 100) if total_all > 0 else 0
-hel_p = (hel_total / total_all * 100) if total_all > 0 else 0
-
-# 3. สร้างกรอบทางการด้วย HTML/CSS
-st.markdown(f"""
-<div style="border: 2px solid #1E3A8A; border-radius: 15px; padding: 20px; background-color: #f8fafc; margin-bottom: 25px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
-    <h4 style="color: #1E3A8A; margin-top: 0; border-bottom: 2px solid #1E3A8A; padding-bottom: 10px; text-align: center; font-weight: bold;">📊 บทสรุปผู้บริหาร (Executive Summary)</h4>
-    
-    <div style="display: flex; justify-content: space-around; align-items: center; flex-wrap: wrap; gap: 15px; padding: 15px 0;">
-        <div style="text-align: center; min-width: 120px;">
-            <div style="font-size: 13px; color: #64748b; font-weight: bold;">พาหนะลงทะเบียน</div>
-            <div style="font-size: 28px; font-weight: 800; color: #1e293b;">{total_all} <span style="font-size: 14px; font-weight: normal;">คัน</span></div>
-        </div>
-        <div style="text-align: center; min-width: 120px;">
-            <div style="font-size: 13px; color: #64748b; font-weight: bold;">คะแนนวินัยเฉลี่ย</div>
-            <div style="font-size: 28px; font-weight: 800; color: #16a34a;">{avg_all:.1f} <span style="font-size: 14px; font-weight: normal;">แต้ม</span></div>
-        </div>
-        <div style="text-align: center; min-width: 120px;">
-            <div style="font-size: 13px; color: #64748b; font-weight: bold;">กลุ่มเฝ้าระวัง (<60)</div>
-            <div style="font-size: 28px; font-weight: 800; color: #ef4444;">{at_risk} <span style="font-size: 14px; font-weight: normal;">คน</span></div>
-        </div>
-    </div>
-
-    <div style="border-top: 1px dashed #cbd5e1; margin: 5px 0;"></div>
-
-    <div style="display: flex; justify-content: space-around; align-items: center; flex-wrap: wrap; gap: 15px; padding-top: 15px;">
-        <div style="text-align: center; min-width: 120px;">
-            <div style="font-size: 12px; color: #1e40af; font-weight: bold;">🪪 มีใบขับขี่</div>
-            <div style="font-size: 22px; font-weight: 800; color: #1e3a8a;">{lic_total} <span style="font-size: 13px; font-weight: normal;">คน</span></div>
-            <div style="font-size: 11px; color: #3b82f6;">({lic_p:.1f}%)</div>
-        </div>
-        <div style="text-align: center; min-width: 120px;">
-            <div style="font-size: 12px; color: #166534; font-weight: bold;">📝 ภาษี/พรบ. ปกติ</div>
-            <div style="font-size: 22px; font-weight: 800; color: #14532d;">{tax_total} <span style="font-size: 13px; font-weight: normal;">คัน</span></div>
-            <div style="font-size: 11px; color: #22c55e;">({tax_p:.1f}%)</div>
-        </div>
-        <div style="text-align: center; min-width: 120px;">
-            <div style="font-size: 12px; color: #92400e; font-weight: bold;">🪖 สวมหมวกนิรภัย</div>
-            <div style="font-size: 22px; font-weight: 800; color: #78350f;">{hel_total} <span style="font-size: 13px; font-weight: normal;">คน</span></div>
-            <div style="font-size: 11px; color: #f59e0b;">({hel_p:.1f}%)</div>
-        </div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-            # --- หมวดหมู่ที่ 2: สถิติละเอียดแยกตามระดับชั้น (ตารางครบทุกข้อมูล) ---
+            # --- หมวดหมู่ที่ 2: ข้อมูลแยกระดับชั้น ---
             st.markdown("#### 📚 ข้อมูลวิเคราะห์เชิงลึกรายระดับชั้น / กลุ่มบุคลากร")
             
-            # คำนวณข้อมูลรายกลุ่ม
-            # C7=ใบขับขี่, C8=ภาษี, C9=หมวก
-            def calc_group_stats(group):
+            def calc_detailed(group):
                 n = len(group)
                 lic = (group['C7'].str.contains("มี", na=False)).sum()
                 tax = (group['C8'].str.contains("ปกติ|✅", na=False)).sum()
                 hel = (group['C9'].str.contains("มี", na=False)).sum()
-                
                 return pd.Series({
                     'จำนวนรถ': n,
                     'คะแนนเฉลี่ย': group['Score'].mean(),
@@ -820,26 +807,18 @@ st.markdown(f"""
                     'สวมหมวก (%)': (hel/n*100) if n>0 else 0
                 })
 
-            summary_table = df.groupby('LV').apply(calc_group_stats).reset_index()
-            summary_table = summary_table.rename(columns={'LV': 'ระดับชั้น/กลุ่ม'})
-            
-            # เรียงจากจำนวนรถมากไปน้อย
-            summary_table = summary_table.sort_values('จำนวนรถ', ascending=False)
+            summary_table = df.groupby('LV').apply(calc_detailed).reset_index()
+            summary_table = summary_table.rename(columns={'LV': 'ระดับชั้น/กลุ่ม'}).sort_values('จำนวนรถ', ascending=False)
 
-            # จัดรูปแบบตัวเลขให้สวยงาม
-            format_map = {
-                'คะแนนเฉลี่ย': '{:.2f}',
-                'ใบขับขี่ (%)': '{:.1f}%',
-                'ภาษีปกติ (%)': '{:.1f}%',
-                'สวมหมวก (%)': '{:.1f}%',
-                'จำนวนรถ': '{:,.0f}',
-                'ใบขับขี่ (คน)': '{:,.0f}',
-                'ภาษีปกติ (คัน)': '{:,.0f}',
-                'สวมหมวก (คน)': '{:,.0f}'
+            format_rules = {
+                'คะแนนเฉลี่ย': '{:.2f}', 'ใบขับขี่ (%)': '{:.1f}%', 'ภาษีปกติ (%)': '{:.1f}%', 'สวมหมวก (%)': '{:.1f}%',
+                'จำนวนรถ': '{:,.0f}', 'ใบขับขี่ (คน)': '{:,.0f}', 'ภาษีปกติ (คัน)': '{:,.0f}', 'สวมหมวก (คน)': '{:,.0f}'
             }
-            
-            for col, fmt in format_map.items():
+            for col, fmt in format_rules.items():
                 summary_table[col] = summary_table[col].apply(lambda x: fmt.format(x))
+
+            st.dataframe(summary_table, use_container_width=True, hide_index=True)
+            st.caption(f"อัปเดตล่าสุด: {get_now_th().strftime('%d/%m/%Y %H:%M')}")
 
             # แสดงผลตารางแบบ Interactive (มีแถบเลื่อนถ้าจอเล็ก)
             st.dataframe(summary_table, use_container_width=True, hide_index=True)
