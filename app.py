@@ -736,38 +736,55 @@ def traffic_module():
             # เตรียมข้อมูลพื้นฐาน
             df['Score'] = pd.to_numeric(df['C13'], errors='coerce').fillna(100)
             df['LV'] = df['C3'].apply(lambda x: str(x).split('/')[0] if pd.notna(x) and '/' in str(x) else str(x))
+            
             total_all = len(df)
-
-            st.markdown("<h2 style='text-align:center; color:#1E3A8A; margin-bottom:20px;'>📋 รายงานสรุปผลการดำเนินงานด้านวินัยจราจร</h2>", unsafe_allow_html=True)
-
-            # --- หมวดหมู่ที่ 1: กรอบภาพรวม (ดีไซน์ทางการ) ---
+            # คำนวณสถิติภาพรวมสำหรับบทสรุป
+            lic_total = (df['C7'].str.contains("มี", na=False)).sum()
+            tax_total = (df['C8'].str.contains("ปกติ|✅", na=False)).sum()
+            hel_total = (df['C9'].str.contains("มี", na=False)).sum()
             avg_all = df['Score'].mean()
             at_risk = len(df[df['Score'] < 60])
 
-            # สร้างกรอบทางการด้วย HTML/CSS
+            st.markdown("<h2 style='text-align:center; color:#1E3A8A; margin-bottom:20px;'>📋 รายงานสรุปผลการดำเนินงานด้านวินัยจราจร</h2>", unsafe_allow_html=True)
+
+            # --- หมวดหมู่ที่ 1: กรอบบทสรุปผู้บริหาร (Executive Summary) ดีไซน์ใหม่ ---
             st.markdown(f"""
-            <div style="border: 2px solid #1E3A8A; border-radius: 15px; padding: 25px; background-color: #f8fafc; margin-bottom: 25px;">
-                <h4 style="color: #1E3A8A; margin-top: 0; border-bottom: 1px solid #cbd5e1; padding-bottom: 10px;">📌 บทสรุปผู้บริหาร (Executive Summary)</h4>
-                <div style="display: flex; justify-content: space-around; align-items: center; flex-wrap: wrap; gap: 20px; padding-top: 15px;">
-                    <div style="text-align: center;">
-                        <div style="font-size: 14px; color: #64748b; font-weight: bold;">จำนวนพาหนะลงทะเบียน</div>
-                        <div style="font-size: 32px; font-weight: 800; color: #1e293b;">{total_all} <span style="font-size: 16px; font-weight: normal;">คัน</span></div>
+            <div style="border: 2px solid #1E3A8A; border-radius: 15px; padding: 20px; background-color: #f8fafc; margin-bottom: 25px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+                <h4 style="color: #1E3A8A; margin-top: 0; border-bottom: 2px solid #1E3A8A; padding-bottom: 10px; text-align: center;">📊 บทสรุปผู้บริหาร (Executive Summary)</h4>
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; padding-top: 15px; text-align: center;">
+                    <div style="background: white; padding: 10px; border-radius: 10px; border: 1px solid #e2e8f0;">
+                        <div style="font-size: 12px; color: #64748b; font-weight: bold; text-transform: uppercase;">พาหนะลงทะเบียน</div>
+                        <div style="font-size: 24px; font-weight: 800; color: #1e293b;">{total_all} <span style="font-size: 14px;">คัน</span></div>
                     </div>
-                    <div style="border-left: 1px solid #cbd5e1; height: 50px;" class="hide-mobile"></div>
-                    <div style="text-align: center;">
-                        <div style="font-size: 14px; color: #64748b; font-weight: bold;">คะแนนวินัยเฉลี่ยภาพรวม</div>
-                        <div style="font-size: 32px; font-weight: 800; color: #16a34a;">{avg_all:.2f} <span style="font-size: 16px; font-weight: normal;">แต้ม</span></div>
+                    <div style="background: white; padding: 10px; border-radius: 10px; border: 1px solid #e2e8f0;">
+                        <div style="font-size: 12px; color: #64748b; font-weight: bold; text-transform: uppercase;">คะแนนวินัยเฉลี่ย</div>
+                        <div style="font-size: 24px; font-weight: 800; color: #16a34a;">{avg_all:.1f} <span style="font-size: 14px;">แต้ม</span></div>
                     </div>
-                    <div style="border-left: 1px solid #cbd5e1; height: 50px;" class="hide-mobile"></div>
-                    <div style="text-align: center;">
-                        <div style="font-size: 14px; color: #64748b; font-weight: bold;">กลุ่มเฝ้าระวังพิเศษ (แต้ม < 60)</div>
-                        <div style="font-size: 32px; font-weight: 800; color: #ef4444;">{at_risk} <span style="font-size: 16px; font-weight: normal;">คน</span></div>
+                    <div style="background: white; padding: 10px; border-radius: 10px; border: 1px solid #e2e8f0;">
+                        <div style="font-size: 12px; color: #64748b; font-weight: bold; text-transform: uppercase;">กลุ่มเฝ้าระวัง (<60)</div>
+                        <div style="font-size: 24px; font-weight: 800; color: #ef4444;">{at_risk} <span style="font-size: 14px;">คน</span></div>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; padding-top: 15px; text-align: center;">
+                    <div style="background: #eff6ff; padding: 10px; border-radius: 10px; border: 1px solid #bfdbfe;">
+                        <div style="font-size: 12px; color: #1e40af; font-weight: bold;">🪪 มีใบขับขี่</div>
+                        <div style="font-size: 22px; font-weight: 800; color: #1e3a8a;">{lic_total} <span style="font-size: 13px;">คน</span></div>
+                        <div style="font-size: 11px; color: #3b82f6;">({(lic_total/total_all*100):.1f}%)</div>
+                    </div>
+                    <div style="background: #f0fdf4; padding: 10px; border-radius: 10px; border: 1px solid #bbf7d0;">
+                        <div style="font-size: 12px; color: #166534; font-weight: bold;">📝 ภาษี/พรบ. ปกติ</div>
+                        <div style="font-size: 22px; font-weight: 800; color: #14532d;">{tax_total} <span style="font-size: 13px;">คัน</span></div>
+                        <div style="font-size: 11px; color: #22c55e;">({(tax_total/total_all*100):.1f}%)</div>
+                    </div>
+                    <div style="background: #fffbeb; padding: 10px; border-radius: 10px; border: 1px solid #fef3c7;">
+                        <div style="font-size: 12px; color: #92400e; font-weight: bold;">🪖 สวมหมวกนิรภัย</div>
+                        <div style="font-size: 22px; font-weight: 800; color: #78350f;">{hel_total} <span style="font-size: 13px;">คน</span></div>
+                        <div style="font-size: 11px; color: #f59e0b;">({(hel_total/total_all*100):.1f}%)</div>
                     </div>
                 </div>
             </div>
-            <style>
-                @media (max-width: 600px) {{ .hide-mobile {{ display: none; }} }}
-            </style>
             """, unsafe_allow_html=True)
 
             # --- หมวดหมู่ที่ 2: สถิติละเอียดแยกตามระดับชั้น (ตารางครบทุกข้อมูล) ---
