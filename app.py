@@ -258,7 +258,50 @@ def investigation_module():
             if c not in df_display.columns: df_display[c] = ""
             
         df_display['Report_ID'] = df_display['Report_ID'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
+# --- [ส่วนที่เพิ่ม: การ์ดสถิติสรุปภาพรวม (Metric Cards)] ---
+        # 1. คำนวณตัวเลข
+        total_cases = len(df_display)
+        pending = len(df_display[df_display['Status'] == "รอดำเนินการ"])
+        process = len(df_display[df_display['Status'] == "อยู่ระหว่างการดำเนินการ"])
+        finished = len(df_display[df_display['Status'] == "ดำเนินการเรียบร้อย"])
 
+        # 2. แสดงผล 4 คอลัมน์
+        m1, m2, m3, m4 = st.columns(4)
+        
+        # Card 1: ทั้งหมด
+        m1.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-label">เคสปี {sel_year}</div>
+            <div class="metric-value">{total_cases}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Card 2: รอดำเนินการ (สีส้ม/เหลือง)
+        m2.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-label">รอดำเนินการ</div>
+            <div class="metric-value" style="color: #f59e0b;">{pending}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Card 3: ระหว่างดำเนินการ (สีฟ้า)
+        m3.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-label">กำลังดำเนินการ</div>
+            <div class="metric-value" style="color: #3b82f6;">{process}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Card 4: เรียบร้อย (สีเขียว)
+        m4.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-label">เสร็จสิ้น</div>
+            <div class="metric-value" style="color: #22c55e;">{finished}</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.write("") # เว้นบรรทัดให้นิดหน่อย
+        # -------------------------------------------------------
         # ... (หลังจากนี้เป็นโค้ด if st.session_state.view_mode == "list": ของเดิม ปล่อยไว้เหมือนเดิม) ...
 
         if st.session_state.view_mode == "list":
