@@ -427,7 +427,9 @@ def investigation_module():
                         df_raw.at[idx_raw, 'Statement'] = v_stmt; df_raw.at[idx_raw, 'Status'] = v_sta
                         if ev_img: df_raw.at[idx_raw, 'Evidence_Image'] = process_image(ev_img)
                         df_raw.at[idx_raw, 'Audit_Log'] = f"{clean_val(row['Audit_Log'])}\n[{get_now_th().strftime('%d/%m/%Y %H:%M')}] แก้ไขโดย {user['name']}"
-                        conn.update(data=df_raw.fillna("")); st.success("บันทึกเรียบร้อย!"); time.sleep(1); st.rerun()
+                        conn.update(worksheet=target_sheet, data=df_raw.fillna(""))
+    
+    st.success("บันทึกเรียบร้อย!"); time.sleep(1); st.rerun()
                 
                 if clean_val(row['Audit_Log']):
                     with st.expander("📜 ประวัติการบันทึก (Audit Log)"): st.code(row['Audit_Log'])
