@@ -909,50 +909,5 @@ def main():
             # --- วาง Module หน้าจอ Monitor ตรงนี้ ---
             elif st.session_state.current_dept == "monitor_view":
                 monitor_center_module() # เรียกฟังก์ชันที่เราจะสร้างแยกไว้
-        def monitor_center_module():
-    if st.button("⬅️ ออกจากหน้าจอมอนิเตอร์", use_container_width=True):
-        st.session_state.current_dept = None
-        st.rerun()
-
-    st.markdown("""
-        <div style="background-color:#0f172a; padding:25px; border-radius:15px; border-bottom:5px solid #3b82f6; text-align:center; margin-bottom:25px;">
-            <h1 style="color:#f8fafc; margin:0; letter-spacing: 2px;">📡 STUDENT POLICE MONITOR</h1>
-            <p style="color:#60a5fa; margin:5px 0 0 0; font-weight:bold; text-transform:uppercase;">ศูนย์เฝ้าระวังเหตุการณ์ Real-time</p>
-        </div>
-    """, unsafe_allow_html=True)
-
-    # ดึงข้อมูลจากชีตล่าสุด (อ้างอิงจากปีปัจจุบัน)
-    conn = st.connection("gsheets", type=GSheetsConnection)
-    now_th = get_now_th()
-    cur_year = (now_th.year + 543) if now_th.month >= 5 else (now_th.year + 542)
-    
-    try:
-        df = conn.read(worksheet=f"Investigation_{cur_year}", ttl=10).fillna("")
-        df = df.iloc[::-1] # เอาเหตุการณ์ใหม่ขึ้นก่อน
-
-        # Metrics แถวบน
-        m1, m2, m3 = st.columns(3)
-        m1.metric("เหตุการณ์ทั้งหมด", len(df))
-        m2.metric("🚨 รอดำเนินการ", len(df[df['Status'] == 'รอดำเนินการ']))
-        m3.metric("✅ เสร็จสิ้น", len(df[df['Status'] == 'ดำเนินการเรียบร้อย']))
-
-        st.write("---")
         
-        for _, row in df.head(10).iterrows():
-            color = "#ef4444" if row['Status'] == 'รอดำเนินการ' else "#10b981"
-            st.markdown(f"""
-                <div style="background-color:#1e293b; border-radius:12px; padding:15px; margin-bottom:10px; border-left:8px solid {color};">
-                    <div style="display:flex; justify-content:space-between; color:white;">
-                        <b style="font-size:18px;">📍 {row['Location']}</b>
-                        <span style="font-size:12px; color:#94a3b8;">{row['Timestamp']}</span>
-                    </div>
-                    <div style="color:#cbd5e1; margin-top:5px;">⚠️ {row['Incident_Type']} | ผู้เกี่ยวข้อง: {row['Accused']}</div>
-                    <div style="color:#64748b; font-size:13px; margin-top:5px; border-top:1px solid #334155; padding-top:5px;">รายละเอียด: {row['Details']}</div>
-                </div>
-            """, unsafe_allow_html=True)
-            
-        if st.button("🔄 อัปเดตข้อมูลสด"): st.rerun()
-    except:
-        st.error("ไม่พบข้อมูลปีการศึกษาปัจจุบัน")
-
 if __name__ == "__main__": main()
