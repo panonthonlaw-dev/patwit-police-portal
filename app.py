@@ -902,8 +902,20 @@ def monitor_center_module():
         </div>
     """, unsafe_allow_html=True)
 
+    # ค้นหาปุ่ม กลับหน้าหลัก ใน monitor_center_module
     if st.button("⬅️ กลับหน้าเลือกแผนก", use_container_width=True):
+        # 1. ล้างค่าใน Session
         st.session_state.current_dept = None
+        
+        # 2. ล้างค่าใน URL (ป้องกันไม่ให้มันดึงกลับมาหน้าเดิม)
+        if "dept" in st.query_params:
+            del st.query_params["dept"]
+        if "t_page" in st.query_params:
+            del st.query_params["t_page"]
+        if "v_mode" in st.query_params:
+            del st.query_params["v_mode"]
+            
+        # 3. สั่งรันใหม่เพื่อกลับไปหน้าเมนูหลัก
         st.rerun()
 
     conn = st.connection("gsheets", type=GSheetsConnection)
