@@ -728,71 +728,72 @@ def traffic_module():
         if st.button("ยกเลิก", use_container_width=True): st.session_state.traffic_page = 'teacher'; st.rerun()
 
     elif st.session_state.traffic_page == 'dash':
-        # เปลี่ยนปุ่มกลับให้ไปที่สถานะ 'teacher' ของแอปหลัก
-        if st.button("⬅️ กลับหน้าจัดการ", use_container_width=True): 
-            st.session_state.traffic_page = 'teacher'
-            st.rerun()
-        
-        st.subheader("📊 รายงานสถิติจราจรภาพรวม")
-        
-        # เปลี่ยนจาก 'df' เป็น 'df_tra' ให้ตรงกับตัวแปรที่แอปหลักใช้โหลดข้อมูล
+        # 1. ปุ่มย้อนกลับแบบกว้าง
+        if st.button("⬅️ กลับหน้าจัดการจราจร", use_container_width=True): 
+            st.session_state.traffic_page = 'teacher'; st.rerun()
+            
         if st.session_state.df_tra is not None:
             df = st.session_state.df_tra.copy()
             
-            # --- 1. เตรียมข้อมูล ---
-            df.columns = [f"Col_{i}" for i in range(len(df.columns))]
-            score_col = 'Col_13'
-            class_col = 'Col_3'
-            lic_col = 'Col_7'
-            tax_col = 'Col_8'
-            helmet_col = 'Col_9'
+            # --- เตรียมข้อมูล ---
+            # C13 คือคะแนน, C3 คือชั้น/ห้อง, C7-C9 คือสถานะเอกสาร
+            df['Score'] = pd.to_numeric(df['C13'], errors='coerce').fillna(100)
+            df['LV'] = df['C3'].apply(lambda x: str(x).split('/')[0] if pd.notna(x) and '/' in str(x) else str(x))
             
-            df[score_col] = pd.to_numeric(df[score_col], errors='coerce').fillna(100)
-            df['LV'] = df[class_col].apply(lambda x: str(x).split('/')[0] if '/' in str(x) else str(x))
+            st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📊 รายงานวิเคราะห์สถิติจราจร</h2>", unsafe_allow_html=True)
 
-            # --- 2. ส่วนสรุปตัวเลข ---
-            total_cars = len(df)
-            avg_score = df[score_col].mean()
-            m1, m2 = st.columns(2)
-            m1.markdown(f'<div class="metric-card"><div class="metric-label">จำนวนรถทั้งหมด</div><div class="metric-value" style="font-size:2rem;">{total_cars} คัน</div></div>', unsafe_allow_html=True)
-            m2.markdown(f'<div class="metric-card"><div class="metric-label">คะแนนวินัยเฉลี่ย</div><div class="metric-value" style="font-size:2rem; color:#16a34a;">{avg_score:.1f}</div></div>', unsafe_allow_html=True)
-            st.write("")
+            # --- ส่วนที่ 1: สรุปตัวเลขสำคัญ (Metrics) ---
+            total = len(df)
+            avg_score = df['Score'].mean()
+            low_score = len(df[df['Score'] < 60])
+            
+            m1, m2, m3 = st.columns(3)
+            m1.metric("🏍️ รถที่ลงทะเบียน", f"{total} คัน")
+            m2.metric("📉 คะแนนเฉลี่ยรวม", f"{avg_score:.1f} แต้ม")
+            m3.metric("⚠️ กลุ่มเสี่ยง (แต้ม < 60)", f"{low_score} คน", delta_color="inverse")
+            
+            st.write("<br>", unsafe_allow_html=True)
 
-            # --- 3. ฟังก์ชันสร้างกราฟ Pie ---
-            def create_safe_pie(df, col_name, title_text):
-                fig = px.pie(df, names=col_name, title=title_text, hole=0.4,
-                             color_discrete_sequence=px.colors.qualitative.Pastel)
+            # --- ส่วนที่ 2: กราฟวงกลมสถานะความปลอดภัย (3 คอลัมน์) ---
+            st.markdown("#### 🛡️ ความพร้อมด้านกฎหมายและความปลอดภัย")
+            
+            # ฟังก์ชันช่วยสร้างกราฟ Pie ให้มี Layout คงที่ ไม่เพี้ยน
+            def create_donut_chart(df_in, col, title_text, color_map=None):
+                fig = px.pie(df_in, names=col, title=title_text, hole=0.5,
+                             color_discrete_sequence=px.colors.qualitative.Safe)
                 fig.update_layout(
-                    margin=dict(t=50, b=0, l=10, r=10),
-                    legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
-                    title_x=0.5, height=350 
+                    margin=dict(l=20, r=20, t=50, b=80), # เพิ่มขอบล่างให้ Legend
+                    height=350,
+                    title_x=0.5,
+                    legend=dict(orientation="h", yanchor="bottom", y=-0.4, xanchor="center", x=0.5) # ย้าย Legend ลงล่าง
                 )
                 return fig
 
-            # --- 4. แสดงผลกราฟวงกลม ---
             c1, c2, c3 = st.columns(3)
-            with c1: st.plotly_chart(create_safe_pie(df, lic_col, "ใบขับขี่"), use_container_width=True)
-            with c2: st.plotly_chart(create_safe_pie(df, tax_col, "ภาษี/พรบ."), use_container_width=True)
-            with c3: st.plotly_chart(create_safe_pie(df, helmet_col, "หมวกกันน็อค"), use_container_width=True)
+            with c1: st.plotly_chart(create_donut_chart(df, 'C7', "สถานะใบขับขี่"), use_container_width=True)
+            with c2: st.plotly_chart(create_donut_chart(df, 'C8', "สถานะภาษี/พรบ."), use_container_width=True)
+            with c3: st.plotly_chart(create_donut_chart(df, 'C9', "การสวมหมวกกันน็อค"), use_container_width=True)
 
             st.divider()
 
-            # --- 5. แสดงผลกราฟแท่ง ---
+            # --- ส่วนที่ 3: วิเคราะห์รายระดับชั้น (2 คอลัมน์) ---
+            st.markdown("#### 📈 ข้อมูลแยกตามระดับชั้น")
             c4, c5 = st.columns(2)
+            
             with c4:
-                avg_by_lv = df[['LV', score_col]].groupby('LV').mean().reset_index()
-                fig_bar1 = px.bar(avg_by_lv, x='LV', y=score_col, title="คะแนนเฉลี่ยรายระดับชั้น",
-                                 labels={'LV': 'ระดับชั้น', score_col: 'คะแนน'},
-                                 color=score_col, color_continuous_scale='RdYlGn', range_y=[0, 105])
-                fig_bar1.update_layout(margin=dict(t=50, b=20, l=20, r=20), title_x=0.5)
+                # กราฟจำนวนรถรายชั้น
+                count_data = df.groupby('LV').size().reset_index(name='จำนวนคัน')
+                fig_bar1 = px.bar(count_data, x='LV', y='จำนวนคัน', title="จำนวนรถรายระดับชั้น",
+                                 color='LV', color_discrete_sequence=px.colors.qualitative.Pastel)
+                fig_bar1.update_layout(margin=dict(t=50, b=20, l=20, r=20), height=400, title_x=0.5, showlegend=False)
                 st.plotly_chart(fig_bar1, use_container_width=True)
                 
             with c5:
-                count_by_lv = df.groupby('LV').size().reset_index(name='จำนวน')
-                fig_bar2 = px.bar(count_by_lv, x='LV', y='จำนวน', title="จำนวนรถแยกตามระดับชั้น",
-                                 labels={'LV': 'ระดับชั้น', 'จำนวน': 'คัน'},
-                                 color='LV', color_discrete_sequence=px.colors.qualitative.Safe)
-                fig_bar2.update_layout(margin=dict(t=50, b=20, l=20, r=20), title_x=0.5, showlegend=False)
+                # กราฟคะแนนเฉลี่ยรายชั้น
+                avg_data = df.groupby('LV')['Score'].mean().reset_index()
+                fig_bar2 = px.bar(avg_data, x='LV', y='Score', title="คะแนนวินัยเฉลี่ยรายระดับชั้น",
+                                 color='Score', color_continuous_scale='RdYlGn', range_y=[0, 105])
+                fig_bar2.update_layout(margin=dict(t=50, b=20, l=20, r=20), height=400, title_x=0.5)
                 st.plotly_chart(fig_bar2, use_container_width=True)
 # ==========================================
 # 4. MAIN ENTRY (แก้ไขย่อหน้าให้ถูกต้อง)
