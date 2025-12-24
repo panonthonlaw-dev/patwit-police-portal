@@ -64,8 +64,7 @@ st.markdown("""
 TIMEOUT_SECONDS = 60 * 60  # ตั้งเวลา 60 นาที
 
 def check_inactivity():
-    def check_inactivity():
-    # 1. ตรวจสอบเวลา Timeout
+    # 1. ตรวจสอบเวลา Timeout (60 นาที)
     if 'last_active' not in st.session_state:
         st.session_state.last_active = time.time()
         
@@ -81,36 +80,43 @@ def check_inactivity():
     if st.query_params.get("logged_in") == "true":
         if not st.session_state.get('logged_in'):
             st.session_state.logged_in = True
-            st.session_state.user_info = {
-                'name': st.query_params.get("name", ""),
-                'role': st.query_params.get("role", "")
-            }
-            st.session_state.current_user_pwd = st.query_params.get("pwd", "")
+            accs = st.secrets.get("OFFICER_ACCOUNTS", {})
+            pwd = st.query_params.get("pwd", "")
+            if pwd in accs:
+                st.session_state.user_info = accs[pwd]
+                st.session_state.current_user_pwd = pwd
         
-        # --- กู้คืนสถานะหน้าแผนกและหน้าย่อย ---
-        if 'current_dept' not in st.session_state or st.session_state.current_dept is None:
-            st.session_state.current_dept = st.query_params.get("dept", None)
-        if 'traffic_page' not in st.session_state:
-            st.session_state.traffic_page = st.query_params.get("t_page", "teacher")
-        if 'view_mode' not in st.session_state:
-            st.session_state.view_mode = st.query_params.get("v_mode", "list")
+        # กู้คืนหน้าแผนกหลัก
+        q_dept = st.query_params.get("dept")
+        if q_dept and st.session_state.get('current_dept') != q_dept:
+            st.session_state.current_dept = q_dept
+            
+        # กู้คืนหน้าย่อยของงานจราจร
+        q_tpage = st.query_params.get("t_page")
+        if q_tpage and st.session_state.get('traffic_page') != q_tpage:
+            st.session_state.traffic_page = q_tpage
+            
+        # กู้คืนโหมดการดูของงานสอบสวน
+        q_vmode = st.query_params.get("v_mode")
+        if q_vmode and st.session_state.get('view_mode') != q_vmode:
+            st.session_state.view_mode = q_vmode
 
-    # 3. บันทึกสถานะปัจจุบันลง URL ตลอดเวลา
+    # 3. บันทึกสถานะปัจจุบันลง URL ตลอดเวลา (Sync State to URL)
     if st.session_state.get('logged_in'):
         st.query_params["logged_in"] = "true"
         st.query_params["name"] = st.session_state.user_info.get("name", "")
         st.query_params["role"] = st.session_state.user_info.get("role", "")
         st.query_params["pwd"] = st.session_state.current_user_pwd
         
-        # บันทึกแผนกและหน้าย่อยลง URL
         if st.session_state.get("current_dept"):
             st.query_params["dept"] = st.session_state.current_dept
+            # บันทึกหน้าย่อยลง URL ด้วย
+            st.query_params["t_page"] = st.session_state.get("traffic_page", "teacher")
+            st.query_params["v_mode"] = st.session_state.get("view_mode", "list")
         else:
             if "dept" in st.query_params: del st.query_params["dept"]
-            
-        st.query_params["t_page"] = st.session_state.get("traffic_page", "teacher")
-        st.query_params["v_mode"] = st.session_state.get("view_mode", "list")
 
+# เรียกใช้งานฟังก์ชัน
 check_inactivity()
 
 # Session States
@@ -1006,22 +1012,26 @@ def main():
             # --------------------------------
             
             st.markdown("---")
-            # ค้นหาช่วงบรรทัดที่มี c1, c2 เดิม
-            c1, c2, c3 = st.columns(3) # แก้จาก 2 เป็น 3
-            with c1:
-                with st.container(border=True):
-                    st.subheader("🕵️ งานสอบสวน")
-                    if st.button("เข้าใช้งานสอบสวน", use_container_width=True, type='primary', key="btn_to_inv"):
-                        st.session_state.current_dept = "inv"; st.session_state.view_mode = "list"
-                        st.rerun()
-            with c2:
-                with st.container(border=True):
-                    st.subheader("🚦 งานจราจร")
-                    if st.button("เข้าใช้งานจราจร", use_container_width=True, type='primary', key="btn_to_tra"):
-                        st.session_state.current_dept = "tra"
-                        st.session_state.traffic_page = 'teacher'
-                        st.session_state.search_results_df = None
-                        st.rerun()
+            # ค้นหาจุดที่มีการสร้างปุ่ม c1, c2, c3 ในฟังก์ชัน main()
+            with c1: # งานสอบสวน
+                if st.button("เข้าใช้งานสอบสวน", use_container_width=True, type='primary', key="btn_to_inv"):
+                    st.session_state.current_dept = "inv"
+                    st.session_state.view_mode = "list"
+                    st.query_params["dept"] = "inv"
+                    st.query_params["v_mode"] = "list"
+                    st.rerun()
+            with c2: # งานจราจร
+                if st.button("เข้าใช้งานจราจร", use_container_width=True, type='primary', key="btn_to_tra"):
+                    st.session_state.current_dept = "tra"
+                    st.session_state.traffic_page = 'teacher'
+                    st.query_params["dept"] = "tra"
+                    st.query_params["t_page"] = "teacher"
+                    st.rerun()
+            with c3: # War Room
+                if st.button("เปิดจอเฝ้าระวังเหตุ", use_container_width=True, type='primary', key="btn_to_monitor"):
+                    st.session_state.current_dept = "monitor_view"
+                    st.query_params["dept"] = "monitor_view"
+                    st.rerun()
             # เพิ่มปุ่มที่ 3
             with c3:
                 with st.container(border=True):
@@ -1029,9 +1039,11 @@ def main():
                     if st.button("เปิดจอเฝ้าระวังเหตุ", use_container_width=True, type='primary', key="btn_to_monitor"):
                         st.session_state.current_dept = "monitor_view"
                         st.rerun()
-        else:
-                    if st.session_state.current_dept == "inv": investigation_module()
-                    elif st.session_state.current_dept == "tra": traffic_module()
-                    elif st.session_state.current_dept == "monitor_view": # บรรทัดนี้ต้องตรงกับ if ด้านบน
-                        monitor_center_module()
+        else: # บล็อกที่แสดงหลังจากเลือกแผนกแล้ว
+            if st.session_state.current_dept == "inv": 
+                investigation_module()
+            elif st.session_state.current_dept == "tra": 
+                traffic_module()
+            elif st.session_state.current_dept == "monitor_view":
+                monitor_center_module()
 if __name__ == "__main__": main()
