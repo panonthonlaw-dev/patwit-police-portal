@@ -18,6 +18,9 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
 import plotly.express as px
+if st.button("🖥️ War Room: ศูนย์เฝ้าระวังเหตุ (Real-time)", use_container_width=True):
+    st.session_state.page = 'monitor_view'
+    st.rerun()
 
 # ==========================================
 # 1. INITIAL SETTINGS & SESSION MANAGEMENT
