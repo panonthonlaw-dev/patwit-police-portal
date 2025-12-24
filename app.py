@@ -999,7 +999,8 @@ def main():
             
             # ปุ่มออกจากระบบ (วางไว้ข้างล่างสุดของบล็อกนี้)
             st.write("")
-            if st.button("🚪 ออกจากระบบ", use_container_width=True, key="main_logout"):
+            # ✅ แก้ key="main_logout" เป็น key="main_logout_fixed"
+            if st.button("🚪 ออกจากระบบ", use_container_width=True, key="main_logout_fixed"):
                 st.query_params.clear()
                 st.session_state.clear()
                 st.rerun()
