@@ -859,114 +859,116 @@ def traffic_module():
             st.caption(f"ออกรายงาน ณ วันที่: {get_now_th().strftime('%d/%m/%Y %H:%M')}")
 
 # ==========================================
-# MODULE: MONITOR REAL-TIME (WAR ROOM) - SMART SCROLL FIX
+# MODULE: MONITOR REAL-TIME (WAR ROOM) - END CREDIT STYLE FIX
 # ==========================================
 def monitor_center_module():
     # 1. State Variables
     if "last_seen_id" not in st.session_state: st.session_state.last_seen_id = 0
-    if "latest_arrival_time" not in st.session_state: st.session_state.latest_arrival_time = None
 
-    # โหลดข้อมูลก่อน เพื่อคำนวณเวลา Animation
+    # โหลดข้อมูล
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         now_th = get_now_th()
         cur_year = (now_th.year + 543) if now_th.month >= 5 else (now_th.year + 542)
         df = conn.read(worksheet=f"Investigation_{cur_year}", ttl=0).fillna("")
         
-        # เตรียมข้อมูล
+        # เตรียมข้อมูลสำหรับคำนวณความเร็ว
         if not df.empty and 'Status' in df.columns:
             df['Status'] = df['Status'].astype(str).str.strip()
-            # นับจำนวนเคสแต่ละสี
+            # นับจำนวนบรรทัดที่เยอะที่สุดใน 3 ช่อง เพื่อตั้งเวลาให้สัมพันธ์กัน
             count_new = len(df[df['Status'] == "รอดำเนินการ"])
             count_prog = len(df[df['Status'] == "อยู่ระหว่างการดำเนินการ"])
+            count_done = 10 # เรา fix ไว้ 10
             
-            # 🔥 คำนวณเวลาที่เหมาะสม (Smart Duration)
-            # ให้เวลาอ่านการ์ดละ 4 วินาที (ถ้าเคสน้อย ขั้นต่ำ 15 วินาที)
-            max_items = max(count_new, count_prog)
-            if max_items > 10:
-                # สูตร: จำนวนเคส * 4 วินาที (เช่น 20 เคส = 80 วินาที)
-                scroll_duration = max_items * 4
-            else:
-                scroll_duration = 15 # ถ้าเคสน้อย รีเฟรชไวหน่อย
+            max_items = max(count_new, count_prog, count_done)
+            # สูตร: ยิ่งบรรทัดเยอะ ยิ่งต้องใช้เวลาเลื่อนนาน (ไม่งั้นจะวิ่งเร็วจนอ่านไม่ทัน)
+            # ให้เวลา 5 วินาทีต่อ 1 การ์ด (ปรับเลข 5 ได้ตามชอบ)
+            scroll_duration = max(20, max_items * 5) 
         else:
-            scroll_duration = 15
+            scroll_duration = 20
             
     except:
-        scroll_duration = 15
-        df = pd.DataFrame() # กัน Error
+        scroll_duration = 20
+        df = pd.DataFrame()
 
-    # 2. CSS Styles (ใส่ตัวแปร scroll_duration เข้าไปใน CSS)
+    # 2. CSS Styles (ปรับแก้ให้เป็น End Credit แท้ๆ)
     st.markdown(f"""
         <style>
-            /* ซ่อน Scrollbar */
-            ::-webkit-scrollbar {{ display: none; }}
+            /* ซ่อน Scrollbar ทุกจุดใน War Room */
+            .monitor-box ::-webkit-scrollbar {{ display: none; }}
+            .monitor-box {{ -ms-overflow-style: none; scrollbar-width: none; }}
             
             .monitor-box {{
-                height: 75vh; 
-                overflow: hidden;
+                height: 75vh;  /* ความสูงจอ */
+                overflow: hidden; /* ห้ามมี Scrollbar เด็ดขาด */
                 position: relative;
-                background-color: #f8fafc;
+                background-color: #f1f5f9;
                 border-radius: 8px;
-                border: 1px solid #e2e8f0;
-                padding: 8px;
+                border: 2px solid #cbd5e1;
+                padding: 0; /* เอา padding ออกเพื่อให้เนียน */
             }}
 
-            /* Animation เลื่อนขึ้น (ใช้เวลาตามที่คำนวณ) */
+            /* Animation Keyframes: เลื่อนจาก 0% ขึ้นไป -50% */
+            /* เคล็ดลับ: เราจะวางข้อมูลชุดเดิมซ้ำ 2 รอบ พอชุดแรกเลื่อนพ้นจอ ชุด 2 จะมาแทนที่พอดี */
             @keyframes scroll-up {{
                 0% {{ transform: translateY(0%); }}
                 100% {{ transform: translateY(-50%); }} 
             }}
+            
             .content-scroll {{
-                /* ใช้ตัวแปรเวลาที่คำนวณได้ */
+                display: flex;
+                flex-direction: column;
+                /* ใช้เวลาที่คำนวณได้ */
                 animation: scroll-up {scroll_duration}s linear infinite;
             }}
+            
+            /* เอาเมาส์ชี้แล้วหยุดอ่าน */
             .monitor-box:hover .content-scroll {{
                 animation-play-state: paused;
             }}
 
             .incident-card {{
                 display: block;
-                padding: 12px; 
+                padding: 15px; 
+                margin: 10px 10px 15px 10px; /* ระยะห่างการ์ด */
                 border-radius: 8px; 
-                margin-bottom: 12px;
                 background: white; 
                 border: 1px solid #e2e8f0;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+                box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+                position: relative;
             }}
 
+            /* แถบสีด้านซ้าย */
             .card-new {{ border-left: 8px solid #dc2626 !important; }}
             .card-prog {{ border-left: 8px solid #3b82f6 !important; background-color: #f0f9ff !important; }}
             .card-done {{ border-left: 8px solid #22c55e !important; background-color: #f0fdf4 !important; opacity: 0.9; }}
 
-            .badge-id {{
-                float: right; font-family: monospace; font-size: 0.85em; font-weight: bold;
-                background: rgba(0,0,0,0.05); padding: 2px 6px; border-radius: 4px;
-            }}
+            /* หัวข้อคอลัมน์ */
             .header-box {{
-                text-align: center; padding: 10px; border-radius: 6px; 
-                color: white; font-weight: bold; font-size: 1.1em; margin-bottom: 15px;
+                text-align: center; padding: 12px; border-radius: 6px 6px 0 0; 
+                color: white; font-weight: bold; font-size: 1.2em;
                 box-shadow: 0 2px 3px rgba(0,0,0,0.1);
+                position: relative; z-index: 10;
+                margin-bottom: -5px; /* ดึงให้ชิดกล่องล่าง */
             }}
-            .detail-box {{
-                background-color: rgba(255,255,255,0.7);
-                border: 1px solid #e2e8f0;
-                border-radius: 4px; padding: 6px; margin-top: 5px; font-size: 0.9em; color: #334155;
-            }}
-            
-            /* กะพริบ 3 อันแรก */
+
+            /* เอฟเฟกต์กะพริบสำหรับเคสใหม่ */
             @keyframes border-flash {{
-                0% {{ border-color: #dc2626; background-color: #fff1f2; }}
-                50% {{ border-color: #ff0000; background-color: #fee2e2; box-shadow: 0 0 10px rgba(220, 38, 38, 0.4); }}
-                100% {{ border-color: #dc2626; background-color: #fff1f2; }}
+                0% {{ box-shadow: 0 0 5px rgba(220, 38, 38, 0.2); }}
+                50% {{ box-shadow: 0 0 20px rgba(220, 38, 38, 0.6); border-color: red; }}
+                100% {{ box-shadow: 0 0 5px rgba(220, 38, 38, 0.2); }}
             }}
-            .card-new-flash {{ border-left: 8px solid #dc2626 !important; animation: border-flash 1.5s infinite; }}
+            .card-new-flash {{ 
+                border-left: 8px solid #dc2626 !important; 
+                animation: border-flash 1.5s infinite; 
+            }}
         </style>
         
-        <div style="text-align:center; padding:5px; margin-bottom:10px;">
-            <h2 style="color:#1e3a8a; margin:0;">🚨 War Room: ศูนย์เฝ้าระวังเหตุฉุกเฉิน</h2>
-            <p style="color:#64748b; font-size:0.8em;">
-                Auto-Refresh ทุก {scroll_duration} วินาที (ปรับตามจำนวนเคส)
-            </p>
+        <div style="text-align:center; padding:10px;">
+            <h2 style="color:#1e3a8a; margin:0; text-transform:uppercase; letter-spacing:1px;">🚨 War Room Real-Time Monitor</h2>
+            <div style="color:#64748b; font-size:0.9em;">
+                 Auto-Refresh: {scroll_duration}s | Status: ONLINE 🟢
+            </div>
         </div>
     """, unsafe_allow_html=True)
 
@@ -993,63 +995,82 @@ def monitor_center_module():
         reporter = str(row['Reporter'] if pd.notna(row['Reporter']) else '-')
         details = str(row['Details'] if pd.notna(row['Details']) else '-')
         rid = str(row['Report_ID'] if pd.notna(row['Report_ID']) else '-')
-        investigator = str(row.get('Student_Police_Investigator', '-') if pd.notna(row.get('Student_Police_Investigator')) else '-')
         
         time_show = timestamp.split(' ')[1] if ' ' in timestamp else timestamp
         if status_type == 'done': time_show = timestamp.split(' ')[0]
 
-        html_parts = []
-        html_parts.append(f'<div class="incident-card {css_class}">')
-        html_parts.append(f'<div style="font-size:1.2em; font-weight:bold; color:{color}; margin-bottom:4px;">📍 {location}</div>')
-        html_parts.append(f'<div style="font-weight:bold; color:#1e293b; font-size:1em; margin-bottom:4px;">{icon} {incident}</div>')
-        html_parts.append(f'<div style="font-size:0.85em; color:#64748b;">🕒 เวลา: {time_show}</div>')
-        html_parts.append(f'<div style="font-size:0.85em; color:#475569; margin-bottom:4px;">👤 ผู้แจ้ง: {reporter}</div>')
-        html_parts.append(f'<div class="detail-box">📝 {details}</div>')
-        html_parts.append(f'<div style="margin-top:6px; overflow:hidden;">')
-        html_parts.append(f'<span class="badge-id" style="color:{color};">🆔 {rid}</span>')
-        if status_type != 'new':
-            html_parts.append(f'<span style="float:left; font-size:0.8em; color:#64748b;">👮 {investigator}</span>')
-        html_parts.append(f'</div></div>')
-        
-        return "".join(html_parts)
+        html = f"""
+        <div class="incident-card {css_class}">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <div style="font-size:1.1em; font-weight:bold; color:{color};">📍 {location}</div>
+                <div style="font-size:0.85em; background:#f1f5f9; padding:2px 6px; border-radius:4px;">{time_show}</div>
+            </div>
+            <div style="font-weight:bold; color:#334155; font-size:1em; margin-bottom:5px;">
+                {icon} {incident}
+            </div>
+            <div style="background:rgba(0,0,0,0.03); padding:8px; border-radius:4px; font-size:0.9em; color:#475569; margin-bottom:8px;">
+                "{details}"
+            </div>
+            <div style="display:flex; justify-content:space-between; font-size:0.8em; color:#94a3b8;">
+                <span>👤 {reporter}</span>
+                <span style="font-family:monospace; font-weight:bold;">#{rid}</span>
+            </div>
+        </div>
+        """
+        return html
 
-    # 5. ฟังก์ชันแสดงผล
-    def render_monitor_column(title, bg_color, df_data, status_type, limit_scroll=10):
+    # 5. ฟังก์ชันแสดงผล (แก้ Logic ให้บังคับเลื่อนเสมอ)
+    def render_monitor_column(title, bg_color, df_data, status_type):
         st.markdown(f'<div class="header-box" style="background:{bg_color};">{title}</div>', unsafe_allow_html=True)
-        if df_data.empty:
-            st.info("✅ ว่าง / ไม่มีรายการ")
-            return
-
-        cards_html = ""
-        for i, (_, row) in enumerate(df_data.iterrows()):
-            should_flash = (status_type == 'new' and i < 3)
-            cards_html += create_card_html(row, status_type, is_flash=should_flash)
         
-        if len(df_data) > limit_scroll:
-            st.markdown(f'<div class="monitor-box"><div class="content-scroll">{cards_html}{cards_html}</div></div>', unsafe_allow_html=True)
+        # สร้าง HTML ของการ์ดทั้งหมด
+        cards_html = ""
+        if df_data.empty:
+            # ถ้าไม่มีข้อมูล ให้สร้างการ์ดเปล่าๆ เพื่อให้จอไม่โล่ง หรือแสดงข้อความ
+            cards_html = f"""
+            <div class="incident-card" style="text-align:center; padding:40px; color:#cbd5e1;">
+                <h3>✅ เหตุการณ์ปกติ</h3>
+                <p>ไม่มีรายการแจ้งเหตุในหมวดนี้</p>
+            </div>
+            """
         else:
-            st.markdown(f'<div class="monitor-box" style="overflow-y:auto;"><div>{cards_html}</div></div>', unsafe_allow_html=True)
+            for i, (_, row) in enumerate(df_data.iterrows()):
+                should_flash = (status_type == 'new' and i < 3)
+                cards_html += create_card_html(row, status_type, is_flash=should_flash)
+        
+        # --- KEY FIX: บังคับสร้าง Animation Loop เสมอ ---
+        # นำ html มาต่อกัน 2 รอบ (cards_html + cards_html) เพื่อให้ Loop เนียน
+        full_html = f"""
+        <div class="monitor-box">
+            <div class="content-scroll">
+                {cards_html}
+                {cards_html} 
+            </div>
+        </div>
+        """
+        st.markdown(full_html, unsafe_allow_html=True)
 
     # 6. Main Display Logic
     if not df.empty and 'Status' in df.columns:
         current_count = len(df)
         if current_count > st.session_state.last_seen_id:
-            if st.session_state.last_seen_id != 0: st.toast("🚨 เหตุแจ้งใหม่!", icon="🔥")
+            if st.session_state.last_seen_id != 0: st.toast("🚨 มีเหตุแจ้งเข้ามาใหม่!", icon="🔥")
             st.session_state.last_seen_id = current_count
 
         df_new = df[df['Status'] == "รอดำเนินการ"].iloc[::-1]
         df_prog = df[df['Status'] == "อยู่ระหว่างการดำเนินการ"].iloc[::-1]
-        df_done = df[df['Status'].isin(["ดำเนินการเรียบร้อย", "ยกเลิก"])].iloc[::-1].head(10)
+        df_done = df[df['Status'].isin(["ดำเนินการเรียบร้อย", "ยกเลิก"])].iloc[::-1].head(15) # เอา 15 รายการล่าสุด
 
-        c1, c2, c3 = st.columns(3, gap="small")
-        with c1: render_monitor_column("🔥 แจ้งใหม่ (ทั้งหมด)", "#dc2626", df_new, "new", limit_scroll=10)
-        with c2: render_monitor_column("🔵 กำลังดำเนินการ (ทั้งหมด)", "#2563eb", df_prog, "prog", limit_scroll=10)
-        with c3: render_monitor_column("✅ เสร็จสิ้น (10 ล่าสุด)", "#16a34a", df_done, "done", limit_scroll=999)
+        c1, c2, c3 = st.columns(3, gap="medium")
+        with c1: render_monitor_column("🔥 แจ้งใหม่", "#dc2626", df_new, "new")
+        with c2: render_monitor_column("🔵 กำลังดำเนินการ", "#2563eb", df_prog, "prog")
+        with c3: render_monitor_column("✅ เสร็จสิ้นล่าสุด", "#16a34a", df_done, "done")
 
-    # 7. Auto-Refresh ด้วยเวลาที่คำนวณมา (scroll_duration)
+    # 7. Auto-Refresh Logic
+    # ใช้วิธี sleep แล้ว rerun เพื่อดึงข้อมูลใหม่ตามรอบ
     st.query_params["dept"] = "monitor_view"
     st.query_params["logged_in"] = "true"
-    time.sleep(scroll_duration) # <--- หัวใจสำคัญ: รอให้เลื่อนจบก่อนค่อยรีเฟรช
+    time.sleep(scroll_duration) 
     st.rerun()
 # ==========================================
 # 4. MAIN ENTRY (แก้ไขย่อหน้าให้ถูกต้อง)
