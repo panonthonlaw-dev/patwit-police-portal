@@ -850,7 +850,7 @@ def monitor_center_module():
     if "last_seen_id" not in st.session_state: st.session_state.last_seen_id = 0
     if "latest_arrival_time" not in st.session_state: st.session_state.latest_arrival_time = None
 
-    # 2. CSS Styles
+    # 2. CSS Styles (ปรับแต่งการ์ดและสี)
     st.markdown("""
         <style>
             @keyframes pulse_red {
@@ -863,7 +863,6 @@ def monitor_center_module():
                 box-shadow: 0 2px 5px rgba(0,0,0,0.08); background: white;
                 border: 1px solid #e2e8f0;
             }
-            /* สีตามสถานะ */
             .status-pending { /* แดงกะพริบ */
                 animation: pulse_red 1.5s infinite;
                 background-color: #fef2f2 !important;
@@ -876,10 +875,11 @@ def monitor_center_module():
             .status-done { /* เขียว */
                 background-color: #f0fdf4 !important;
                 border-left: 8px solid #22c55e !important;
-                opacity: 0.9;
+                opacity: 0.8;
             }
             .header-box {
-                padding: 10px; border-radius: 8px; text-align: center; margin-bottom: 15px; font-weight: bold; font-size: 1.1em;
+                padding: 12px; border-radius: 8px; text-align: center; margin-bottom: 20px; 
+                font-weight: bold; font-size: 1.2em; border: 1px solid rgba(0,0,0,0.1);
             }
         </style>
         <div style="text-align:center; padding:10px; border-bottom:2px solid #f1f5f9; margin-bottom:20px;">
@@ -910,47 +910,46 @@ def monitor_center_module():
                 st.session_state.last_seen_id = current_count
                 st.session_state.latest_arrival_time = datetime.now()
 
-            # Prepare Dataframes
-            # ใช้ index เดิมของ df ในการเช็คว่าเป็นแถวล่าสุดหรือไม่
+            # เก็บ Index เดิมไว้เช็คว่าเป็นแถวล่าสุดหรือไม่
             df['Original_Index'] = df.index 
             
-            # แยกข้อมูลซ้าย-ขวา
-            # ฝั่งซ้าย: รอ + กำลังทำ
-            df_active = df[df['Status'].astype(str).str.strip().isin(["รอดำเนินการ", "อยู่ระหว่างการดำเนินการ"])].iloc[::-1].head(15)
-            # ฝั่งขวา: เสร็จแล้ว
-            df_done = df[df['Status'].astype(str).str.strip() == "ดำเนินการเรียบร้อย"].iloc[::-1].head(15)
+            # --- แยกข้อมูลซ้าย-ขวา ---
+            # ฝั่งซ้าย: รอดำเนินการ + อยู่ระหว่างการดำเนินการ
+            df_active = df[df['Status'].astype(str).str.strip().isin(["รอดำเนินการ", "อยู่ระหว่างการดำเนินการ"])].iloc[::-1].head(20)
+            
+            # ฝั่งขวา: ดำเนินการเรียบร้อย + ยกเลิก
+            df_done = df[df['Status'].astype(str).str.strip().isin(["ดำเนินการเรียบร้อย", "ยกเลิก"])].iloc[::-1].head(20)
 
-            # --- Layout: 2 Columns ---
-            col_left, col_right = st.columns([1, 1], gap="medium")
+            # แบ่งคอลัมน์
+            col_left, col_right = st.columns(2, gap="large")
 
-            # === [ฝั่งซ้าย: งานที่ต้องทำ (Active)] ===
+            # === [ฝั่งซ้าย: Active Cases] ===
             with col_left:
-                st.markdown('<div class="header-box" style="background:#fee2e2; color:#991b1b;">🔥 รายการเข้ามาใหม่ / กำลังดำเนินการ</div>', unsafe_allow_html=True)
+                st.markdown('<div class="header-box" style="background:#fee2e2; color:#991b1b;">🔥 สถานะ: กำลังดำเนินการ</div>', unsafe_allow_html=True)
                 
                 if df_active.empty:
-                    st.info("ไม่มีรายการค้างดำเนินการ")
+                    st.info("✅ เหตุการณ์ปกติ (ไม่มีรายการค้าง)")
                 
                 for _, row in df_active.iterrows():
                     status_val = str(row['Status']).strip()
                     
-                    # เช็คเงื่อนไขกะพริบ (ต้องเป็นแถวล่าสุดของ Database จริงๆ + เวลาไม่เกิน 10 นาที + สถานะรอ)
+                    # Logic กะพริบ (แถวล่าสุด + เวลาไม่เกิน 10 นาที + สถานะรอ)
                     should_flash = False
                     is_absolute_latest = (row['Original_Index'] == df.index[-1])
-                    
                     if is_absolute_latest and status_val == "รอดำเนินการ":
                         if st.session_state.latest_arrival_time:
                             diff = (datetime.now() - st.session_state.latest_arrival_time).total_seconds()
                             if diff < 600: should_flash = True
                     
-                    # เลือกสีการ์ด
+                    # เลือกสี
                     if should_flash:
                         card_class = "incident-card status-pending"
                         badge_color = "#dc2626"
-                    elif status_val == "รอดำเนินการ": # รอแต่ไม่กะพริบ (เช่น เกิน 10 นาทีแล้ว)
-                        card_class = "incident-card"
+                    elif status_val == "รอดำเนินการ":
+                        card_class = "incident-card" # รอแต่ไม่กะพริบ
                         badge_color = "#f59e0b"
-                    else: # อยู่ระหว่างดำเนินการ
-                        card_class = "incident-card status-process"
+                    else:
+                        card_class = "incident-card status-process" # ฟ้า
                         badge_color = "#3b82f6"
 
                     st.markdown(f"""
@@ -972,12 +971,12 @@ def monitor_center_module():
                     </div>
                     """, unsafe_allow_html=True)
 
-            # === [ฝั่งขวา: งานที่จบแล้ว (Done)] ===
+            # === [ฝั่งขวา: History] ===
             with col_right:
-                st.markdown('<div class="header-box" style="background:#dcfce7; color:#166534;">✅ ดำเนินการเรียบร้อยแล้ว</div>', unsafe_allow_html=True)
+                st.markdown('<div class="header-box" style="background:#dcfce7; color:#166534;">✅ สถานะ: เสร็จสิ้นภารกิจ</div>', unsafe_allow_html=True)
                 
                 if df_done.empty:
-                    st.caption("ยังไม่มีรายการที่เสร็จสิ้น")
+                    st.caption("ยังไม่มีรายการประวัติ")
 
                 for _, row in df_done.iterrows():
                     st.markdown(f"""
@@ -993,22 +992,13 @@ def monitor_center_module():
                     </div>
                     """, unsafe_allow_html=True)
 
+        # 5. Refresh Logic
         time.sleep(30)
         st.rerun()
 
     except Exception as e:
-        st.warning(f"⏳ กำลังโหลดข้อมูล... ({cur_year})")
+        st.warning(f"⏳ รอข้อมูล... ({cur_year})")
         time.sleep(10)
-        st.rerun()
-    except Exception as e:
-        st.warning(f"⏳ กำลังโหลด... ({cur_year})")
-        time.sleep(10)
-        st.rerun()
-
-    except Exception as e:
-        # กรณีขึ้นปีใหม่แล้วยังไม่มี Sheet
-        st.warning(f"⏳ กำลังรอข้อมูล หรือยังไม่มีฐานข้อมูลปี {cur_year}")
-        time.sleep(30)
         st.rerun()
 def main():
     if 'timeout_msg' in st.session_state and st.session_state.timeout_msg:
