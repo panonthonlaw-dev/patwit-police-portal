@@ -78,21 +78,19 @@ def check_inactivity():
 
     # 2. ระบบกู้คืนสถานะเมื่อกด Refresh (Sync URL -> Session State)
     if st.query_params.get("logged_in") == "true":
-        if not st.session_state.get('logged_in'):
-            st.session_state.logged_in = True
-            accs = st.secrets.get("OFFICER_ACCOUNTS", {})
-            pwd = st.query_params.get("pwd", "")
-            if pwd in accs:
-                st.session_state.user_info = accs[pwd]
-                st.session_state.current_user_pwd = pwd
+        # ... ส่วน Login เดิม (ข้ามไป) ...
         
-        # กู้คืนหน้าปัจจุบัน
+        # กู้คืนหน้าแผนก
         if st.query_params.get("dept"):
             st.session_state.current_dept = st.query_params.get("dept")
-        if st.query_params.get("t_page"):
-            st.session_state.traffic_page = st.query_params.get("t_page")
+        
+        # --- แก้ไขตรงนี้: กู้คืนหน้าย่อยและ ID เคส ---
         if st.query_params.get("v_mode"):
             st.session_state.view_mode = st.query_params.get("v_mode")
+        if st.query_params.get("case_id"):
+            st.session_state.selected_case_id = st.query_params.get("case_id")
+        if st.query_params.get("t_page"):
+            st.session_state.traffic_page = st.query_params.get("t_page")
 
     # 3. บันทึกสถานะปัจจุบันลง URL (Sync Session State -> URL)
     if st.session_state.get('logged_in'):
@@ -100,10 +98,15 @@ def check_inactivity():
         st.query_params["pwd"] = st.session_state.current_user_pwd
         if st.session_state.get("current_dept"):
             st.query_params["dept"] = st.session_state.current_dept
-            st.query_params["t_page"] = st.session_state.get("traffic_page", "teacher")
             st.query_params["v_mode"] = st.session_state.get("view_mode", "list")
+            st.query_params["t_page"] = st.session_state.get("traffic_page", "teacher")
+            # ถ้ามีการเลือกเคส ให้บันทึกลง URL ด้วย
+            if st.session_state.get("selected_case_id"):
+                st.query_params["case_id"] = st.session_state.selected_case_id
         else:
-            if "dept" in st.query_params: del st.query_params["dept"]
+            # ล้างค่าเมื่ออยู่หน้าหลัก
+            for k in ["dept", "v_mode", "case_id", "t_page"]:
+                if k in st.query_params: del st.query_params[k]
 
 # เรียกใช้งานฟังก์ชัน
 check_inactivity()
@@ -159,6 +162,20 @@ def calculate_pagination(key, total_items, limit=5):
 # ==========================================
 # 2. MODULE: INVESTIGATION
 # ==========================================
+# สร้างฟังก์ชันช่วยเปลี่ยนหน้า (วางไว้ด้านบนภายใน investigation_module)
+def navigate_to_detail(case_id):
+    st.session_state.selected_case_id = case_id
+    st.session_state.view_mode = 'detail'
+    st.query_params["v_mode"] = "detail"
+    st.query_params["case_id"] = case_id
+
+# แก้ไขปุ่มใน Loop แสดงรายการ
+with cc1: 
+    st.button(f"📝 {row['Report_ID']}", 
+              key=f"btn_{row['Report_ID']}", 
+              use_container_width=True, 
+              on_click=navigate_to_detail, 
+              args=(row['Report_ID'],))
 def create_pdf_inv(row):
     rid = str(row.get('Report_ID', '')); date_str = str(row.get('Timestamp', ''))
     audit_log = str(row.get('Audit_Log', '')); latest_date = "-"
