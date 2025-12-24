@@ -581,7 +581,9 @@ def traffic_module():
             st.rerun()
         if c2.button("📊 รายงานสถิติ"): 
             if st.session_state.df_tra is None: load_tra_data()
-            st.session_state.traffic_page = 'dash'; st.rerun()
+            st.session_state.traffic_page = 'dash'
+            st.query_params["t_page"] = "dash" # เพิ่มบรรทัดนี้เพื่อให้ URL เปลี่ยน
+            st.rerun()
         
         st.write("")
         c_search, c_btn_search, c_btn_clear = st.columns([3, 1, 1])
@@ -738,7 +740,9 @@ def traffic_module():
 
     elif st.session_state.traffic_page == 'dash':
         if st.button("⬅️ กลับหน้าจัดการจราจร", use_container_width=True): 
-            st.session_state.traffic_page = 'teacher'; st.rerun()
+            st.session_state.traffic_page = 'teacher'
+            st.query_params["t_page"] = "teacher" # เพิ่มบรรทัดนี้
+            st.rerun()
             
         if st.session_state.df_tra is not None:
             df = st.session_state.df_tra.copy()
