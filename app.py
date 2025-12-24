@@ -826,51 +826,6 @@ def traffic_module():
             st.write("")
             st.info("💡 **หมายเหตุ:** ข้อมูลเปอร์เซ็นต์คำนวณจากจำนวนรถที่ลงทะเบียนในแต่ละระดับชั้นนั้นๆ")
             st.caption(f"ออกรายงาน ณ วันที่: {get_now_th().strftime('%d/%m/%Y %H:%M')}")
-def monitor_center_module():
-    if st.button("⬅️ ออกจากหน้าจอมอนิเตอร์", use_container_width=True):
-        st.session_state.current_dept = None
-        st.rerun()
-
-    st.markdown("""
-        <div style="background-color:#0f172a; padding:25px; border-radius:15px; border-bottom:5px solid #3b82f6; text-align:center; margin-bottom:25px;">
-            <h1 style="color:#f8fafc; margin:0; letter-spacing: 2px;">📡 STUDENT POLICE MONITOR</h1>
-            <p style="color:#60a5fa; margin:5px 0 0 0; font-weight:bold; text-transform:uppercase;">ศูนย์เฝ้าระวังเหตุการณ์ Real-time</p>
-        </div>
-    """, unsafe_allow_html=True)
-
-    # ดึงข้อมูลจากชีตล่าสุด (อ้างอิงจากปีปัจจุบัน)
-    conn = st.connection("gsheets", type=GSheetsConnection)
-    now_th = get_now_th()
-    cur_year = (now_th.year + 543) if now_th.month >= 5 else (now_th.year + 542)
-    
-    try:
-        df = conn.read(worksheet=f"Investigation_{cur_year}", ttl=10).fillna("")
-        df = df.iloc[::-1] # เอาเหตุการณ์ใหม่ขึ้นก่อน
-
-        # Metrics แถวบน
-        m1, m2, m3 = st.columns(3)
-        m1.metric("เหตุการณ์ทั้งหมด", len(df))
-        m2.metric("🚨 รอดำเนินการ", len(df[df['Status'] == 'รอดำเนินการ']))
-        m3.metric("✅ เสร็จสิ้น", len(df[df['Status'] == 'ดำเนินการเรียบร้อย']))
-
-        st.write("---")
-        
-        for _, row in df.head(10).iterrows():
-            color = "#ef4444" if row['Status'] == 'รอดำเนินการ' else "#10b981"
-            st.markdown(f"""
-                <div style="background-color:#1e293b; border-radius:12px; padding:15px; margin-bottom:10px; border-left:8px solid {color};">
-                    <div style="display:flex; justify-content:space-between; color:white;">
-                        <b style="font-size:18px;">📍 {row['Location']}</b>
-                        <span style="font-size:12px; color:#94a3b8;">{row['Timestamp']}</span>
-                    </div>
-                    <div style="color:#cbd5e1; margin-top:5px;">⚠️ {row['Incident_Type']} | ผู้เกี่ยวข้อง: {row['Accused']}</div>
-                    <div style="color:#64748b; font-size:13px; margin-top:5px; border-top:1px solid #334155; padding-top:5px;">รายละเอียด: {row['Details']}</div>
-                </div>
-            """, unsafe_allow_html=True)
-            
-        if st.button("🔄 อัปเดตข้อมูลสด"): st.rerun()
-    except:
-        st.error("ไม่พบข้อมูลปีการศึกษาปัจจุบัน")
 # ==========================================
 # 4. MAIN ENTRY (แก้ไขย่อหน้าให้ถูกต้อง)
 # ==========================================
@@ -923,7 +878,7 @@ def main():
             # --------------------------------
             
             st.markdown("---")
-            c1, c2, c3 = st.columns(3) # เปลี่ยนจาก 2 เป็น 3 คอลัมน์
+            c1, c2 = st.columns(2)
             with c1:
                 with st.container(border=True):
                     st.subheader("🕵️ งานสอบสวน")
@@ -937,13 +892,6 @@ def main():
                         st.session_state.current_dept = "tra"
                         st.session_state.traffic_page = 'teacher'
                         st.session_state.search_results_df = None
-                        st.rerun()
-            # --- วางปุ่มใหม่ในคอลัมน์ที่ 3 ---
-            with c3:
-                with st.container(border=True):
-                    st.subheader("🖥️ War Room")
-                    if st.button("เปิดจอเฝ้าระวังเหตุ", use_container_width=True, type='primary', key="btn_to_monitor"):
-                        st.session_state.current_dept = "monitor_view"
                         st.rerun()
         else:
             if st.session_state.current_dept == "inv": investigation_module()
