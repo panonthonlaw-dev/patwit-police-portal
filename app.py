@@ -18,9 +18,6 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
 import plotly.express as px
-if st.button("🖥️ War Room: ศูนย์เฝ้าระวังเหตุ (Real-time)", use_container_width=True):
-    st.session_state.page = 'monitor_view'
-    st.rerun()
 
 # ==========================================
 # 1. INITIAL SETTINGS & SESSION MANAGEMENT
@@ -147,6 +144,9 @@ def calculate_pagination(key, total_items, limit=5):
     start_idx = (st.session_state[key] - 1) * limit
     end_idx = start_idx + limit
     return start_idx, end_idx, st.session_state[key], total_pages
+    if st.button("🖥️ War Room: ศูนย์เฝ้าระวังเหตุ (Real-time)", use_container_width=True):
+    st.session_state.page = 'monitor_view'
+    st.rerun()
 
 # ==========================================
 # 2. MODULE: INVESTIGATION
