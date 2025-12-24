@@ -842,25 +842,7 @@ def traffic_module():
 # ==========================================
 # 4. MAIN ENTRY (แก้ไขย่อหน้าให้ถูกต้อง)
 # ==========================================
-# คอลัมน์ที่ 1: สอบสวน
-            if st.button("เข้าใช้งานสอบสวน", key="btn_to_inv"):
-                st.session_state.current_dept = "inv"
-                st.session_state.view_mode = "list"
-                st.query_params["dept"] = "inv" # บันทึกทันที
-                st.rerun()
 
-            # คอลัมน์ที่ 2: จราจร
-            if st.button("เข้าใช้งานจราจร", key="btn_to_tra"):
-                st.session_state.current_dept = "tra"
-                st.session_state.traffic_page = 'teacher'
-                st.query_params["dept"] = "tra" # บันทึกทันที
-                st.rerun()
-
-            # คอลัมน์ที่ 3: War Room
-            if st.button("เปิดจอเฝ้าระวังเหตุ", key="btn_to_monitor"):
-                st.session_state.current_dept = "monitor_view"
-                st.query_params["dept"] = "monitor_view" # บันทึกทันที
-                st.rerun()
 # ==========================================
 # MODULE: MONITOR REAL-TIME (ฉบับสมบูรณ์ - กะพริบถี่ & รีเฟรช 30 วิ)
 # ==========================================
