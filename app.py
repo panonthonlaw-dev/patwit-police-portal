@@ -833,29 +833,31 @@ def traffic_module():
 # MODULE: MONITOR REAL-TIME (WAR ROOM)
 # ==========================================
 def monitor_center_module():
-    # 1. ตั้งค่าตัวแปรสำหรับแจ้งเตือน
+    # 1. ตั้งค่าตัวแปร State (เพิ่มตัวจำเวลาล่าสุด)
     if "last_seen_id" not in st.session_state:
         st.session_state.last_seen_id = 0
-    if "new_arrival" not in st.session_state:
-        st.session_state.new_arrival = False
+    if "latest_arrival_time" not in st.session_state:
+        st.session_state.latest_arrival_time = None # เก็บเวลาที่เคสล่าสุดเข้ามา
 
-    # 2. CSS สำหรับเอฟเฟกต์กะพริบและบัตรรายการ
+    # 2. CSS Animation (สีแดงกะพริบ)
     st.markdown("""
         <style>
             @keyframes pulse_red {
-                0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
-                70% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
-                100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+                0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); border-color: #dc2626; }
+                70% { box-shadow: 0 0 0 15px rgba(220, 38, 38, 0); border-color: #ef4444; }
+                100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); border-color: #dc2626; }
             }
             .new-incident {
-                animation: pulse_red 2s infinite;
-                border-left: 5px solid #dc2626 !important;
+                animation: pulse_red 1.5s infinite; /* กะพริบทุก 1.5 วิ */
+                border-left: 8px solid #dc2626 !important;
                 background-color: #fef2f2;
+                transform: scale(1.02); /* ขยายใหญ่ขึ้นนิดหน่อย */
+                transition: all 0.3s ease;
             }
             .incident-card {
                 background: white; padding: 15px; border-radius: 10px;
-                border: 1px solid #e2e8f0; margin-bottom: 10px;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                border: 1px solid #e2e8f0; margin-bottom: 15px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.05);
             }
         </style>
         <div style="text-align:center; padding:15px; border-bottom:2px solid #f1f5f9; margin-bottom:20px;">
@@ -864,15 +866,14 @@ def monitor_center_module():
         </div>
     """, unsafe_allow_html=True)
 
-    # 3. ปุ่มย้อนกลับ (พร้อมล้างค่า URL)
+    # 3. ปุ่มย้อนกลับ
     if st.button("⬅️ กลับหน้าเลือกแผนก", use_container_width=True):
         st.session_state.current_dept = None
-        # ล้างค่า URL ทั้งหมด
         for key in ["dept", "t_page", "v_mode", "case_id"]:
             if key in st.query_params: del st.query_params[key]
         st.rerun()
 
-    # 4. เชื่อมต่อ Google Sheets
+    # 4. โหลดข้อมูล
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         now_th = get_now_th()
@@ -882,40 +883,82 @@ def monitor_center_module():
         df = conn.read(worksheet=f"Investigation_{cur_year}", ttl=2).fillna("")
         
         if not df.empty:
-            # เช็คว่ามีเคสใหม่เข้ามาหรือไม่
             current_count = len(df)
-            if current_count > st.session_state.last_seen_id:
-                if st.session_state.last_seen_id != 0: # ไม่เตือนตอนเปิดครั้งแรก
-                    st.toast("🚨 มีการแจ้งเหตุใหม่เข้ามา!", icon="🔥")
-                st.session_state.last_seen_id = current_count
-                st.session_state.new_arrival = True
             
-            # แสดงรายการ 10 รายการล่าสุด
-            for i, row in df.iloc[::-1].head(10).iterrows():
-                # ถ้าเป็นเคสล่าสุดให้ใส่ Class กะพริบ
-                is_latest = (i == df.index[-1] and st.session_state.new_arrival)
-                card_class = "incident-card new-incident" if is_latest else "incident-card"
+            # --- [Logic ใหม่] ตรวจจับเคสใหม่และบันทึกเวลา ---
+            if current_count > st.session_state.last_seen_id:
+                if st.session_state.last_seen_id != 0:
+                    st.toast("🚨 แจ้งเตือน: มีเหตุแจ้งเข้ามาใหม่!", icon="🔥")
                 
+                # อัปเดตจำนวนและเวลาที่พบล่าสุด
+                st.session_state.last_seen_id = current_count
+                st.session_state.latest_arrival_time = datetime.now() 
+            # -----------------------------------------------
+
+            # แสดงรายการ 10 ล่าสุด
+            # ใช้ iloc[::-1] เพื่อกลับลำดับ (ล่าสุดอยู่บน)
+            for i, row in df.iloc[::-1].head(10).iterrows():
+                
+                # --- [เงื่อนไขการกะพริบ] ---
+                should_flash = False
+                
+                # 1. ต้องเป็นแถวล่าสุด (index สุดท้ายของ DataFrame)
+                is_latest_row = (i == df.index[-1])
+                
+                if is_latest_row:
+                    # 2. ตรวจสอบเวลา (ไม่เกิน 10 นาทีจากที่เด้งเตือน)
+                    if st.session_state.latest_arrival_time:
+                        time_diff = datetime.now() - st.session_state.latest_arrival_time
+                        is_within_10min = time_diff.total_seconds() < 600 # 600 วินาที = 10 นาที
+                    else:
+                        is_within_10min = False
+                    
+                    # 3. ตรวจสอบสถานะ (ต้องเป็น "รอดำเนินการ" เท่านั้นถึงจะกะพริบ)
+                    is_pending = (row['Status'] == "รอดำเนินการ")
+                    
+                    # ถือว่ากะพริบถ้า: เป็นแถวล่าสุด AND (เวลาไม่เกิน 10 นาที AND สถานะยังรออยู่)
+                    if is_within_10min and is_pending:
+                        should_flash = True
+                
+                # กำหนด Class CSS
+                card_class = "incident-card new-incident" if should_flash else "incident-card"
+                status_color = "#f59e0b" if row['Status'] == "รอดำเนินการ" else ("#10b981" if "เรียบร้อย" in row['Status'] else "#3b82f6")
+                
+                # แสดงผลการ์ด
                 st.markdown(f"""
                 <div class="{card_class}">
-                    <div style="display:flex; justify-content:space-between;">
-                        <span style="font-weight:bold; font-size:1.1em; color:#1e293b;">📍 {row['Location']}</span>
-                        <span style="color:#64748b; font-size:0.85em;">{row['Timestamp']}</span>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-weight:bold; font-size:1.2em; color:#1e293b;">
+                            {'🔥 เหตุด่วน! ' if should_flash else ''}📍 {row['Location']}
+                        </span>
+                        <span style="color:#64748b; font-size:0.85em; background:#f1f5f9; padding:2px 8px; border-radius:4px;">
+                            {row['Timestamp']}
+                        </span>
                     </div>
-                    <div style="margin-top:5px; color:#be123c; font-weight:bold;">{row['Incident_Type']}</div>
-                    <div style="font-size:0.9em; color:#475569; margin-top:5px;">📝 {row['Details']}</div>
-                    <div style="font-size:0.85em; color:#64748b; margin-top:8px;">
-                        โดย: {row['Reporter']} | สถานะ: {row['Status']}
+                    <div style="margin-top:8px; font-weight:bold; color:#be123c; font-size:1.1em;">
+                        {row['Incident_Type']}
+                    </div>
+                    <div style="background-color:#f8fafc; padding:10px; border-radius:6px; margin-top:8px; border:1px dashed #cbd5e1;">
+                        📝 {row['Details']}
+                    </div>
+                    <div style="margin-top:10px; display:flex; justify-content:space-between; align-items:center; font-size:0.9em;">
+                        <span style="color:#475569;">👤 ผู้แจ้ง: {row['Reporter']}</span>
+                        <span style="color:{status_color}; font-weight:bold; border:1px solid {status_color}; padding:2px 8px; border-radius:12px;">
+                            {row['Status']}
+                        </span>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
 
-        # 5. ระบบ Auto-Refresh (30 วินาที)
+        # 5. Auto-Refresh (30 วินาที)
         time.sleep(30)
         st.rerun()
 
     except Exception as e:
-        st.error(f"⚠️ ยังไม่พบฐานข้อมูลปี {cur_year} หรือการเชื่อมต่อขัดข้อง")
+        # กรณีขึ้นปีใหม่แล้วยังไม่มี Sheet
+        st.warning(f"⏳ กำลังรอข้อมูล หรือยังไม่มีฐานข้อมูลปี {cur_year}")
+        time.sleep(30)
+        st.rerun()
 def main():
     if 'timeout_msg' in st.session_state and st.session_state.timeout_msg:
         st.error(st.session_state.timeout_msg)
