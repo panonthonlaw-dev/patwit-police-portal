@@ -24,17 +24,15 @@ import plotly.express as px
 # ==========================================
 st.set_page_config(page_title="ศูนย์ปฏิบัติการกลางฯ", page_icon="👮‍♂️", layout="wide", initial_sidebar_state="collapsed")
 
-# --- 1.1 CSS ปรับแต่งเพื่อลดภาระเครื่อง (NO ANIMATION / MAX SPEED) ---
+# --- 1.1 CSS ปรับแต่ง (✅ แก้ไขล่าสุด: เปิดให้ Animation ทำงานได้แล้ว) ---
 st.markdown("""
 <style>
-    /* 1. ปิด Animation/Transition/Transform ทั้งหมดแบบถาวร */
+    /* 1. ลบคำสั่งปิด Animation ออก เพื่อให้ War Room กะพริบได้ */
     *, *::before, *::after {
-        animation: none !important;
-        transition: none !important;
         scroll-behavior: auto !important;
     }
 
-    /* 2. ซ่อนส่วนประกอบระบบที่ไม่จำเป็น (แถบสีรุ้งด้านบน/Footer) */
+    /* 2. ซ่อนส่วนประกอบระบบที่ไม่จำเป็น */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;} 
@@ -42,14 +40,14 @@ st.markdown("""
     [data-testid="stSidebar"] {display: none;}
     [data-testid="collapsedControl"] {display: none;}
     
-    /* 3. ปรับแต่ง Card ให้เบา (เอาเงาออก) */
+    /* 3. ปรับแต่ง Card ให้เบา */
     .metric-card { 
         background: white; 
         padding: 10px; 
         border-radius: 8px; 
-        border: 1px solid #d1d5db; /* ใช้เส้นธรรมดาแทนเงา */
+        border: 1px solid #d1d5db; 
         text-align: center; 
-        box-shadow: none !important; /* ปิดเงา ลดภาระ GPU */
+        box-shadow: none !important; 
     }
     .metric-value { font-size: 2.2rem; font-weight: 800; color: #1e293b; } 
     .metric-label { font-size: 0.9rem; color: #64748b; }
