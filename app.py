@@ -817,7 +817,7 @@ def traffic_module():
 
             # ใช้ st.dataframe เพื่อให้อ่านง่ายและไม่เบี้ยว
             st.dataframe(summary_table, use_container_width=True, hide_index=True)
-            st.caption(f"อัปเดตล่าสุด: {get_now_th().strftime('%d/%m/%Y %H:%M')}")")
+            st.caption(f"อัปเดตล่าสุด: {get_now_th().strftime('%d/%m/%Y %H:%M')}")
 # ==========================================
 # 4. MAIN ENTRY (แก้ไขย่อหน้าให้ถูกต้อง)
 # ==========================================
