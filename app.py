@@ -217,7 +217,7 @@ def investigation_module():
 
     conn = st.connection("gsheets", type=GSheetsConnection)
     try:
-        df_raw = conn.read(ttl="0")
+        df_raw = conn.read(ttl="10")
         df_display = df_raw.copy().fillna("")
         for c in ['Report_ID', 'Timestamp', 'Reporter', 'Incident_Type', 'Location', 'Details', 'Status', 'Image_Data', 'Audit_Log', 'Victim', 'Accused', 'Witness', 'Teacher_Investigator', 'Student_Police_Investigator', 'Statement', 'Evidence_Image']:
             if c not in df_display.columns: df_display[c] = ""
