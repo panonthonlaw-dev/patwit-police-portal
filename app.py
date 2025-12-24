@@ -829,44 +829,59 @@ def traffic_module():
 # ==========================================
 # 4. MAIN ENTRY (แก้ไขย่อหน้าให้ถูกต้อง)
 # ==========================================
+# ==========================================
+# MODULE: MONITOR REAL-TIME (ฉบับกะทัดรัด - Compact View)
+# ==========================================
 def monitor_center_module():
     if st.button("⬅️ ออกจากหน้าจอมอนิเตอร์", use_container_width=True):
         st.session_state.current_dept = None
         st.rerun()
 
     st.markdown("""
-        <div style="background-color:#0f172a; padding:25px; border-radius:15px; border-bottom:5px solid #ef4444; text-align:center; margin-bottom:25px;">
-            <h1 style="color:#f8fafc; margin:0; letter-spacing: 2px;">🚨 LIVE INCIDENT MONITOR</h1>
-            <p style="color:#ef4444; margin:5px 0 0 0; font-weight:bold;">ศูนย์เฝ้าระวังเหตุการณ์สถานีตำรวจนักเรียน</p>
+        <div style="background-color:#0f172a; padding:15px; border-radius:12px; border-bottom:4px solid #3b82f6; text-align:center; margin-bottom:15px;">
+            <h2 style="color:#f8fafc; margin:0; letter-spacing: 1px; font-size: 24px;">🚨 LIVE MONITOR</h2>
+            <p style="color:#60a5fa; margin:2px 0 0 0; font-size: 14px; font-weight:bold;">สถานีตำรวจนักเรียนโพนทองพัฒนาวิทยา</p>
         </div>
     """, unsafe_allow_html=True)
 
-    # ดึงข้อมูลจากฐานข้อมูลสอบสวนมาโชว์แบบ Real-time
     conn = st.connection("gsheets", type=GSheetsConnection)
     now_th = get_now_th()
     cur_year = (now_th.year + 543) if now_th.month >= 5 else (now_th.year + 542)
     
     try:
-        # อ่านข้อมูลจากชีตสอบสวนปีปัจจุบัน
         df = conn.read(worksheet=f"Investigation_{cur_year}", ttl=5).fillna("")
-        df = df.iloc[::-1] # เอาใหม่สุดขึ้นก่อน
+        df = df.iloc[::-1]
 
+        # ลดขนาด Metric ลง
+        m1, m2, m3 = st.columns(3)
+        m1.metric("เหตุทั้งหมด", len(df))
+        m2.metric("🚨 รอดำเนินการ", len(df[df['Status'] == 'รอดำเนินการ']))
+        m3.metric("✅ เสร็จสิ้น", len(df[df['Status'] == 'ดำเนินการเรียบร้อย']))
+
+        st.markdown("### 🔴 Incident Feed")
+        
+        # ปรับการ์ดให้เล็กลง (Compact Card)
         for _, row in df.head(15).iterrows():
             status_color = "#ef4444" if row['Status'] == 'รอดำเนินการ' else "#10b981"
             st.markdown(f"""
-                <div style="background-color:#1e293b; border-radius:12px; padding:15px; margin-bottom:10px; border-left:8px solid {status_color};">
-                    <div style="display:flex; justify-content:space-between; color:white;">
-                        <b style="font-size:20px;">📍 {row['Location']}</b>
-                        <span style="font-size:12px; color:#94a3b8;">{row['Timestamp']}</span>
+                <div style="background-color:#1e293b; border-radius:8px; padding:8px 12px; margin-bottom:6px; border-left:5px solid {status_color};">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:16px; color:#f8fafc; font-weight:bold;">📍 {row['Location']}</span>
+                        <span style="font-size:11px; color:#94a3b8;">{row['Timestamp']}</span>
                     </div>
-                    <div style="color:#cbd5e1; margin-top:5px;">⚠️ {row['Incident_Type']} | ผู้แจ้ง: {row['Reporter']}</div>
-                    <div style="color:#94a3b8; font-size:14px; margin-top:5px;">รายละเอียด: {row['Details']}</div>
+                    <div style="display:flex; gap:10px; font-size:13px; margin-top:2px;">
+                        <span style="color:#ef4444; font-weight:bold;">⚠️ {row['Incident_Type']}</span>
+                        <span style="color:#cbd5e1;">👤 {row['Reporter']}</span>
+                    </div>
+                    <div style="color:#94a3b8; font-size:12px; margin-top:2px; border-top:0.5px solid #334155; padding-top:2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        {row['Details']}
+                    </div>
                 </div>
             """, unsafe_allow_html=True)
-        
-        st.button("🔄 อัปเดตข้อมูลสด")
+            
+        st.button("🔄 อัปเดตข้อมูล")
     except:
-        st.error("⚠️ ไม่พบข้อมูลการสอบสวนของปีการศึกษาปัจจุบัน")
+        st.error("ไม่พบข้อมูลปีการศึกษาปัจจุบัน")
 def main():
     if 'timeout_msg' in st.session_state and st.session_state.timeout_msg:
         st.error(st.session_state.timeout_msg)
