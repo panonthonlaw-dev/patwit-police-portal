@@ -830,38 +830,47 @@ def traffic_module():
 # 4. MAIN ENTRY (แก้ไขย่อหน้าให้ถูกต้อง)
 # ==========================================
 # ==========================================
-# MODULE: MONITOR REAL-TIME (ฉบับสมบูรณ์)
+# MODULE: MONITOR REAL-TIME (ฉบับสมบูรณ์ - กะพริบถี่ & รีเฟรช 30 วิ)
 # ==========================================
 def monitor_center_module():
-    # ระบบจำค่าเหตุการณ์ล่าสุดเพื่อแจ้งเตือน
+    # ระบบจำค่าเหตุการณ์ล่าสุด
     if "last_seen_id" not in st.session_state:
         st.session_state.last_seen_id = None
     if "new_arrival" not in st.session_state:
         st.session_state.new_arrival = False
 
-    # CSS สำหรับหน้าจอ Monitor แบบสะอาดตาและการกะพริบแจ้งเตือน
+    # CSS ปรับแต่งใหม่: กะพริบถี่ขึ้น (0.5s) และ Style กลมกลืน
     st.markdown("""
         <style>
-            @keyframes alert_flash {
-                0% { background-color: #ffffff; }
-                50% { background-color: #fee2e2; border: 2px solid #ef4444; }
-                100% { background-color: #ffffff; }
+            @keyframes fast_pulse {
+                0% { background-color: #ffffff; border: 1px solid #e2e8f0; }
+                50% { background-color: #fff1f2; border: 2px solid #be123c; transform: scale(1.01); }
+                100% { background-color: #ffffff; border: 1px solid #e2e8f0; }
             }
             .incident-card {
                 padding: 12px; border-radius: 10px; border: 1px solid #e2e8f0;
                 margin-bottom: 8px; background-color: #ffffff;
+                transition: all 0.3s ease;
+                font-family: 'Sarabun', sans-serif;
             }
+            /* คลาสสำหรับการกะพริบถี่ๆ */
             .new-incident-card {
-                animation: alert_flash 1.5s infinite;
-                border-left: 10px solid #ef4444 !important;
-                box-shadow: 0 4px 15px rgba(239, 68, 68, 0.2);
+                animation: fast_pulse 0.5s infinite; /* กะพริบเร็ว 0.5 วินาที */
+                border-left: 10px solid #be123c !important; /* สีแดงเข้มขึ้นให้ดูเข้ากับธีม */
+                box-shadow: 0 4px 12px rgba(190, 18, 60, 0.15);
             }
             .status-pending { border-left: 8px solid #f59e0b; }
             .status-done { border-left: 8px solid #10b981; }
+            
+            .new-badge {
+                background-color: #be123c; color: white; padding: 2px 8px;
+                border-radius: 20px; font-size: 11px; font-weight: bold;
+                vertical-align: middle; margin-right: 8px;
+            }
         </style>
         <div style="text-align:center; padding:10px; border-bottom:2px solid #f0f2f6; margin-bottom:15px;">
             <h2 style="color:#1E3A8A; margin:0;">🚨 LIVE MONITOR (War Room)</h2>
-            <p style="color:#64748b; margin:0; font-size:14px;">อัปเดตอัตโนมัติทุก 10 วินาที</p>
+            <p style="color:#64748b; margin:0; font-size:14px;">อัปเดตอัตโนมัติทุก 30 วินาที</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -874,25 +883,24 @@ def monitor_center_module():
     cur_year = (now_th.year + 543) if now_th.month >= 5 else (now_th.year + 542)
     
     try:
-        # ดึงข้อมูลจาก Google Sheets ตามปีปัจจุบัน
         df = conn.read(worksheet=f"Investigation_{cur_year}", ttl=2).fillna("")
         
         if not df.empty:
-            # เช็กว่ามีแถวใหม่เพิ่มขึ้นมาหรือไม่
             latest_id = len(df)
             if st.session_state.last_seen_id is not None and latest_id > st.session_state.last_seen_id:
                 st.session_state.new_arrival = True
             st.session_state.last_seen_id = latest_id
 
-            # แสดง 15 รายการล่าสุด
             display_df = df.iloc[::-1].head(15)
             
             for i, (_, row) in enumerate(display_df.iterrows()):
-                # รายการบนสุดจะกะพริบถ้าเป็นเหตุใหม่
+                # รายการบนสุดกะพริบเมื่อมีเหตุใหม่
                 is_new = (i == 0 and st.session_state.new_arrival)
                 card_class = "new-incident-card" if is_new else "incident-card"
-                status_side = "status-pending" if row['Status'] == 'รอดำเนินการ' else "status-done"
-                new_tag = "<b style='color:#ef4444;'>[NEW]</b> " if is_new else ""
+                status_side = "" if is_new else ("status-pending" if row['Status'] == 'รอดำเนินการ' else "status-done")
+                
+                # ทำ Badge NEW ให้ดูสวยขึ้น
+                new_tag = "<span class='new-badge'>NEW</span>" if is_new else ""
 
                 st.markdown(f"""
                     <div class="{card_class} {status_side}">
@@ -900,19 +908,22 @@ def monitor_center_module():
                             <span style="font-size:18px; font-weight:bold; color:#1e293b;">{new_tag}📍 {row['Location']}</span>
                             <span style="font-size:12px; color:#94a3b8;">{row['Timestamp']}</span>
                         </div>
-                        <div style="margin-top:4px; font-size:14px;">
-                            <b style="color:#1E3A8A;">{row['Incident_Type']}</b> 
-                            <span style="color:#64748b; margin-left:12px;">👤 {row['Reporter']}</span>
+                        <div style="margin-top:6px; font-size:14px;">
+                            <b style="color:#1E3A8A; font-size:15px;">{row['Incident_Type']}</b> 
+                            <span style="color:#64748b; margin-left:12px;">👤 ผู้แจ้ง: {row['Reporter']}</span>
+                        </div>
+                        <div style="margin-top:4px; font-size:13px; color:#475569; border-top: 1px solid #f1f5f9; padding-top:4px;">
+                            📝 {row['Details']}
                         </div>
                     </div>
                 """, unsafe_allow_html=True)
 
-        # หน่วงเวลา 10 วินาทีแล้ว Refresh อัตโนมัติ
-        time.sleep(10)
+        # ปรับรีเฟรชเป็น 30 วินาที
+        time.sleep(30)
         st.rerun()
 
     except Exception as e:
-        st.error(f"⚠️ ไม่พบข้อมูลปีการศึกษา {cur_year} หรือการเชื่อมต่อขัดข้อง")
+        st.error(f"⚠️ การเชื่อมต่อขัดข้อง หรือไม่พบข้อมูลปี {cur_year}")
 def main():
     if 'timeout_msg' in st.session_state and st.session_state.timeout_msg:
         st.error(st.session_state.timeout_msg)
