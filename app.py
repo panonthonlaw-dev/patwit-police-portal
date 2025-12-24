@@ -160,11 +160,16 @@ def calculate_pagination(key, total_items, limit=5):
 # 2. MODULE: INVESTIGATION
 # ==========================================
 # สร้างฟังก์ชันช่วยเปลี่ยนหน้า (วางไว้ด้านบนภายใน investigation_module)
-def navigate_to_detail(case_id):
-    st.session_state.selected_case_id = case_id
-    st.session_state.view_mode = 'detail'
-    st.query_params["v_mode"] = "detail"
-    st.query_params["case_id"] = case_id
+def investigation_module():
+    user = st.session_state.user_info
+
+    # --- เพิ่มฟังก์ชันนี้ไว้ส่วนบนของ Module ---
+    def nav_to_detail(case_id):
+        st.session_state.selected_case_id = case_id
+        st.session_state.view_mode = 'detail'
+        st.query_params["v_mode"] = "detail"
+        st.query_params["case_id"] = case_id
+    # ---------------------------------------
 
 def create_pdf_inv(row):
     rid = str(row.get('Report_ID', '')); date_str = str(row.get('Timestamp', ''))
@@ -338,23 +343,15 @@ def investigation_module():
                     st.caption("ไม่มีรายการ")
                 else:
                     for i, row in df_p.iloc[start_p:end_p].iterrows():
-                        # ✅ บรรทัดที่ต้องเพิ่ม/ตรวจสอบ เพื่อแก้ไข NameError
-                        cc1, cc2, cc3, cc4 = st.columns([2.5, 2, 3, 1.5]) 
-                        
-                        with cc1: 
-                            # แก้ไขปุ่มให้บันทึกสถานะลง URL เพื่อกัน Refresh หลุด
-                            if st.button(f"📝 {row['Report_ID']}", key=f"p_{i}", use_container_width=True):
-                                st.session_state.selected_case_id = row['Report_ID']
-                                st.session_state.view_mode = 'detail'
-                                # อัปเดต URL ทันทีที่คลิก
-                                st.query_params["v_mode"] = "detail"
-                                st.query_params["case_id"] = row['Report_ID']
-                                st.rerun()
-                                
-                        cc2.write(row['Timestamp'])
-                        cc3.write(row['Incident_Type'])
-                        cc4.markdown(f"<span style='color:orange;font-weight:bold'>⏳ {row['Status']}</span>", unsafe_allow_html=True)
-                        st.divider()
+                    cc1, cc2, cc3, cc4 = st.columns([2.5, 2, 3, 1.5]) 
+                    with cc1: 
+                        # เปลี่ยนเป็นใช้ nav_to_detail
+                        st.button(f"📝 {row['Report_ID']}", key=f"p_{i}", use_container_width=True, 
+                                  on_click=nav_to_detail, args=(row['Report_ID'],))
+                    cc2.write(row['Timestamp'])
+                    cc3.write(row['Incident_Type'])
+                    cc4.markdown(f"<span style='color:orange;font-weight:bold'>⏳ {row['Status']}</span>", unsafe_allow_html=True)
+                    st.divider()
                 
                 if tot_p > 1:
                     cp1, cp2, cp3 = st.columns([1, 2, 1])
@@ -366,9 +363,14 @@ def investigation_module():
                 start_f, end_f, cur_f, tot_f = calculate_pagination('page_finished', len(df_f), 5)
                 for i, row in df_f.iloc[start_f:end_f].iterrows():
                     cc1, cc2, cc3, cc4 = st.columns([2.5, 2, 3, 1.5])
-                    with cc1: st.button(f"✅ {row['Report_ID']}", key=f"f_{i}", use_container_width=True, on_click=lambda r=row['Report_ID']: st.session_state.update({'selected_case_id': r, 'view_mode': 'detail', 'unlock_password': ""}))
-                    cc2.write(row['Timestamp']); cc3.write(row['Incident_Type'])
-                    cc4.markdown("<span style='color:green;font-weight:bold'>✅ ดำเนินการเรียบร้อย</span>", unsafe_allow_html=True); st.divider()
+                    with cc1: 
+                        # เปลี่ยนเป็นใช้ nav_to_detail เช่นกัน
+                        st.button(f"✅ {row['Report_ID']}", key=f"f_{i}", use_container_width=True, 
+                                  on_click=nav_to_detail, args=(row['Report_ID'],))
+                    cc2.write(row['Timestamp']) # เพิ่มบรรทัดที่หายไป
+                    cc3.write(row['Incident_Type']) # เพิ่มบรรทัดที่หายไป
+                    cc4.markdown("<span style='color:green;font-weight:bold'>✅ ดำเนินการเรียบร้อย</span>", unsafe_allow_html=True)
+                    st.divider()
 
             with tab_dash:
                 tc = len(df_display)
