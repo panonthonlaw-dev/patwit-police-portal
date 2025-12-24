@@ -736,50 +736,62 @@ def traffic_module():
             df['Score'] = pd.to_numeric(df['C13'], errors='coerce').fillna(100)
             df['LV'] = df['C3'].apply(lambda x: str(x).split('/')[0] if pd.notna(x) and '/' in str(x) else str(x))
             
-            st.markdown("<h3 style='text-align: center;'>📊 รายงานสถิติจราจร</h3>", unsafe_allow_html=True)
+            st.markdown("<h2 style='text-align:center;'>📊 รายงานสถิติจราจร</h2>", unsafe_allow_html=True)
 
-            # --- ส่วนที่ 1: Metric แบบเรียบง่าย ---
+            # --- ส่วนที่ 1: Metric (ตัวเลขสรุป) ---
             m1, m2, m3 = st.columns(3)
             m1.metric("รถทั้งหมด", f"{len(df)} คัน")
             m2.metric("คะแนนเฉลี่ย", f"{df['Score'].mean():.1f}")
             m3.metric("กลุ่มเสี่ยง", f"{len(df[df['Score'] < 60])} คน")
 
-            # --- ส่วนที่ 2: Donut Charts (แก้ปัญหาตัวหนังสือทับโดยปิด Legend) ---
+            # --- ส่วนที่ 2: กราฟวงกลม (Donut Charts) ---
             st.write("---")
-            st.markdown("**🛡️ สถานะความปลอดภัย (สัดส่วนร้อยละ)**")
+            st.markdown("#### 🛡️ สถานะความปลอดภัย")
             
-            def create_compact_pie(df_in, col, title_text):
-                # ใช้ textinfo='label+percent' เพื่อแสดงชื่อในกราฟเลย และปิด showlegend
+            def create_donut(df_in, col, title_text):
                 fig = px.pie(df_in, names=col, hole=0.5, color_discrete_sequence=px.colors.qualitative.Pastel)
-                fig.update_traces(textposition='inside', textinfo='label+percent')
+                fig.update_traces(textposition='inside', textinfo='percent+label')
                 fig.update_layout(
-                    title={'text': title_text, 'y':0.95, 'x':0.5, 'xanchor': 'center', 'yanchor': 'top'},
-                    margin=dict(l=0, r=0, t=30, b=0),
-                    height=250,
-                    showlegend=False # ปิด Legend ถาวรเพื่อกันตัวหนังสือทับ
+                    title={'text': title_text, 'y':0.98, 'x':0.5, 'xanchor': 'center', 'yanchor': 'top'},
+                    margin=dict(t=50, b=10, l=10, r=10), # เพิ่มพื้นที่ด้านบนให้หัวข้อ
+                    height=300,
+                    showlegend=False
                 )
                 return fig
 
             c1, c2, c3 = st.columns(3)
-            with c1: st.plotly_chart(create_compact_pie(df, 'C7', "ใบขับขี่"), use_container_width=True, config={'displayModeBar': False})
-            with c2: st.plotly_chart(create_compact_pie(df, 'C8', "ภาษี/พรบ."), use_container_width=True, config={'displayModeBar': False})
-            with c3: st.plotly_chart(create_compact_pie(df, 'C9', "หมวกกันน็อค"), use_container_width=True, config={'displayModeBar': False})
+            with c1: st.plotly_chart(create_donut(df, 'C7', "ใบขับขี่"), use_container_width=True)
+            with c2: st.plotly_chart(create_donut(df, 'C8', "ภาษี/พรบ."), use_container_width=True)
+            with c3: st.plotly_chart(create_donut(df, 'C9', "หมวกกันน็อค"), use_container_width=True)
 
-            # --- ส่วนที่ 3: Bar Charts (ขยายพื้นที่ให้กว้างขึ้น) ---
+            # --- ส่วนที่ 3: กราฟแท่ง (ใช้พื้นที่เต็มหน้าจอ เพื่อลดการทับซ้อน) ---
             st.write("---")
-            st.markdown("**📈 วิเคราะห์ตามระดับชั้น**")
+            st.markdown("#### 📈 วิเคราะห์ตามระดับชั้น (แสดงผลแบบเต็มความกว้าง)")
             
-            # กราฟจำนวนรถ (แสดงทีละแถวเพื่อให้ตัวหนังสือแกน X ไม่ทับกัน)
-            count_data = df.groupby('LV').size().reset_index(name='จำนวน')
-            fig_bar1 = px.bar(count_data, x='LV', y='จำนวน', text='จำนวน', color='LV', title="จำนวนรถรายชั้น")
-            fig_bar1.update_layout(margin=dict(l=20, r=20, t=40, b=20), height=350, showlegend=False)
+            # กราฟคะแนนเฉลี่ย
+            avg_data = df.groupby('LV')['Score'].mean().reset_index().sort_values('Score')
+            fig_bar1 = px.bar(avg_data, x='LV', y='Score', text_auto='.1f', 
+                             title="คะแนนวินัยเฉลี่ยรายชั้น (เต็ม 100)",
+                             color='Score', color_continuous_scale='RdYlGn', range_y=[0, 115])
+            fig_bar1.update_layout(
+                margin=dict(t=80, b=50, l=50, r=50), # เพิ่ม Margin รอบด้าน
+                height=450, 
+                xaxis_title="ระดับชั้น / กลุ่มบุคลากร",
+                yaxis_title="คะแนนเฉลี่ย"
+            )
             st.plotly_chart(fig_bar1, use_container_width=True)
 
-            # กราฟคะแนนเฉลี่ย
-            avg_data = df.groupby('LV')['Score'].mean().reset_index()
-            fig_bar2 = px.bar(avg_data, x='LV', y='Score', text_auto='.1f', title="คะแนนเฉลี่ยรายชั้น (เต็ม 100)",
-                             color='Score', color_continuous_scale='RdYlGn', range_y=[0, 110])
-            fig_bar2.update_layout(margin=dict(l=20, r=20, t=40, b=20), height=350)
+            # กราฟจำนวนรถ
+            count_data = df.groupby('LV').size().reset_index(name='จำนวน')
+            fig_bar2 = px.bar(count_data, x='LV', y='จำนวน', text='จำนวน', 
+                             title="จำนวนรถที่ลงทะเบียนรายชั้น",
+                             color='LV', color_discrete_sequence=px.colors.qualitative.Set3)
+            fig_bar2.update_layout(
+                margin=dict(t=80, b=50, l=50, r=50), 
+                height=450,
+                showlegend=False,
+                xaxis_title="ระดับชั้น / กลุ่มบุคลากร"
+            )
             st.plotly_chart(fig_bar2, use_container_width=True)
 # ==========================================
 # 4. MAIN ENTRY (แก้ไขย่อหน้าให้ถูกต้อง)
