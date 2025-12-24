@@ -218,9 +218,9 @@ def investigation_module():
         st.write("")
         b_home, b_logout = st.columns(2)
         if st.button("🏠 หน้าหลัก"):
-    st.session_state.current_dept = None
-    if "dept" in st.query_params: del st.query_params["dept"] # ล้างค่าใน URL
-    st.rerun()
+            st.session_state.current_dept = None
+            if "dept" in st.query_params: del st.query_params["dept"] # ล้างค่าใน URL
+            st.rerun()
             
     
     # --- [ส่วนที่เพิ่ม: คำนวณปีการศึกษา (พ.ค. - เม.ย.) + เผื่อปีหน้า] ---
