@@ -970,10 +970,10 @@ def monitor_center_module():
         st.error(f"⚠️ การเชื่อมต่อขัดข้อง หรือไม่พบข้อมูลปี {cur_year}")
 def main():
     # ... โค้ดส่วนบน ...
-        if not st.session_state.logged_in:
+            if not st.session_state.logged_in:
         # หน้า Login
     else:
-        if st.session_state.current_dept is None:
+            if st.session_state.current_dept is None:
             # ✅ ปุ่ม 3 ปุ่ม "ต้องอยู่ตรงนี้ที่เดียว"
             c1, c2, c3 = st.columns(3)
             with c1:
