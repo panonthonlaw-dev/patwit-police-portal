@@ -27,29 +27,36 @@ st.set_page_config(page_title="ศูนย์ปฏิบัติการก�
 # --- 1.1 CSS ปรับแต่งเพื่อลดภาระเครื่อง (NO ANIMATION / MAX SPEED) ---
 st.markdown("""
 <style>
-    /* ปิด Animation ทั้งหมดเพื่อความเร็วสูงสุด */
-    * {
+    /* 1. ปิด Animation/Transition/Transform ทั้งหมดแบบถาวร */
+    *, *::before, *::after {
         animation: none !important;
         transition: none !important;
+        transform: none !important; /* ปิดเอฟเฟกต์เด้ง/ขยายเวลาชี้ */
+        scroll-behavior: auto !important;
     }
+
+    /* 2. ซ่อนส่วนประกอบระบบที่ไม่จำเป็น (แถบสีรุ้งด้านบน/Footer) */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    header {visibility: hidden;}
+    header {visibility: hidden;} 
     .stDeployButton {display:none;}
     [data-testid="stSidebar"] {display: none;}
     [data-testid="collapsedControl"] {display: none;}
     
+    /* 3. ปรับแต่ง Card ให้เบา (เอาเงาออก) */
     .metric-card { 
         background: white; 
-        padding: 15px; 
-        border-radius: 10px; 
-        border: 1px solid #e2e8f0; 
+        padding: 10px; 
+        border-radius: 8px; 
+        border: 1px solid #d1d5db; /* ใช้เส้นธรรมดาแทนเงา */
         text-align: center; 
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
+        box-shadow: none !important; /* ปิดเงา ลดภาระ GPU */
     }
-    .metric-value { font-size: 2.5rem; font-weight: 800; color: #1e293b; } 
-    .metric-label { font-size: 1rem; color: #64748b; }
-    img { opacity: 1 !important; }
+    .metric-value { font-size: 2.2rem; font-weight: 800; color: #1e293b; } 
+    .metric-label { font-size: 0.9rem; color: #64748b; }
+    
+    /* 4. บังคับแสดงผลภาพแบบเร็ว */
+    img { opacity: 1 !important; image-rendering: -webkit-optimize-contrast; }
 </style>
 """, unsafe_allow_html=True)
 
