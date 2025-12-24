@@ -969,26 +969,89 @@ def monitor_center_module():
     except Exception as e:
         st.error(f"⚠️ การเชื่อมต่อขัดข้อง หรือไม่พบข้อมูลปี {cur_year}")
 def main():
-    # ... โค้ดส่วนบน ...
-            if not st.session_state.logged_in:
-        # หน้า Login
-    else:
-            if st.session_state.current_dept is None:
-            # ✅ ปุ่ม 3 ปุ่ม "ต้องอยู่ตรงนี้ที่เดียว"
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                if st.button("เข้าใช้งานสอบสวน", key="main_inv"): ...
-            with c2:
-                if st.button("เข้าใช้งานจราจร", key="main_tra"): ...
-            with c3:
-                if st.button("เปิดจอเฝ้าระวังเหตุ", key="main_mon"): ...
-        else:
-            # ✅ ส่วนนี้คือตอนเข้าแผนกแล้ว (สถิติจะโชว์ตรงนี้)
-            # ปุ่ม 3 ปุ่มข้างบนจะไม่ตามเข้ามาในนี้เด็ดขาด
-            if st.session_state.current_dept == "inv": investigation_module()
-            elif st.session_state.current_dept == "tra": traffic_module()
-            elif st.session_state.current_dept == "monitor_view": monitor_center_module()
+    # 1. แสดงข้อความแจ้งเตือนถ้ามี (ย่อหน้า 4 ช่อง)
+    if 'timeout_msg' in st.session_state and st.session_state.timeout_msg:
+        st.error(st.session_state.timeout_msg)
+        del st.session_state.timeout_msg
 
-# บรรทัดสุดท้ายของไฟล์ต้องมีแค่นี้:
+    # 2. ตรวจสอบสถานะการเข้าระบบ
+    if not st.session_state.logged_in:
+        # --- หน้า Login (ย่อหน้า 8 ช่อง) ---
+        _, col, _ = st.columns([1, 1.2, 1])
+        with col:
+            st.markdown("<br><br>", unsafe_allow_html=True)
+            with st.container(border=True):
+                if LOGO_PATH and os.path.exists(LOGO_PATH):
+                    st.image(LOGO_PATH, width=120)
+                st.markdown("<h3 style='text-align:center;'>ศูนย์ปฏิบัติการกลาง<br>สถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</h3>", unsafe_allow_html=True)
+                pwd_in = st.text_input("รหัสผ่านเจ้าหน้าที่", type="password")
+                if st.button("เข้าสู่ระบบ", use_container_width=True, type='primary'):
+                    accs = st.secrets.get("OFFICER_ACCOUNTS", {})
+                    if pwd_in in accs:
+                        st.session_state.logged_in = True
+                        st.session_state.user_info = accs[pwd_in]
+                        st.session_state.current_user_pwd = pwd_in
+                        st.query_params["logged_in"] = "true"
+                        st.query_params["pwd"] = pwd_in
+                        st.rerun()
+                    else:
+                        st.error("❌ รหัสผิด")
+    else:
+        # --- กรณีเข้าระบบเรียบร้อยแล้ว (ย่อหน้า 8 ช่อง) ---
+        
+        if st.session_state.current_dept is None:
+            # ✅ ก) หน้าเลือกแผนก (ย่อหน้า 12 ช่อง)
+            st.markdown(f"""
+                <div style="text-align:center; padding:20px; border-bottom:2px solid #f0f2f6; margin-bottom:20px;">
+                    <h1 style="color:#1E3A8A; margin:0;">🏢 เลือกแผนกปฏิบัติงาน</h1>
+                    <p style="color:#64748b;">เจ้าหน้าที่: {st.session_state.user_info.get('name')}</p>
+                </div>
+            """, unsafe_allow_html=True)
+
+            # สร้างคอลัมน์ 3 ช่อง
+            c1, c2, c3 = st.columns(3) 
+
+            with c1:
+                with st.container(border=True):
+                    st.subheader("🕵️ งานสอบสวน")
+                    if st.button("เข้าใช้งานสอบสวน", use_container_width=True, type='primary', key="btn_main_inv"):
+                        st.session_state.current_dept = "inv"
+                        st.session_state.view_mode = "list"
+                        st.query_params["dept"] = "inv"
+                        st.rerun()
+
+            with c2:
+                with st.container(border=True):
+                    st.subheader("🚦 งานจราจร")
+                    if st.button("เข้าใช้งานจราจร", use_container_width=True, type='primary', key="btn_main_tra"):
+                        st.session_state.current_dept = "tra"
+                        st.session_state.traffic_page = 'teacher'
+                        st.query_params["dept"] = "tra"
+                        st.rerun()
+
+            with c3:
+                with st.container(border=True):
+                    st.subheader("🖥️ War Room")
+                    if st.button("เปิดจอเฝ้าระวังเหตุ", use_container_width=True, type='primary', key="btn_main_mon"):
+                        st.session_state.current_dept = "monitor_view"
+                        st.query_params["dept"] = "monitor_view"
+                        st.rerun()
+            
+            st.write("")
+            if st.button("🚪 ออกจากระบบ", use_container_width=True, key="main_logout_btn"):
+                st.query_params.clear()
+                st.session_state.clear()
+                st.rerun()
+        
+        else:
+            # ✅ ข) หน้า Module ต่างๆ (บรรทัด else นี้ต้องตรงกับ if st.session_state.current_dept is None)
+            if st.session_state.current_dept == "inv":
+                investigation_module()
+            elif st.session_state.current_dept == "tra":
+                traffic_module()
+            elif st.session_state.current_dept == "monitor_view":
+                monitor_center_module()
+
+# --- บรรทัดสุดท้ายของไฟล์ (ห้ามมี st.button อื่นๆ มาวางลอยไว้ตรงนี้) ---
 if __name__ == "__main__":
     main()
