@@ -1069,7 +1069,7 @@ def monitor_center_module():
 
     except Exception as e:
         st.warning(f"⏳ กำลังเชื่อมต่อ... ({cur_year})")
-        time.sleep(10)
+        time.sleep(20)
         st.rerun()
 # ==========================================
 # 4. MAIN ENTRY (แก้ไขย่อหน้าให้ถูกต้อง)
