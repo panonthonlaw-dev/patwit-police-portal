@@ -829,6 +829,93 @@ def traffic_module():
 # ==========================================
 # 4. MAIN ENTRY (แก้ไขย่อหน้าให้ถูกต้อง)
 # ==========================================
+# ==========================================
+# MODULE: MONITOR REAL-TIME (WAR ROOM)
+# ==========================================
+def monitor_center_module():
+    # 1. ตั้งค่าตัวแปรสำหรับแจ้งเตือน
+    if "last_seen_id" not in st.session_state:
+        st.session_state.last_seen_id = 0
+    if "new_arrival" not in st.session_state:
+        st.session_state.new_arrival = False
+
+    # 2. CSS สำหรับเอฟเฟกต์กะพริบและบัตรรายการ
+    st.markdown("""
+        <style>
+            @keyframes pulse_red {
+                0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
+                70% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
+                100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+            }
+            .new-incident {
+                animation: pulse_red 2s infinite;
+                border-left: 5px solid #dc2626 !important;
+                background-color: #fef2f2;
+            }
+            .incident-card {
+                background: white; padding: 15px; border-radius: 10px;
+                border: 1px solid #e2e8f0; margin-bottom: 10px;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            }
+        </style>
+        <div style="text-align:center; padding:15px; border-bottom:2px solid #f1f5f9; margin-bottom:20px;">
+            <h2 style="color:#1e3a8a; margin:0;">🚨 War Room: ศูนย์เฝ้าระวังเหตุฉุกเฉิน</h2>
+            <p style="color:#64748b; font-size:0.9em;">ระบบอัปเดตอัตโนมัติทุก 30 วินาที</p>
+        </div>
+    """, unsafe_allow_html=True)
+
+    # 3. ปุ่มย้อนกลับ (พร้อมล้างค่า URL)
+    if st.button("⬅️ กลับหน้าเลือกแผนก", use_container_width=True):
+        st.session_state.current_dept = None
+        # ล้างค่า URL ทั้งหมด
+        for key in ["dept", "t_page", "v_mode", "case_id"]:
+            if key in st.query_params: del st.query_params[key]
+        st.rerun()
+
+    # 4. เชื่อมต่อ Google Sheets
+    try:
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        now_th = get_now_th()
+        cur_year = (now_th.year + 543) if now_th.month >= 5 else (now_th.year + 542)
+        
+        # อ่านข้อมูล (ttl=2 เพื่อให้สดใหม่เสมอ)
+        df = conn.read(worksheet=f"Investigation_{cur_year}", ttl=2).fillna("")
+        
+        if not df.empty:
+            # เช็คว่ามีเคสใหม่เข้ามาหรือไม่
+            current_count = len(df)
+            if current_count > st.session_state.last_seen_id:
+                if st.session_state.last_seen_id != 0: # ไม่เตือนตอนเปิดครั้งแรก
+                    st.toast("🚨 มีการแจ้งเหตุใหม่เข้ามา!", icon="🔥")
+                st.session_state.last_seen_id = current_count
+                st.session_state.new_arrival = True
+            
+            # แสดงรายการ 10 รายการล่าสุด
+            for i, row in df.iloc[::-1].head(10).iterrows():
+                # ถ้าเป็นเคสล่าสุดให้ใส่ Class กะพริบ
+                is_latest = (i == df.index[-1] and st.session_state.new_arrival)
+                card_class = "incident-card new-incident" if is_latest else "incident-card"
+                
+                st.markdown(f"""
+                <div class="{card_class}">
+                    <div style="display:flex; justify-content:space-between;">
+                        <span style="font-weight:bold; font-size:1.1em; color:#1e293b;">📍 {row['Location']}</span>
+                        <span style="color:#64748b; font-size:0.85em;">{row['Timestamp']}</span>
+                    </div>
+                    <div style="margin-top:5px; color:#be123c; font-weight:bold;">{row['Incident_Type']}</div>
+                    <div style="font-size:0.9em; color:#475569; margin-top:5px;">📝 {row['Details']}</div>
+                    <div style="font-size:0.85em; color:#64748b; margin-top:8px;">
+                        โดย: {row['Reporter']} | สถานะ: {row['Status']}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+        # 5. ระบบ Auto-Refresh (30 วินาที)
+        time.sleep(30)
+        st.rerun()
+
+    except Exception as e:
+        st.error(f"⚠️ ยังไม่พบฐานข้อมูลปี {cur_year} หรือการเชื่อมต่อขัดข้อง")
 def main():
     if 'timeout_msg' in st.session_state and st.session_state.timeout_msg:
         st.error(st.session_state.timeout_msg)
@@ -877,14 +964,21 @@ def main():
                     st.rerun()
             # --------------------------------
             
+            # --- เริ่มวางทับตรงนี้ (แทนที่ของเดิม) ---
             st.markdown("---")
-            c1, c2 = st.columns(2)
+            
+            # เปลี่ยนเลข 2 เป็น 3 เพื่อเพิ่มปุ่ม War Room
+            c1, c2, c3 = st.columns(3)
+            
             with c1:
                 with st.container(border=True):
                     st.subheader("🕵️ งานสอบสวน")
                     if st.button("เข้าใช้งานสอบสวน", use_container_width=True, type='primary', key="btn_to_inv"):
-                        st.session_state.current_dept = "inv"; st.session_state.view_mode = "list"
+                        st.session_state.current_dept = "inv"
+                        st.session_state.view_mode = "list"
+                        st.query_params["dept"] = "inv"
                         st.rerun()
+            
             with c2:
                 with st.container(border=True):
                     st.subheader("🚦 งานจราจร")
@@ -892,9 +986,30 @@ def main():
                         st.session_state.current_dept = "tra"
                         st.session_state.traffic_page = 'teacher'
                         st.session_state.search_results_df = None
+                        st.query_params["dept"] = "tra"
                         st.rerun()
-        else:
-            if st.session_state.current_dept == "inv": investigation_module()
-            elif st.session_state.current_dept == "tra": traffic_module()
 
+            with c3: # ✅ ส่วนที่เพิ่มมาใหม่
+                with st.container(border=True):
+                    st.subheader("🖥️ War Room")
+                    if st.button("เปิดจอเฝ้าระวังเหตุ", use_container_width=True, type='primary', key="btn_to_monitor"):
+                        st.session_state.current_dept = "monitor_view"
+                        st.query_params["dept"] = "monitor_view"
+                        st.rerun()
+            
+            # ปุ่มออกจากระบบ (วางไว้ข้างล่างสุดของบล็อกนี้)
+            st.write("")
+            if st.button("🚪 ออกจากระบบ", use_container_width=True, key="main_logout"):
+                st.query_params.clear()
+                st.session_state.clear()
+                st.rerun()
+            # --- จบส่วนที่วางทับ ---
+        else:
+            # ต้องดูย่อหน้าให้ตรงกับ if/elif ด้านบนนะครับ
+            if st.session_state.current_dept == "inv": 
+                investigation_module()
+            elif st.session_state.current_dept == "tra": 
+                traffic_module()
+            elif st.session_state.current_dept == "monitor_view": # เพิ่มบรรทัดนี้
+                monitor_center_module()
 if __name__ == "__main__": main()
