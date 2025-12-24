@@ -344,12 +344,25 @@ def investigation_module():
                 h1.markdown("**เลขที่รับแจ้ง**"); h2.markdown("**วันเวลา**"); h3.markdown("**ประเภทเหตุ**"); h4.markdown("**สถานะ**")
                 st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
                 
-                if df_p.empty: st.caption("ไม่มีรายการ")
+                if df_p.empty: 
+                    st.caption("ไม่มีรายการ")
                 for i, row in df_p.iloc[start_p:end_p].iterrows():
-                    cc1, cc2, cc3, cc4 = st.columns([2.5, 2, 3, 1.5])
-                    with cc1: st.button(f"📝 {row['Report_ID']}", key=f"p_{i}", use_container_width=True, on_click=lambda r=row['Report_ID']: st.session_state.update({'selected_case_id': r, 'view_mode': 'detail', 'unlock_password': ""}))
-                    cc2.write(row['Timestamp']); cc3.write(row['Incident_Type'])
-                    cc4.markdown(f"<span style='color:orange;font-weight:bold'>⏳ {row['Status']}</span>", unsafe_allow_html=True); st.divider()
+                    # ✅ ต้องมีบรรทัดนี้เพื่อสร้างตัวแปร cc1, cc2, cc3, cc4
+                    cc1, cc2, cc3, cc4 = st.columns([2.5, 2, 3, 1.5]) 
+                    
+                    with cc1: 
+                        # ปรับปรุงปุ่มให้จดจำเลขเคสลง URL เพื่อกัน Refresh หลุด
+                        if st.button(f"📝 {row['Report_ID']}", key=f"p_{i}", use_container_width=True):
+                            st.session_state.selected_case_id = row['Report_ID']
+                            st.session_state.view_mode = 'detail'
+                            st.query_params["v_mode"] = "detail"
+                            st.query_params["case_id"] = row['Report_ID']
+                            st.rerun()
+                            
+                    cc2.write(row['Timestamp'])
+                    cc3.write(row['Incident_Type'])
+                    cc4.markdown(f"<span style='color:orange;font-weight:bold'>⏳ {row['Status']}</span>", unsafe_allow_html=True)
+                    st.divider()
                 
                 if tot_p > 1:
                     cp1, cp2, cp3 = st.columns([1, 2, 1])
