@@ -733,11 +733,11 @@ def traffic_module():
             
         if st.session_state.df_tra is not None:
             df = st.session_state.df_tra.copy()
-            # 1. เตรียมข้อมูลพื้นฐาน
+            # เตรียมข้อมูล
             df['Score'] = pd.to_numeric(df['C13'], errors='coerce').fillna(100)
             df['LV'] = df['C3'].apply(lambda x: str(x).split('/')[0] if pd.notna(x) and '/' in str(x) else str(x))
             
-            # 2. คำนวณค่าทางสถิติ
+            # คำนวณค่าสถิติ
             total_all = len(df)
             avg_all = df['Score'].mean()
             at_risk = len(df[df['Score'] < 60])
@@ -745,10 +745,10 @@ def traffic_module():
             tax_total = (df['C8'].str.contains("ปกติ|✅", na=False)).sum()
             hel_total = (df['C9'].str.contains("มี", na=False)).sum()
 
-            st.markdown("<h2 style='text-align:center; color:#1E3A8A; margin-bottom:10px;'>📋 รายงานสรุปผลการดำเนินงานด้านวินัยจราจร</h2>", unsafe_allow_html=True)
+            st.markdown("<h2 style='text-align:center; color:#1E3A8A;'>📋 รายงานสรุปผลงานวินัยจราจร</h2>", unsafe_allow_html=True)
 
-            # --- 3. ส่วนบทสรุปผู้บริหาร (Executive Summary) แสดงผลเป็นกรอบ HTML ---
-            st.markdown(f"""
+            # --- [จุดแก้ไขสำคัญ] ส่วนบทสรุปผู้บริหาร แบบ Render HTML ---
+            summary_html = f"""
             <div style="border: 2px solid #1E3A8A; border-radius: 15px; padding: 20px; background-color: #f8fafc; margin-bottom: 25px;">
                 <h4 style="color: #1E3A8A; margin-top: 0; border-bottom: 2px solid #1E3A8A; padding-bottom: 10px; text-align: center; font-weight: bold;">📊 บทสรุปผู้บริหาร (Executive Summary)</h4>
                 
@@ -770,27 +770,29 @@ def traffic_module():
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; padding-top: 15px; text-align: center;">
                     <div style="background: #eff6ff; padding: 10px; border-radius: 10px; border: 1px solid #bfdbfe;">
                         <div style="font-size: 12px; color: #1e40af; font-weight: bold;">🪪 มีใบขับขี่</div>
-                        <div style="font-size: 22px; font-weight: 800; color: #1e3a8a;">{lic_total} <span style="font-size: 13px; font-weight: normal;">คน</span></div>
+                        <div style="font-size: 22px; font-weight: 800; color: #1e3a8a;">{lic_total} <span style="font-size: 13px;">คน</span></div>
                         <div style="font-size: 11px; color: #3b82f6;">({(lic_total/total_all*100 if total_all > 0 else 0):.1f}%)</div>
                     </div>
                     <div style="background: #f0fdf4; padding: 10px; border-radius: 10px; border: 1px solid #bbf7d0;">
                         <div style="font-size: 12px; color: #166534; font-weight: bold;">📝 ภาษี/พรบ. ปกติ</div>
-                        <div style="font-size: 22px; font-weight: 800; color: #14532d;">{tax_total} <span style="font-size: 13px; font-weight: normal;">คัน</span></div>
+                        <div style="font-size: 22px; font-weight: 800; color: #14532d;">{tax_total} <span style="font-size: 13px;">คัน</span></div>
                         <div style="font-size: 11px; color: #22c55e;">({(tax_total/total_all*100 if total_all > 0 else 0):.1f}%)</div>
                     </div>
                     <div style="background: #fffbeb; padding: 10px; border-radius: 10px; border: 1px solid #fef3c7;">
                         <div style="font-size: 12px; color: #92400e; font-weight: bold;">🪖 สวมหมวกนิรภัย</div>
-                        <div style="font-size: 22px; font-weight: 800; color: #78350f;">{hel_total} <span style="font-size: 13px; font-weight: normal;">คน</span></div>
+                        <div style="font-size: 22px; font-weight: 800; color: #78350f;">{hel_total} <span style="font-size: 13px;">คน</span></div>
                         <div style="font-size: 11px; color: #f59e0b;">({(hel_total/total_all*100 if total_all > 0 else 0):.1f}%)</div>
                     </div>
                 </div>
             </div>
-            """, unsafe_allow_html=True)
+            """
+            # บรรทัดนี้สำคัญที่สุด ห้ามลืม unsafe_allow_html=True
+            st.markdown(summary_html, unsafe_allow_html=True)
 
-            # --- 4. ตารางสถิติละเอียดรายระดับชั้น ---
-            st.markdown("#### 📚 วิเคราะห์เชิงลึกรายระดับชั้น / กลุ่มบุคลากร")
+            # --- หมวดหมู่ที่ 2: ตารางข้อมูลรายชั้น ---
+            st.markdown("#### 📚 วิเคราะห์ข้อมูลรายระดับชั้น / กลุ่มบุคลากร")
             
-            def calc_detailed_stats(group):
+            def calc_detailed(group):
                 n = len(group)
                 lic = (group['C7'].str.contains("มี", na=False)).sum()
                 tax = (group['C8'].str.contains("ปกติ|✅", na=False)).sum()
@@ -798,27 +800,24 @@ def traffic_module():
                 return pd.Series({
                     'จำนวนรถ': n,
                     'คะแนนเฉลี่ย': group['Score'].mean(),
-                    'ใบขับขี่ (คน)': lic,
                     'ใบขับขี่ (%)': (lic/n*100) if n>0 else 0,
-                    'ภาษีปกติ (คัน)': tax,
                     'ภาษีปกติ (%)': (tax/n*100) if n>0 else 0,
-                    'สวมหมวก (คน)': hel,
                     'สวมหมวก (%)': (hel/n*100) if n>0 else 0
                 })
 
-            summary_table = df.groupby('LV').apply(calc_detailed_stats).reset_index()
+            summary_table = df.groupby('LV').apply(calc_detailed).reset_index()
             summary_table = summary_table.rename(columns={'LV': 'ระดับชั้น/กลุ่ม'}).sort_values('จำนวนรถ', ascending=False)
 
             # จัดรูปแบบตัวเลขให้สวยงาม
             format_rules = {
-                'คะแนนเฉลี่ย': '{:.2f}', 'ใบขับขี่ (%)': '{:.1f}%', 'ภาษีปกติ (%)': '{:.1f}%', 'สวมหมวก (%)': '{:.1f}%',
-                'จำนวนรถ': '{:,.0f}', 'ใบขับขี่ (คน)': '{:,.0f}', 'ภาษีปกติ (คัน)': '{:,.0f}', 'สวมหมวก (คน)': '{:,.0f}'
+                'คะแนนเฉลี่ย': '{:.2f}', 'ใบขับขี่ (%)': '{:.1f}%', 'ภาษีปกติ (%)': '{:.1f}%', 'สวมหมวก (%)': '{:.1f}%', 'จำนวนรถ': '{:,.0f}'
             }
             for col, fmt in format_rules.items():
                 summary_table[col] = summary_table[col].apply(lambda x: fmt.format(x))
 
+            # ใช้ st.dataframe เพื่อให้อ่านง่ายและไม่เบี้ยว
             st.dataframe(summary_table, use_container_width=True, hide_index=True)
-            st.caption(f"ข้อมูลล่าสุดเมื่อ: {get_now_th().strftime('%d/%m/%Y %H:%M')}")
+            st.caption(f"อัปเดตล่าสุด: {get_now_th().strftime('%d/%m/%Y %H:%M')}")")
 # ==========================================
 # 4. MAIN ENTRY (แก้ไขย่อหน้าให้ถูกต้อง)
 # ==========================================
