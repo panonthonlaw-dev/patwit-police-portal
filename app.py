@@ -753,7 +753,7 @@ def traffic_module():
             # --- หมวดหมู่ที่ 1: บทสรุปผู้บริหาร ---
             st.markdown(f"""
             <div style="border: 2px solid #1E3A8A; border-radius: 15px; padding: 20px; background-color: #f8fafc; margin-bottom: 25px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
-                <h4 style="color: #1E3A8A; margin-top: 0; border-bottom: 2px solid #1E3A8A; padding-bottom: 10px; text-align: center; font-weight: bold;">📊 บทสรุปผู้บริหาร (Executive Summary)</h4>
+                <h4 style="color: #1E3A8A; margin-top: 0; border-bottom: 2px solid #1E3A8A; padding-bottom: 10px; text-align: center; font-weight: bold;">📊 ผลสรุป (Executive Summary)</h4>
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; padding: 15px 0; text-align: center;">
                     <div style="background: white; padding: 10px; border-radius: 10px; border: 1px solid #e2e8f0;">
                         <div style="font-size: 12px; color: #64748b; font-weight: bold;">พาหนะลงทะเบียน</div>
