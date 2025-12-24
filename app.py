@@ -859,7 +859,7 @@ def traffic_module():
             st.caption(f"ออกรายงาน ณ วันที่: {get_now_th().strftime('%d/%m/%Y %H:%M')}")
 
 # ==========================================
-# MODULE: MONITOR REAL-TIME (WAR ROOM) - REVISED FIX
+# MODULE: MONITOR REAL-TIME (WAR ROOM) - FINAL CLEAN VERSION
 # ==========================================
 def monitor_center_module():
     # 1. State Variables
@@ -872,7 +872,7 @@ def monitor_center_module():
             /* ซ่อน Scrollbar */
             ::-webkit-scrollbar { display: none; }
             
-            /* พื้นที่แสดงผลหลัก */
+            /* Container หลัก */
             .monitor-box {
                 height: 75vh; 
                 overflow: hidden;
@@ -948,52 +948,60 @@ def monitor_center_module():
             if key in st.query_params: del st.query_params[key]
         st.rerun()
 
-    # 4. ฟังก์ชันสร้าง HTML ของการ์ด 1 ใบ (แยกออกมาเพื่อป้องกัน Syntax Error)
+    # 4. ฟังก์ชันสร้าง HTML ของการ์ด 1 ใบ (แก้ไขใหม่ ไม่ให้ HTML หลุด)
     def create_card_html(row, status_type):
         # กำหนดสีและไอคอน
         if status_type == 'new':
-            css_class = "card-new"; color = "#b91c1c"; icon = "🔥"
+            css_class = "card-new"
+            color = "#b91c1c"
+            icon = "🔥"
         elif status_type == 'prog':
-            css_class = "card-prog"; color = "#1e40af"; icon = "🔵"
+            css_class = "card-prog"
+            color = "#1e40af"
+            icon = "🔵"
         else:
-            css_class = "card-done"; color = "#15803d"; icon = "✅"
+            css_class = "card-done"
+            color = "#15803d"
+            icon = "✅"
 
-        # เตรียมข้อมูล (ป้องกันค่าว่าง)
-        location = str(row['Location'])
-        incident = str(row['Incident_Type'])
-        timestamp = str(row['Timestamp'])
-        reporter = str(row['Reporter'])
-        details = str(row['Details'])
-        rid = str(row['Report_ID'])
+        # เตรียมข้อมูล (แปลงเป็น String และจัดการ None)
+        location = str(row['Location'] if pd.notna(row['Location']) else '-')
+        incident = str(row['Incident_Type'] if pd.notna(row['Incident_Type']) else '-')
+        timestamp = str(row['Timestamp'] if pd.notna(row['Timestamp']) else '-')
+        reporter = str(row['Reporter'] if pd.notna(row['Reporter']) else '-')
+        details = str(row['Details'] if pd.notna(row['Details']) else '-')
+        rid = str(row['Report_ID'] if pd.notna(row['Report_ID']) else '-')
         
         # จัดรูปแบบเวลา
         time_show = timestamp.split(' ')[1] if ' ' in timestamp else timestamp
-        if status_type == 'done': time_show = timestamp.split(' ')[0] # จบแล้วโชว์วันที่
+        if status_type == 'done': 
+            time_show = timestamp.split(' ')[0] # จบแล้วโชว์วันที่
 
-        # HTML Template (ใช้ string ธรรมดาเพื่อความปลอดภัย)
-        html = f"""
-        <div class="incident-card {css_class}">
-            <div style="font-size:1.2em; font-weight:bold; color:{color}; margin-bottom:4px;">
-                📍 {location}
-            </div>
-            <div style="font-weight:bold; color:#1e293b; font-size:1em; margin-bottom:4px;">
-                {icon} {incident}
-            </div>
-            <div style="font-size:0.85em; color:#64748b;">
-                🕒 เวลา: {time_show}
-            </div>
-            <div style="font-size:0.85em; color:#475569; margin-bottom:4px;">
-                👤 ผู้แจ้ง: {reporter}
-            </div>
-            <div class="detail-box">
-                📝 {details}
-            </div>
-            <div style="margin-top:6px; overflow:hidden;">
-                <span class="badge-id" style="color:{color};">🆔 {rid}</span>
-            </div>
-        </div>
-        """
-        return html
+        # สร้าง HTML ทีละส่วน แล้วเอามาต่อกัน (วิธีนี้ชัวร์ที่สุด ไม่พัง)
+        html_parts = []
+        html_parts.append(f'<div class="incident-card {css_class}">')
+        
+        # 1. สถานที่
+        html_parts.append(f'<div style="font-size:1.2em; font-weight:bold; color:{color}; margin-bottom:4px;">📍 {location}</div>')
+        
+        # 2. เหตุการณ์
+        html_parts.append(f'<div style="font-weight:bold; color:#1e293b; font-size:1em; margin-bottom:4px;">{icon} {incident}</div>')
+        
+        # 3. เวลา
+        html_parts.append(f'<div style="font-size:0.85em; color:#64748b;">🕒 เวลา: {time_show}</div>')
+        
+        # 4. ผู้แจ้ง
+        html_parts.append(f'<div style="font-size:0.85em; color:#475569; margin-bottom:4px;">👤 ผู้แจ้ง: {reporter}</div>')
+        
+        # 5. รายละเอียด
+        html_parts.append(f'<div class="detail-box">📝 {details}</div>')
+        
+        # 6. เลขเคส
+        html_parts.append(f'<div style="margin-top:6px; overflow:hidden;"><span class="badge-id" style="color:{color};">🆔 {rid}</span></div>')
+        
+        html_parts.append('</div>') # ปิด incident-card
+        
+        return "".join(html_parts)
 
     # 5. ฟังก์ชันแสดงผลคอลัมน์
     def render_monitor_column(title, bg_color, df_data, status_type, limit_scroll=10):
@@ -1009,27 +1017,15 @@ def monitor_center_module():
         for _, row in df_data.iterrows():
             cards_html += create_card_html(row, status_type)
         
-        # ตัดสินใจว่าจะแสดงแบบไหน (เลื่อน หรือ นิ่ง)
+        # แสดงผล
         if len(df_data) > limit_scroll:
-            # เกินกำหนด -> เลื่อน (Scroll)
-            # ใส่ cards_html ซ้ำ 2 รอบ เพื่อให้ Animation วนลูปเนียนๆ
-            st.markdown(f"""
-            <div class="monitor-box">
-                <div class="content-scroll">
-                    {cards_html}
-                    {cards_html}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            # เลื่อน (Scroll)
+            content = f'<div class="monitor-box"><div class="content-scroll">{cards_html}{cards_html}</div></div>'
+            st.markdown(content, unsafe_allow_html=True)
         else:
-            # ไม่เกิน -> นิ่ง (Static)
-            st.markdown(f"""
-            <div class="monitor-box" style="overflow-y:auto;">
-                <div>
-                    {cards_html}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            # นิ่ง (Static)
+            content = f'<div class="monitor-box" style="overflow-y:auto;"><div>{cards_html}</div></div>'
+            st.markdown(content, unsafe_allow_html=True)
 
     # 6. Load Data & Main Logic
     try:
