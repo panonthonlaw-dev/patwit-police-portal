@@ -863,44 +863,49 @@ def traffic_module():
 # MODULE: MONITOR REAL-TIME (WAR ROOM)
 # ==========================================
 def monitor_center_module():
-    # 1. State Variables
+    # 1. State Variables (เพิ่มตัวนับรอบการแสดงผล)
     if "last_seen_id" not in st.session_state: st.session_state.last_seen_id = 0
     if "latest_arrival_time" not in st.session_state: st.session_state.latest_arrival_time = None
+    if "monitor_loop_index" not in st.session_state: st.session_state.monitor_loop_index = 0
 
-    # 2. CSS Styles (ปรับแต่งการ์ดและสี)
+    # 2. CSS Styles
     st.markdown("""
         <style>
-            @keyframes pulse_red {
-                0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
-                70% { box-shadow: 0 0 0 15px rgba(220, 38, 38, 0); }
+            @keyframes pulse_border {
+                0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
+                70% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
                 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
             }
             .incident-card {
-                padding: 15px; border-radius: 10px; margin-bottom: 12px;
-                box-shadow: 0 2px 5px rgba(0,0,0,0.08); background: white;
-                border: 1px solid #e2e8f0;
+                padding: 12px; border-radius: 8px; margin-bottom: 10px;
+                background: white; border: 1px solid #e2e8f0;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                transition: transform 0.5s ease;
             }
-            .status-pending { /* แดงกะพริบ */
-                animation: pulse_red 1.5s infinite;
+            /* สีตามสถานะ */
+            .card-new { /* 🔴 แดง */
+                border-left: 6px solid #dc2626 !important;
                 background-color: #fef2f2 !important;
-                border-left: 8px solid #dc2626 !important;
+                animation: pulse_border 2s infinite; /* กะพริบเบาๆ ตลอดเวลา */
             }
-            .status-process { /* ฟ้า */
+            .card-progress { /* 🔵 ฟ้า */
+                border-left: 6px solid #3b82f6 !important;
                 background-color: #eff6ff !important;
-                border-left: 8px solid #3b82f6 !important;
             }
-            .status-done { /* เขียว */
+            .card-done { /* 🟢 เขียว */
+                border-left: 6px solid #22c55e !important;
                 background-color: #f0fdf4 !important;
-                border-left: 8px solid #22c55e !important;
-                opacity: 0.8;
+                opacity: 0.9;
             }
-            .header-box {
-                padding: 12px; border-radius: 8px; text-align: center; margin-bottom: 20px; 
-                font-weight: bold; font-size: 1.2em; border: 1px solid rgba(0,0,0,0.1);
+            .header-badge {
+                padding: 8px; border-radius: 6px; text-align: center; 
+                font-weight: bold; margin-bottom: 15px; font-size: 1.1em;
+                border: 1px solid rgba(0,0,0,0.05);
             }
         </style>
         <div style="text-align:center; padding:10px; border-bottom:2px solid #f1f5f9; margin-bottom:20px;">
             <h2 style="color:#1e3a8a; margin:0;">🚨 War Room: ศูนย์เฝ้าระวังเหตุฉุกเฉิน</h2>
+            <p style="color:#64748b; font-size:0.8em;">อัปเดตและหมุนวนรายการอัตโนมัติทุก 10 วินาที</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -911,7 +916,26 @@ def monitor_center_module():
             if key in st.query_params: del st.query_params[key]
         st.rerun()
 
-    # 4. Load & Display Data
+    # 4. Helper Function สำหรับตัดแบ่งหน้า (Auto-Scroll)
+    def get_chunk(df_input, limit=5):
+        total = len(df_input)
+        if total <= limit:
+            return df_input, False # ไม่ต้องหมุน
+        else:
+            # คำนวณหน้าปัจจุบัน
+            current_page = st.session_state.monitor_loop_index
+            total_pages = math.ceil(total / limit)
+            
+            # หาหน้าที่ต้องแสดงจริง (วนลูป)
+            active_page = current_page % total_pages
+            
+            start = active_page * limit
+            end = start + limit
+            
+            # ตัดข้อมูลมาแสดง
+            return df_input.iloc[start:end], True # True = มีการหมุน
+
+    # 5. Load Data
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         now_th = get_now_th()
@@ -920,111 +944,102 @@ def monitor_center_module():
         df = conn.read(worksheet=f"Investigation_{cur_year}", ttl=2).fillna("")
         
         if not df.empty:
-            # Check for new cases
+            # Check New Arrival
             current_count = len(df)
             if current_count > st.session_state.last_seen_id:
                 if st.session_state.last_seen_id != 0: st.toast("🚨 มีเหตุแจ้งเข้ามาใหม่!", icon="🔥")
                 st.session_state.last_seen_id = current_count
                 st.session_state.latest_arrival_time = datetime.now()
 
-            # เก็บ Index เดิมไว้เช็คว่าเป็นแถวล่าสุดหรือไม่
-            df['Original_Index'] = df.index 
+            # --- แยกข้อมูล 3 ส่วน ---
+            # 1. รอดำเนินการ (ใหม่)
+            df_new = df[df['Status'].astype(str).str.strip() == "รอดำเนินการ"].iloc[::-1]
             
-            # --- แยกข้อมูลซ้าย-ขวา ---
-            # ฝั่งซ้าย: รอดำเนินการ + อยู่ระหว่างการดำเนินการ
-            df_active = df[df['Status'].astype(str).str.strip().isin(["รอดำเนินการ", "อยู่ระหว่างการดำเนินการ"])].iloc[::-1].head(20)
+            # 2. กำลังดำเนินการ
+            df_prog = df[df['Status'].astype(str).str.strip() == "อยู่ระหว่างการดำเนินการ"].iloc[::-1]
             
-            # ฝั่งขวา: ดำเนินการเรียบร้อย + ยกเลิก
-            df_done = df[df['Status'].astype(str).str.strip().isin(["ดำเนินการเรียบร้อย", "ยกเลิก"])].iloc[::-1].head(20)
+            # 3. เสร็จสิ้น (รวมยกเลิก)
+            df_done = df[df['Status'].astype(str).str.strip().isin(["ดำเนินการเรียบร้อย", "ยกเลิก"])].iloc[::-1]
 
-            # แบ่งคอลัมน์
-            col_left, col_right = st.columns(2, gap="large")
+            # --- Layout 3 Columns ---
+            c1, c2, c3 = st.columns(3, gap="small")
 
-            # === [ฝั่งซ้าย: Active Cases] ===
-            with col_left:
-                st.markdown('<div class="header-box" style="background:#fee2e2; color:#991b1b;">🔥 สถานะ: กำลังดำเนินการ</div>', unsafe_allow_html=True)
+            # === [COL 1: แจ้งใหม่ (สีแดง)] ===
+            with c1:
+                st.markdown('<div class="header-badge" style="background:#fee2e2; color:#991b1b;">🔥 แจ้งใหม่ / รอดำเนินการ</div>', unsafe_allow_html=True)
                 
-                if df_active.empty:
-                    st.info("✅ เหตุการณ์ปกติ (ไม่มีรายการค้าง)")
+                show_new, is_scroll_new = get_chunk(df_new)
+                if df_new.empty: st.info("✅ ไม่มีรายการค้าง")
                 
-                for _, row in df_active.iterrows():
-                    status_val = str(row['Status']).strip()
-                    
-                    # Logic กะพริบ (แถวล่าสุด + เวลาไม่เกิน 10 นาที + สถานะรอ)
-                    should_flash = False
-                    is_absolute_latest = (row['Original_Index'] == df.index[-1])
-                    if is_absolute_latest and status_val == "รอดำเนินการ":
-                        if st.session_state.latest_arrival_time:
-                            diff = (datetime.now() - st.session_state.latest_arrival_time).total_seconds()
-                            if diff < 600: should_flash = True
-                    
-                    # เลือกสี
-                    if should_flash:
-                        card_class = "incident-card status-pending"
-                        badge_color = "#dc2626"
-                    elif status_val == "รอดำเนินการ":
-                        card_class = "incident-card" # รอแต่ไม่กะพริบ
-                        badge_color = "#f59e0b"
-                    else:
-                        card_class = "incident-card status-process" # ฟ้า
-                        badge_color = "#3b82f6"
-
+                for _, row in show_new.iterrows():
                     st.markdown(f"""
-                    <div class="{card_class}">
-                        <div style="display:flex; justify-content:space-between;">
-                            <span style="font-weight:bold; font-size:1.1em; color:#1e293b;">
-                                {'🔥 ' if should_flash else ''}📍 {row['Location']}
-                            </span>
-                            <span style="color:#64748b; font-size:0.85em;">{row['Timestamp']}</span>
-                        </div>
-                        <div style="margin-top:5px; color:#be123c; font-weight:bold;">{row['Incident_Type']}</div>
-                        <div style="font-size:0.9em; color:#475569; margin-top:5px; background:rgba(255,255,255,0.7); padding:5px; border-radius:5px;">
+                    <div class="incident-card card-new">
+                        <div style="font-weight:bold; color:#b91c1c; font-size:1.1em;">📍 {row['Location']}</div>
+                        <div style="font-size:0.85em; color:#7f1d1d; margin-bottom:5px;">🕒 {row['Timestamp']}</div>
+                        <div style="font-weight:bold; color:#1e293b;">{row['Incident_Type']}</div>
+                        <div style="font-size:0.9em; color:#475569; margin-top:5px; border-top:1px dashed #fecaca; padding-top:5px;">
                             {row['Details']}
                         </div>
-                        <div style="margin-top:8px; display:flex; justify-content:space-between; font-size:0.85em;">
-                            <span>👤 {row['Reporter']}</span>
-                            <span style="color:{badge_color}; font-weight:bold;">{status_val}</span>
-                        </div>
                     </div>
                     """, unsafe_allow_html=True)
-
-            # === [ฝั่งขวา: History] ===
-            with col_right:
-                st.markdown('<div class="header-box" style="background:#dcfce7; color:#166534;">✅ สถานะ: เสร็จสิ้นภารกิจ</div>', unsafe_allow_html=True)
                 
-                if df_done.empty:
-                    st.caption("ยังไม่มีรายการประวัติ")
+                if is_scroll_new: st.caption("🔄 กำลังหมุนวนรายการอัตโนมัติ...")
 
-                for _, row in df_done.iterrows():
+            # === [COL 2: กำลังทำ (สีฟ้า)] ===
+            with c2:
+                st.markdown('<div class="header-badge" style="background:#dbeafe; color:#1e40af;">🔵 อยู่ระหว่างดำเนินการ</div>', unsafe_allow_html=True)
+                
+                show_prog, is_scroll_prog = get_chunk(df_prog)
+                if df_prog.empty: st.caption("ว่าง")
+                
+                for _, row in show_prog.iterrows():
                     st.markdown(f"""
-                    <div class="incident-card status-done">
-                        <div style="display:flex; justify-content:space-between;">
-                            <span style="font-weight:bold; color:#14532d;">📍 {row['Location']}</span>
-                            <span style="color:#14532d; font-size:0.85em;">{row['Timestamp']}</span>
-                        </div>
-                        <div style="margin-top:5px; color:#14532d;">{row['Incident_Type']}</div>
-                        <div style="font-size:0.85em; color:#14532d; margin-top:5px;">
-                            ผู้รับผิดชอบ: {row['Teacher_Investigator']}
+                    <div class="incident-card card-progress">
+                        <div style="font-weight:bold; color:#1e3a8a;">📍 {row['Location']}</div>
+                        <div style="font-size:0.85em; color:#1e40af; margin-bottom:5px;">🕒 {row['Timestamp']}</div>
+                        <div style="color:#1e293b;">{row['Incident_Type']}</div>
+                        <div style="font-size:0.85em; color:#475569; margin-top:5px;">
+                             ผู้รับผิดชอบ: <b>{row['Teacher_Investigator']}</b>
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
+                
+                if is_scroll_prog: st.caption("🔄 กำลังหมุนวนรายการอัตโนมัติ...")
 
-        # ... (โค้ดแสดงผลด้านบนเหมือนเดิม) ...
+            # === [COL 3: เสร็จแล้ว (สีเขียว)] ===
+            with c3:
+                st.markdown('<div class="header-badge" style="background:#dcfce7; color:#166534;">✅ ดำเนินการเรียบร้อย</div>', unsafe_allow_html=True)
+                
+                show_done, is_scroll_done = get_chunk(df_done)
+                if df_done.empty: st.caption("ว่าง")
 
-        # 5. --- [จุดแก้ไข] ระบบ Auto-Refresh 30 วินาที ---
-        # ย้ำค่าลง URL ก่อน Refresh เพื่อกันหลุด
+                for _, row in show_done.iterrows():
+                    st.markdown(f"""
+                    <div class="incident-card card-done">
+                        <div style="font-weight:bold; color:#14532d;">📍 {row['Location']}</div>
+                        <div style="font-size:0.85em; color:#166534; margin-bottom:5px;">🕒 {row['Timestamp']}</div>
+                        <div style="color:#14532d;">{row['Incident_Type']}</div>
+                        <div style="font-size:0.85em; color:#15803d; margin-top:5px;">
+                            ผู้สรุป: {row['Teacher_Investigator']}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                if is_scroll_done: st.caption("🔄 กำลังหมุนวนรายการอัตโนมัติ...")
+
+        # 6. Auto-Refresh Logic (10 วินาที เพื่อการหมุนที่ลื่นไหล)
+        st.session_state.monitor_loop_index += 1 # ขยับหน้าถัดไป
+        
         st.query_params["dept"] = "monitor_view"
         st.query_params["logged_in"] = "true"
         
-        time.sleep(30) # รอ 30 วินาที
-        st.rerun()     # สั่งโหลดหน้าใหม่ (เพื่อดึงข้อมูลใหม่)
+        time.sleep(10) # 10 วินาทีเปลี่ยนชุดข้อมูลทีนึง
+        st.rerun()
 
     except Exception as e:
-        # กรณี Error ก็ให้รอแล้วโหลดใหม่เหมือนกัน
-        st.warning(f"⏳ กำลังเชื่อมต่อฐานข้อมูล... ({cur_year})")
-        
-        st.query_params["dept"] = "monitor_view" # ย้ำ URL แม้จะ Error
-        time.sleep(30)
+        st.warning(f"⏳ กำลังเชื่อมต่อ... ({cur_year})")
+        st.query_params["dept"] = "monitor_view"
+        time.sleep(10)
         st.rerun()
 def main():
     if 'timeout_msg' in st.session_state and st.session_state.timeout_msg:
