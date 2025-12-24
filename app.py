@@ -829,6 +829,44 @@ def traffic_module():
 # ==========================================
 # 4. MAIN ENTRY (แก้ไขย่อหน้าให้ถูกต้อง)
 # ==========================================
+def monitor_center_module():
+    if st.button("⬅️ ออกจากหน้าจอมอนิเตอร์", use_container_width=True):
+        st.session_state.current_dept = None
+        st.rerun()
+
+    st.markdown("""
+        <div style="background-color:#0f172a; padding:25px; border-radius:15px; border-bottom:5px solid #ef4444; text-align:center; margin-bottom:25px;">
+            <h1 style="color:#f8fafc; margin:0; letter-spacing: 2px;">🚨 LIVE INCIDENT MONITOR</h1>
+            <p style="color:#ef4444; margin:5px 0 0 0; font-weight:bold;">ศูนย์เฝ้าระวังเหตุการณ์สถานีตำรวจนักเรียน</p>
+        </div>
+    """, unsafe_allow_html=True)
+
+    # ดึงข้อมูลจากฐานข้อมูลสอบสวนมาโชว์แบบ Real-time
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    now_th = get_now_th()
+    cur_year = (now_th.year + 543) if now_th.month >= 5 else (now_th.year + 542)
+    
+    try:
+        # อ่านข้อมูลจากชีตสอบสวนปีปัจจุบัน
+        df = conn.read(worksheet=f"Investigation_{cur_year}", ttl=5).fillna("")
+        df = df.iloc[::-1] # เอาใหม่สุดขึ้นก่อน
+
+        for _, row in df.head(15).iterrows():
+            status_color = "#ef4444" if row['Status'] == 'รอดำเนินการ' else "#10b981"
+            st.markdown(f"""
+                <div style="background-color:#1e293b; border-radius:12px; padding:15px; margin-bottom:10px; border-left:8px solid {status_color};">
+                    <div style="display:flex; justify-content:space-between; color:white;">
+                        <b style="font-size:20px;">📍 {row['Location']}</b>
+                        <span style="font-size:12px; color:#94a3b8;">{row['Timestamp']}</span>
+                    </div>
+                    <div style="color:#cbd5e1; margin-top:5px;">⚠️ {row['Incident_Type']} | ผู้แจ้ง: {row['Reporter']}</div>
+                    <div style="color:#94a3b8; font-size:14px; margin-top:5px;">รายละเอียด: {row['Details']}</div>
+                </div>
+            """, unsafe_allow_html=True)
+        
+        st.button("🔄 อัปเดตข้อมูลสด")
+    except:
+        st.error("⚠️ ไม่พบข้อมูลการสอบสวนของปีการศึกษาปัจจุบัน")
 def main():
     if 'timeout_msg' in st.session_state and st.session_state.timeout_msg:
         st.error(st.session_state.timeout_msg)
@@ -878,7 +916,8 @@ def main():
             # --------------------------------
             
             st.markdown("---")
-            c1, c2 = st.columns(2)
+            # ค้นหาช่วงบรรทัดที่มี c1, c2 เดิม
+            c1, c2, c3 = st.columns(3) # แก้จาก 2 เป็น 3
             with c1:
                 with st.container(border=True):
                     st.subheader("🕵️ งานสอบสวน")
@@ -893,8 +932,16 @@ def main():
                         st.session_state.traffic_page = 'teacher'
                         st.session_state.search_results_df = None
                         st.rerun()
+            # เพิ่มปุ่มที่ 3
+            with c3:
+                with st.container(border=True):
+                    st.subheader("🖥️ War Room")
+                    if st.button("เปิดจอเฝ้าระวังเหตุ", use_container_width=True, type='primary', key="btn_to_monitor"):
+                        st.session_state.current_dept = "monitor_view"
+                        st.rerun()
         else:
-            if st.session_state.current_dept == "inv": investigation_module()
-            elif st.session_state.current_dept == "tra": traffic_module()
-
+                    if st.session_state.current_dept == "inv": investigation_module()
+                    elif st.session_state.current_dept == "tra": traffic_module()
+                    elif st.session_state.current_dept == "monitor_view": # บรรทัดนี้ต้องตรงกับ if ด้านบน
+                        monitor_center_module()
 if __name__ == "__main__": main()
