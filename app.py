@@ -863,12 +863,12 @@ def traffic_module():
 # MODULE: MONITOR REAL-TIME (WAR ROOM)
 # ==========================================
 def monitor_center_module():
-    # 1. State Variables (เพิ่มตัวนับรอบการแสดงผล)
+    # 1. State Variables (ตัวแปรสำหรับระบบ)
     if "last_seen_id" not in st.session_state: st.session_state.last_seen_id = 0
     if "latest_arrival_time" not in st.session_state: st.session_state.latest_arrival_time = None
     if "monitor_loop_index" not in st.session_state: st.session_state.monitor_loop_index = 0
 
-    # 2. CSS Styles
+    # 2. CSS Styles (ตกแต่งความสวยงาม)
     st.markdown("""
         <style>
             @keyframes pulse_border {
@@ -882,11 +882,10 @@ def monitor_center_module():
                 box-shadow: 0 1px 3px rgba(0,0,0,0.1);
                 transition: transform 0.5s ease;
             }
-            /* สีตามสถานะ */
             .card-new { /* 🔴 แดง */
                 border-left: 6px solid #dc2626 !important;
                 background-color: #fef2f2 !important;
-                animation: pulse_border 2s infinite; /* กะพริบเบาๆ ตลอดเวลา */
+                animation: pulse_border 2s infinite;
             }
             .card-progress { /* 🔵 ฟ้า */
                 border-left: 6px solid #3b82f6 !important;
@@ -909,131 +908,98 @@ def monitor_center_module():
         </div>
     """, unsafe_allow_html=True)
 
-    # 3. Back Button
+    # 3. ปุ่มย้อนกลับ
     if st.button("⬅️ กลับหน้าเลือกแผนก", use_container_width=True):
         st.session_state.current_dept = None
         for key in ["dept", "t_page", "v_mode", "case_id"]:
             if key in st.query_params: del st.query_params[key]
         st.rerun()
 
-    # 4. Helper Function สำหรับตัดแบ่งหน้า (Auto-Scroll)
+    # 4. ฟังก์ชันช่วยตัดแบ่งหน้า (Pagination/Scroll)
     def get_chunk(df_input, limit=5):
         total = len(df_input)
         if total <= limit:
-            return df_input, False # ไม่ต้องหมุน
+            return df_input, False
         else:
-            # คำนวณหน้าปัจจุบัน
             current_page = st.session_state.monitor_loop_index
             total_pages = math.ceil(total / limit)
-            
-            # หาหน้าที่ต้องแสดงจริง (วนลูป)
             active_page = current_page % total_pages
-            
             start = active_page * limit
             end = start + limit
-            
-            # ตัดข้อมูลมาแสดง
-            return df_input.iloc[start:end], True # True = มีการหมุน
+            return df_input.iloc[start:end], True
 
-    # 5. Load Data
+    # 5. โหลดข้อมูลและแสดงผล
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         now_th = get_now_th()
         cur_year = (now_th.year + 543) if now_th.month >= 5 else (now_th.year + 542)
         
+        # อ่านข้อมูล
         df = conn.read(worksheet=f"Investigation_{cur_year}", ttl=2).fillna("")
         
         if not df.empty:
-            # Check New Arrival
+            # แจ้งเตือนเมื่อมีเคสใหม่
             current_count = len(df)
             if current_count > st.session_state.last_seen_id:
                 if st.session_state.last_seen_id != 0: st.toast("🚨 มีเหตุแจ้งเข้ามาใหม่!", icon="🔥")
                 st.session_state.last_seen_id = current_count
                 st.session_state.latest_arrival_time = datetime.now()
 
-            # --- แยกข้อมูล 3 ส่วน ---
-            # 1. รอดำเนินการ (ใหม่)
+            # แยกข้อมูล 3 ส่วน
             df_new = df[df['Status'].astype(str).str.strip() == "รอดำเนินการ"].iloc[::-1]
-            
-            # 2. กำลังดำเนินการ
             df_prog = df[df['Status'].astype(str).str.strip() == "อยู่ระหว่างการดำเนินการ"].iloc[::-1]
-            
-            # 3. เสร็จสิ้น (รวมยกเลิก)
             df_done = df[df['Status'].astype(str).str.strip().isin(["ดำเนินการเรียบร้อย", "ยกเลิก"])].iloc[::-1]
 
-            # --- Layout 3 Columns ---
+            # จัดวาง Layout 3 คอลัมน์
             c1, c2, c3 = st.columns(3, gap="small")
 
-            # === [COL 1: แจ้งใหม่ (สีแดง)] ===
+            # --- คอลัมน์ 1: ใหม่ (แดง) ---
             with c1:
                 st.markdown('<div class="header-badge" style="background:#fee2e2; color:#991b1b;">🔥 แจ้งใหม่ / รอดำเนินการ</div>', unsafe_allow_html=True)
-                
                 show_new, is_scroll_new = get_chunk(df_new)
                 if df_new.empty: st.info("✅ ไม่มีรายการค้าง")
-                
                 for _, row in show_new.iterrows():
-                    st.markdown(f"""
-                    <div class="incident-card card-new">
+                    st.markdown(f"""<div class="incident-card card-new">
                         <div style="font-weight:bold; color:#b91c1c; font-size:1.1em;">📍 {row['Location']}</div>
                         <div style="font-size:0.85em; color:#7f1d1d; margin-bottom:5px;">🕒 {row['Timestamp']}</div>
                         <div style="font-weight:bold; color:#1e293b;">{row['Incident_Type']}</div>
-                        <div style="font-size:0.9em; color:#475569; margin-top:5px; border-top:1px dashed #fecaca; padding-top:5px;">
-                            {row['Details']}
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                if is_scroll_new: st.caption("🔄 กำลังหมุนวนรายการอัตโนมัติ...")
+                        <div style="font-size:0.9em; color:#475569; margin-top:5px; border-top:1px dashed #fecaca; padding-top:5px;">{row['Details']}</div>
+                    </div>""", unsafe_allow_html=True)
+                if is_scroll_new: st.caption("🔄 หมุนวนรายการ...")
 
-            # === [COL 2: กำลังทำ (สีฟ้า)] ===
+            # --- คอลัมน์ 2: กำลังทำ (ฟ้า) ---
             with c2:
                 st.markdown('<div class="header-badge" style="background:#dbeafe; color:#1e40af;">🔵 อยู่ระหว่างดำเนินการ</div>', unsafe_allow_html=True)
-                
                 show_prog, is_scroll_prog = get_chunk(df_prog)
                 if df_prog.empty: st.caption("ว่าง")
-                
                 for _, row in show_prog.iterrows():
-                    st.markdown(f"""
-                    <div class="incident-card card-progress">
+                    st.markdown(f"""<div class="incident-card card-progress">
                         <div style="font-weight:bold; color:#1e3a8a;">📍 {row['Location']}</div>
                         <div style="font-size:0.85em; color:#1e40af; margin-bottom:5px;">🕒 {row['Timestamp']}</div>
                         <div style="color:#1e293b;">{row['Incident_Type']}</div>
-                        <div style="font-size:0.85em; color:#475569; margin-top:5px;">
-                             ผู้รับผิดชอบ: <b>{row['Teacher_Investigator']}</b>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                if is_scroll_prog: st.caption("🔄 กำลังหมุนวนรายการอัตโนมัติ...")
+                        <div style="font-size:0.85em; color:#475569; margin-top:5px;">ผู้รับผิดชอบ: <b>{row['Teacher_Investigator']}</b></div>
+                    </div>""", unsafe_allow_html=True)
+                if is_scroll_prog: st.caption("🔄 หมุนวนรายการ...")
 
-            # === [COL 3: เสร็จแล้ว (สีเขียว)] ===
+            # --- คอลัมน์ 3: เสร็จแล้ว (เขียว) ---
             with c3:
                 st.markdown('<div class="header-badge" style="background:#dcfce7; color:#166534;">✅ ดำเนินการเรียบร้อย</div>', unsafe_allow_html=True)
-                
                 show_done, is_scroll_done = get_chunk(df_done)
                 if df_done.empty: st.caption("ว่าง")
-
                 for _, row in show_done.iterrows():
-                    st.markdown(f"""
-                    <div class="incident-card card-done">
+                    st.markdown(f"""<div class="incident-card card-done">
                         <div style="font-weight:bold; color:#14532d;">📍 {row['Location']}</div>
                         <div style="font-size:0.85em; color:#166534; margin-bottom:5px;">🕒 {row['Timestamp']}</div>
                         <div style="color:#14532d;">{row['Incident_Type']}</div>
-                        <div style="font-size:0.85em; color:#15803d; margin-top:5px;">
-                            ผู้สรุป: {row['Teacher_Investigator']}
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                if is_scroll_done: st.caption("🔄 กำลังหมุนวนรายการอัตโนมัติ...")
+                        <div style="font-size:0.85em; color:#15803d; margin-top:5px;">ผู้สรุป: {row['Teacher_Investigator']}</div>
+                    </div>""", unsafe_allow_html=True)
+                if is_scroll_done: st.caption("🔄 หมุนวนรายการ...")
 
-        # 6. Auto-Refresh Logic (10 วินาที เพื่อการหมุนที่ลื่นไหล)
-        st.session_state.monitor_loop_index += 1 # ขยับหน้าถัดไป
-        
+        # 6. Auto-Refresh ทุก 10 วินาที
+        st.session_state.monitor_loop_index += 1
         st.query_params["dept"] = "monitor_view"
         st.query_params["logged_in"] = "true"
-        
-        time.sleep(10) # 10 วินาทีเปลี่ยนชุดข้อมูลทีนึง
+        time.sleep(10)
         st.rerun()
 
     except Exception as e:
