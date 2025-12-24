@@ -859,7 +859,7 @@ def traffic_module():
             st.caption(f"ออกรายงาน ณ วันที่: {get_now_th().strftime('%d/%m/%Y %H:%M')}")
 
 # ==========================================
-# MODULE: MONITOR REAL-TIME (WAR ROOM) - FINAL CLEAN VERSION
+# MODULE: MONITOR REAL-TIME (WAR ROOM) - FINAL ADJUSTMENT
 # ==========================================
 def monitor_center_module():
     # 1. State Variables
@@ -869,13 +869,13 @@ def monitor_center_module():
     # 2. CSS Styles
     st.markdown("""
         <style>
-            /* ซ่อน Scrollbar */
+            /* ซ่อน Scrollbar ทั้งหมด */
             ::-webkit-scrollbar { display: none; }
             
             /* Container หลัก */
             .monitor-box {
                 height: 75vh; 
-                overflow: hidden;
+                overflow: hidden; /* บังคับไม่ให้มี Scrollbar */
                 position: relative;
                 background-color: #f8fafc;
                 border-radius: 8px;
@@ -883,7 +883,7 @@ def monitor_center_module():
                 padding: 8px;
             }
 
-            /* Animation เลื่อนขึ้น */
+            /* Animation เลื่อนขึ้น (End Credit) */
             @keyframes scroll-up {
                 0% { transform: translateY(0%); }
                 100% { transform: translateY(-50%); } 
@@ -906,8 +906,16 @@ def monitor_center_module():
                 box-shadow: 0 2px 4px rgba(0,0,0,0.05);
             }
 
-            /* สีตามสถานะ */
-            .card-new { border-left: 8px solid #dc2626 !important; }
+            /* Animation กะพริบ (สำหรับ 3 เคสล่าสุด) */
+            @keyframes border-flash {
+                0% { border-color: #dc2626; background-color: #fff1f2; }
+                50% { border-color: #ff0000; background-color: #fee2e2; box-shadow: 0 0 10px rgba(220, 38, 38, 0.4); }
+                100% { border-color: #dc2626; background-color: #fff1f2; }
+            }
+
+            /* Class สีต่างๆ */
+            .card-new-flash { border-left: 8px solid #dc2626 !important; animation: border-flash 1.5s infinite; } /* กะพริบ */
+            .card-new-static { border-left: 8px solid #dc2626 !important; } /* แดงแต่ไม่กะพริบ */
             .card-prog { border-left: 8px solid #3b82f6 !important; background-color: #f0f9ff !important; }
             .card-done { border-left: 8px solid #22c55e !important; background-color: #f0fdf4 !important; opacity: 0.9; }
 
@@ -948,11 +956,15 @@ def monitor_center_module():
             if key in st.query_params: del st.query_params[key]
         st.rerun()
 
-    # 4. ฟังก์ชันสร้าง HTML ของการ์ด 1 ใบ (แก้ไขใหม่ ไม่ให้ HTML หลุด)
-    def create_card_html(row, status_type):
-        # กำหนดสีและไอคอน
+    # 4. ฟังก์ชันสร้าง HTML การ์ด (เพิ่ม Logic กะพริบ)
+    def create_card_html(row, status_type, is_flash=False):
+        # กำหนด CSS Class และสี
         if status_type == 'new':
-            css_class = "card-new"
+            # ถ้าเป็นเคสใหม่ และอยู่ในโควต้า Flash ให้กะพริบ
+            if is_flash:
+                css_class = "card-new-flash"
+            else:
+                css_class = "card-new-static"
             color = "#b91c1c"
             icon = "🔥"
         elif status_type == 'prog':
@@ -964,7 +976,7 @@ def monitor_center_module():
             color = "#15803d"
             icon = "✅"
 
-        # เตรียมข้อมูล (แปลงเป็น String และจัดการ None)
+        # เตรียมข้อมูล
         location = str(row['Location'] if pd.notna(row['Location']) else '-')
         incident = str(row['Incident_Type'] if pd.notna(row['Incident_Type']) else '-')
         timestamp = str(row['Timestamp'] if pd.notna(row['Timestamp']) else '-')
@@ -975,56 +987,44 @@ def monitor_center_module():
         # จัดรูปแบบเวลา
         time_show = timestamp.split(' ')[1] if ' ' in timestamp else timestamp
         if status_type == 'done': 
-            time_show = timestamp.split(' ')[0] # จบแล้วโชว์วันที่
+            time_show = timestamp.split(' ')[0]
 
-        # สร้าง HTML ทีละส่วน แล้วเอามาต่อกัน (วิธีนี้ชัวร์ที่สุด ไม่พัง)
+        # สร้าง HTML
         html_parts = []
         html_parts.append(f'<div class="incident-card {css_class}">')
-        
-        # 1. สถานที่
         html_parts.append(f'<div style="font-size:1.2em; font-weight:bold; color:{color}; margin-bottom:4px;">📍 {location}</div>')
-        
-        # 2. เหตุการณ์
         html_parts.append(f'<div style="font-weight:bold; color:#1e293b; font-size:1em; margin-bottom:4px;">{icon} {incident}</div>')
-        
-        # 3. เวลา
         html_parts.append(f'<div style="font-size:0.85em; color:#64748b;">🕒 เวลา: {time_show}</div>')
-        
-        # 4. ผู้แจ้ง
         html_parts.append(f'<div style="font-size:0.85em; color:#475569; margin-bottom:4px;">👤 ผู้แจ้ง: {reporter}</div>')
-        
-        # 5. รายละเอียด
         html_parts.append(f'<div class="detail-box">📝 {details}</div>')
-        
-        # 6. เลขเคส
         html_parts.append(f'<div style="margin-top:6px; overflow:hidden;"><span class="badge-id" style="color:{color};">🆔 {rid}</span></div>')
-        
-        html_parts.append('</div>') # ปิด incident-card
+        html_parts.append('</div>')
         
         return "".join(html_parts)
 
     # 5. ฟังก์ชันแสดงผลคอลัมน์
     def render_monitor_column(title, bg_color, df_data, status_type, limit_scroll=10):
-        # หัวข้อ
         st.markdown(f'<div class="header-box" style="background:{bg_color};">{title}</div>', unsafe_allow_html=True)
         
         if df_data.empty:
             st.info("✅ ว่าง / ไม่มีรายการ")
             return
 
-        # สร้าง HTML รวมทุกการ์ด
+        # สร้าง HTML (วนลูปเพื่อเช็ค Top 3 สำหรับสีแดง)
         cards_html = ""
-        for _, row in df_data.iterrows():
-            cards_html += create_card_html(row, status_type)
+        for i, (_, row) in enumerate(df_data.iterrows()):
+            # กะพริบเฉพาะถ้าเป็น 'new' และเป็นลำดับที่ 0, 1, 2 (Top 3)
+            should_flash = (status_type == 'new' and i < 3)
+            cards_html += create_card_html(row, status_type, is_flash=should_flash)
         
-        # แสดงผล
+        # ตัดสินใจว่าจะเลื่อนหรือไม่
         if len(df_data) > limit_scroll:
             # เลื่อน (Scroll)
             content = f'<div class="monitor-box"><div class="content-scroll">{cards_html}{cards_html}</div></div>'
             st.markdown(content, unsafe_allow_html=True)
         else:
-            # นิ่ง (Static)
-            content = f'<div class="monitor-box" style="overflow-y:auto;"><div>{cards_html}</div></div>'
+            # นิ่ง (Static) และไม่มี Scrollbar (overflow:hidden จาก css หลัก)
+            content = f'<div class="monitor-box"><div>{cards_html}</div></div>'
             st.markdown(content, unsafe_allow_html=True)
 
     # 6. Load Data & Main Logic
@@ -1033,11 +1033,10 @@ def monitor_center_module():
         now_th = get_now_th()
         cur_year = (now_th.year + 543) if now_th.month >= 5 else (now_th.year + 542)
         
-        # โหลดข้อมูล
         df = conn.read(worksheet=f"Investigation_{cur_year}", ttl=0).fillna("")
         
         if not df.empty and 'Status' in df.columns:
-            # แจ้งเตือนเคสใหม่
+            # Check Alert
             current_count = len(df)
             if current_count > st.session_state.last_seen_id:
                 if st.session_state.last_seen_id != 0: st.toast("🚨 มีเหตุแจ้งเข้ามาใหม่!", icon="🔥")
@@ -1046,19 +1045,21 @@ def monitor_center_module():
             df['Status'] = df['Status'].astype(str).str.strip()
 
             # แยกข้อมูล
-            # 1. แดง (ทั้งหมด)
             df_new = df[df['Status'] == "รอดำเนินการ"].iloc[::-1]
-            # 2. ฟ้า (ทั้งหมด)
             df_prog = df[df['Status'] == "อยู่ระหว่างการดำเนินการ"].iloc[::-1]
-            # 3. เขียว (แค่ 10 ล่าสุด)
             df_done = df[df['Status'].isin(["ดำเนินการเรียบร้อย", "ยกเลิก"])].iloc[::-1].head(10)
 
-            # แสดงผล 3 คอลัมน์
+            # Layout 3 คอลัมน์
             c1, c2, c3 = st.columns(3, gap="small")
 
+            # แดง: กะพริบแค่ 3 อันล่าสุด (Logic อยู่ใน render_monitor_column)
             with c1: render_monitor_column("🔥 แจ้งใหม่ (ทั้งหมด)", "#dc2626", df_new, "new", limit_scroll=10)
+            
+            # ฟ้า: ปกติ
             with c2: render_monitor_column("🔵 กำลังดำเนินการ (ทั้งหมด)", "#2563eb", df_prog, "prog", limit_scroll=10)
-            with c3: render_monitor_column("✅ เสร็จสิ้น (10 ล่าสุด)", "#16a34a", df_done, "done", limit_scroll=999) # 999 คือเทคนิคบังคับไม่ให้เลื่อน
+            
+            # เขียว: บังคับไม่ให้เลื่อน (limit_scroll=999) และ CSS monitor-box สั่ง hidden ไว้แล้ว
+            with c3: render_monitor_column("✅ เสร็จสิ้น (10 ล่าสุด)", "#16a34a", df_done, "done", limit_scroll=999)
 
         # Auto Refresh
         st.query_params["dept"] = "monitor_view"
