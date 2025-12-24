@@ -428,7 +428,8 @@ def investigation_module():
                         if ev_img: df_raw.at[idx_raw, 'Evidence_Image'] = process_image(ev_img)
                         df_raw.at[idx_raw, 'Audit_Log'] = f"{clean_val(row['Audit_Log'])}\n[{get_now_th().strftime('%d/%m/%Y %H:%M')}] แก้ไขโดย {user['name']}"
                         conn.update(worksheet=target_sheet, data=df_raw.fillna(""))
-                        st.success("บันทึกเรียบร้อย!"); time.sleep(1); st.rerun()
+    
+    st.success("บันทึกเรียบร้อย!"); time.sleep(1); st.rerun()
                 
                 if clean_val(row['Audit_Log']):
                     with st.expander("📜 ประวัติการบันทึก (Audit Log)"): st.code(row['Audit_Log'])
@@ -858,138 +859,183 @@ def traffic_module():
             st.info("💡 **หมายเหตุ:** ข้อมูลเปอร์เซ็นต์คำนวณจากจำนวนรถที่ลงทะเบียนในแต่ละระดับชั้นนั้นๆ")
             st.caption(f"ออกรายงาน ณ วันที่: {get_now_th().strftime('%d/%m/%Y %H:%M')}")
 
+# ==========================================
+# MODULE: MONITOR REAL-TIME (WAR ROOM)
+# ==========================================
 def monitor_center_module():
-    # 1. Config: ตั้งค่าความไวตรงนี้
-    REFRESH_RATE = 10  # รีเฟรชข้อมูลทุกๆ 10 วินาที (ไวทันใจแน่นอน)
-    MAX_ITEMS_SHOW = 7 # แสดงแค่ 7 รายการล่าสุดพอ (เพื่อให้เวลา 10 วิ อ่านทัน)
-
-    # 2. State & Data
+    # 1. State Variables
     if "last_seen_id" not in st.session_state: st.session_state.last_seen_id = 0
+    if "latest_arrival_time" not in st.session_state: st.session_state.latest_arrival_time = None
 
+    # 2. CSS Styles (ปรับ Animation ให้แรงชัดจัดเต็ม)
+    st.markdown("""
+        <style>
+            /* ซ่อน Scrollbar */
+            ::-webkit-scrollbar { width: 0px; background: transparent; }
+            
+            /* === Animation กะพริบแบบชัดเจน (Strong Flash) === */
+            @keyframes strong_flash {
+                0% { 
+                    background-color: #fff1f2; 
+                    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); 
+                    border-color: #dc2626;
+                }
+                50% { 
+                    background-color: #fecaca; /* พื้นหลังแดงขึ้น */
+                    box-shadow: 0 0 15px 0 rgba(220, 38, 38, 0.6); /* เงาสีแดงฟุ้งกระจาย */
+                    border-color: #ff0000;
+                }
+                100% { 
+                    background-color: #fff1f2; 
+                    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); 
+                    border-color: #dc2626;
+                }
+            }
+            
+            .incident-card {
+                padding: 12px; border-radius: 10px; margin-bottom: 12px;
+                background: white; border: 1px solid #e2e8f0;
+                box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            }
+
+            /* 🔴 สถานะ: รอดำเนินการ -> บังคับกะพริบด้วย !important */
+            .card-new { 
+                border-left: 8px solid #dc2626 !important; 
+                animation: strong_flash 1s infinite !important; /* กะพริบเร็วทุก 1 วินาที */
+            }
+
+            /* 🔵 สถานะ: กำลังดำเนินการ */
+            .card-progress { 
+                border-left: 8px solid #3b82f6 !important; 
+                background-color: #eff6ff !important; 
+            }
+
+            /* 🟢 สถานะ: เรียบร้อย */
+            .card-done { 
+                border-left: 8px solid #22c55e !important; 
+                background-color: #f0fdf4 !important; 
+                opacity: 0.8; 
+            }
+
+            .header-badge {
+                padding: 10px; border-radius: 8px; text-align: center; 
+                font-weight: bold; margin-bottom: 15px; font-size: 1.2em;
+                color: white;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            
+            .case-id-badge {
+                font-family: monospace; font-size: 0.85em; font-weight: bold;
+                background: rgba(255,255,255,0.8); padding: 2px 6px; border-radius: 4px;
+            }
+        </style>
+        
+        <div style="text-align:center; padding:10px; border-bottom:2px solid #f1f5f9; margin-bottom:20px;">
+            <h2 style="color:#1e3a8a; margin:0;">🚨 War Room: ศูนย์เฝ้าระวังเหตุฉุกเฉิน</h2>
+            <p style="color:#64748b; font-size:0.9em;">(โหมดเฝ้าระวัง: รีเฟรชทุก 10 วินาที)</p>
+        </div>
+    """, unsafe_allow_html=True)
+
+    # 3. ปุ่มย้อนกลับ
+    if st.button("⬅️ กลับหน้าเลือกแผนก", use_container_width=True):
+        st.session_state.current_dept = None
+        for key in ["dept", "t_page", "v_mode", "case_id"]:
+            if key in st.query_params: del st.query_params[key]
+        st.rerun()
+
+    # 4. โหลดและแสดงข้อมูล
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         now_th = get_now_th()
         cur_year = (now_th.year + 543) if now_th.month >= 5 else (now_th.year + 542)
-        # โหลดแบบไม่แคช (ttl=0) เพื่อความสดใหม่
-        df = conn.read(worksheet=f"Investigation_{cur_year}", ttl=0).fillna("")
-    except:
-        df = pd.DataFrame()
-
-    # 3. CSS Styles (ปรับ Animation ให้สัมพันธ์กับ REFRESH_RATE)
-    st.markdown(f"""
-        <style>
-            ::-webkit-scrollbar {{ display: none; }}
-            .monitor-window {{
-                height: 70vh; 
-                overflow: hidden;
-                position: relative;
-                background-color: #f8fafc;
-                border-radius: 0 0 8px 8px;
-                border: 1px solid #cbd5e1;
-            }}
-            
-            @keyframes scroll-up {{
-                0% {{ transform: translateY(0%); }}
-                100% {{ transform: translateY(-50%); }} 
-            }}
-            
-            .scroll-content {{
-                display: flex;
-                flex-direction: column;
-                /* บังคับให้วิ่งจบ Loop ภายในเวลา REFRESH_RATE */
-                animation: scroll-up {REFRESH_RATE}s linear infinite;
-            }}
-            
-            .monitor-window:hover .scroll-content {{ animation-play-state: paused; }}
-
-            .incident-card {{
-                display: block; padding: 10px; margin: 8px;
-                border-radius: 6px; background: white;
-                box-shadow: 0 2px 3px rgba(0,0,0,0.05); border: 1px solid #e2e8f0;
-            }}
-            
-            .status-new {{ border-left: 6px solid #dc2626; }}
-            .status-prog {{ border-left: 6px solid #2563eb; background-color: #eff6ff; }}
-            .status-done {{ border-left: 6px solid #16a34a; background-color: #f0fdf4; }}
-            .col-header {{ text-align: center; padding: 8px; color: white; font-weight: bold; border-radius: 8px 8px 0 0; }}
-        </style>
-    """, unsafe_allow_html=True)
-
-    # ปุ่มย้อนกลับ
-    if st.button("⬅️ กลับ", use_container_width=True):
-        st.session_state.current_dept = None; st.rerun()
-
-    # แสดงสถานะการเชื่อมต่อ
-    st.markdown(f"""
-        <div style='text-align:center; margin-bottom:10px;'>
-            <span style='color:#dc2626; font-weight:bold; animation: blink 1s infinite;'>● LIVE</span> 
-            <span style='color:#64748b; font-size:0.9em;'> อัปเดตทุก {REFRESH_RATE} วินาที</span>
-        </div>
-        <style>@keyframes blink {{ 50% {{ opacity: 0; }} }}</style>
-    """, unsafe_allow_html=True)
-
-    # Helper Functions
-    def create_card_html(row, type_code):
-        if type_code == 'new':   cls="status-new"; ico="🔥"; c="#b91c1c"
-        elif type_code == 'prog': cls="status-prog"; ico="🔵"; c="#1d4ed8"
-        else:                    cls="status-done"; ico="✅"; c="#15803d"
         
-        # ตัดข้อความยาวๆ ทิ้งเพื่อประหยัดที่
-        det = row.get('Details', '-')
-        if len(det) > 50: det = det[:50] + "..."
+        df = conn.read(worksheet=f"Investigation_{cur_year}", ttl=2).fillna("")
         
-        return f"""
-        <div class="incident-card {cls}">
-            <div style="display:flex; justify-content:space-between; color:{c}; font-weight:bold; font-size:0.9em;">
-                <span>📍 {row.get('Location','-')}</span>
-                <span style="color:#64748b;">{str(row.get('Timestamp','-')).split(' ')[-1][:5]}</span>
-            </div>
-            <div style="font-weight:bold; font-size:0.95em; margin:2px 0;">{ico} {row.get('Incident_Type','-')}</div>
-            <div style="font-size:0.85em; color:#475569;">{det}</div>
-        </div>
-        """
+        if not df.empty:
+            current_count = len(df)
+            if current_count > st.session_state.last_seen_id:
+                if st.session_state.last_seen_id != 0: st.toast("🚨 มีเหตุแจ้งเข้ามาใหม่!", icon="🔥")
+                st.session_state.last_seen_id = current_count
+                st.session_state.latest_arrival_time = datetime.now()
 
-    def render_col(title, color, data, type_code):
-        st.markdown(f'<div class="col-header" style="background:{color};">{title}</div>', unsafe_allow_html=True)
-        html_cards = ""
-        if data.empty:
-            html_cards = "<div style='padding:20px; text-align:center; color:#cbd5e1;'>- ว่าง -</div>"
-        else:
-            for _, row in data.iterrows():
-                html_cards += create_card_html(row, type_code)
-        
-        # Double Content for Seamless Loop
-        st.markdown(f"""
-        <div class="monitor-window">
-            <div class="scroll-content">
-                {html_cards}{html_cards} 
-            </div>
-        </div>""", unsafe_allow_html=True)
+            # แยกข้อมูล 3 กลุ่ม
+            df_new = df[df['Status'].astype(str).str.strip() == "รอดำเนินการ"].iloc[::-1].head(10)
+            df_prog = df[df['Status'].astype(str).str.strip() == "อยู่ระหว่างการดำเนินการ"].iloc[::-1].head(10)
+            df_done = df[df['Status'].astype(str).str.strip().isin(["ดำเนินการเรียบร้อย", "ยกเลิก"])].iloc[::-1].head(10)
 
-    # Logic การแสดงผล
-    if not df.empty and 'Status' in df.columns:
-        df['Status'] = df['Status'].astype(str).str.strip()
-        
-        # แจ้งเตือนด้วยเสียง/Toast เมื่อมีเคสใหม่เพิ่มขึ้น
-        curr_len = len(df)
-        if curr_len > st.session_state.last_seen_id:
-            if st.session_state.last_seen_id != 0: 
-                st.toast("🚨 มีเหตุด่วนแจ้งเข้ามา!", icon="🔥")
-            st.session_state.last_seen_id = curr_len
+            c1, c2, c3 = st.columns(3, gap="small")
 
-        # กรองเอาเฉพาะ "ล่าสุด" ตามจำนวน MAX_ITEMS_SHOW
-        d_new = df[df['Status'] == "รอดำเนินการ"].iloc[::-1].head(MAX_ITEMS_SHOW)
-        d_prog = df[df['Status'] == "อยู่ระหว่างการดำเนินการ"].iloc[::-1].head(MAX_ITEMS_SHOW)
-        d_done = df[df['Status'].isin(["ดำเนินการเรียบร้อย", "ยกเลิก"])].iloc[::-1].head(MAX_ITEMS_SHOW)
+            # === [COL 1: รอดำเนินการ (แดงกะพริบ)] ===
+            with c1:
+                st.markdown('<div class="header-badge" style="background:#dc2626;">🔥 แจ้งใหม่ (ด่วน)</div>', unsafe_allow_html=True)
+                if df_new.empty: 
+                    st.info("✅ เหตุการณ์ปกติ")
+                else:
+                    for _, row in df_new.iterrows():
+                        # การ์ดนี้จะกะพริบเพราะ Class 'card-new'
+                        st.markdown(f"""
+                        <div class="incident-card card-new">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                                <span class="case-id-badge" style="color:#b91c1c;">📝 {row['Report_ID']}</span>
+                                <span style="font-size:0.8em; color:#7f1d1d;">{row['Timestamp'].split(' ')[1] if ' ' in row['Timestamp'] else row['Timestamp']}</span>
+                            </div>
+                            <div style="font-size:1.2em; font-weight:bold; color:#b91c1c;">📍 {row['Location']}</div>
+                            <div style="font-weight:bold; color:#1e293b;">{row['Incident_Type']}</div>
+                            <div style="font-size:0.9em; color:#475569; margin-top:5px;">
+                                {row['Details']}
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
 
-        c1, c2, c3 = st.columns(3)
-        with c1: render_col(f"🔥 แจ้งใหม่ ({len(d_new)})", "#dc2626", d_new, "new")
-        with c2: render_col(f"🔵 กำลังทำ ({len(d_prog)})", "#2563eb", d_prog, "prog")
-        with c3: render_col(f"✅ เสร็จสิ้น ({len(d_done)})", "#16a34a", d_done, "done")
-        
-    # Auto Refresh แบบ Fixed Time
-    time.sleep(REFRESH_RATE)
-    st.rerun()
+            # === [COL 2: กำลังดำเนินการ (ฟ้า)] ===
+            with c2:
+                st.markdown('<div class="header-badge" style="background:#2563eb;">🔵 กำลังดำเนินการ</div>', unsafe_allow_html=True)
+                if df_prog.empty: st.caption("- ว่าง -")
+                else:
+                    for _, row in df_prog.iterrows():
+                        st.markdown(f"""
+                        <div class="incident-card card-progress">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                                <span class="case-id-badge" style="color:#1e40af;">📝 {row['Report_ID']}</span>
+                                <span style="font-size:0.8em; color:#1e40af;">{row['Timestamp'].split(' ')[1] if ' ' in row['Timestamp'] else row['Timestamp']}</span>
+                            </div>
+                            <div style="font-size:1.1em; font-weight:bold; color:#1e3a8a;">📍 {row['Location']}</div>
+                            <div style="color:#1e293b;">{row['Incident_Type']}</div>
+                            <div style="font-size:0.85em; color:#475569; margin-top:5px;">
+                                ผู้รับผิดชอบ: <b>{row['Teacher_Investigator']}</b>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+            # === [COL 3: เรียบร้อย (เขียว)] ===
+            with c3:
+                st.markdown('<div class="header-badge" style="background:#16a34a;">✅ เสร็จสิ้นภารกิจ</div>', unsafe_allow_html=True)
+                if df_done.empty: st.caption("- ว่าง -")
+                else:
+                    for _, row in df_done.iterrows():
+                        st.markdown(f"""
+                        <div class="incident-card card-done">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                                <span class="case-id-badge" style="color:#14532d;">✅ {row['Report_ID']}</span>
+                                <span style="font-size:0.8em; color:#14532d;">{row['Timestamp'].split(' ')[0]}</span>
+                            </div>
+                            <div style="font-weight:bold; color:#14532d;">📍 {row['Location']}</div>
+                            <div style="color:#14532d; font-size:0.9em;">{row['Incident_Type']}</div>
+                            <div style="font-size:0.8em; color:#15803d;">ผู้สรุป: {row['Teacher_Investigator']}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+        # 5. Auto-Refresh (10 วินาที)
+        st.query_params["dept"] = "monitor_view"
+        st.query_params["logged_in"] = "true"
+        time.sleep(10)
+        st.rerun()
+
+    except Exception as e:
+        st.warning(f"⏳ กำลังเชื่อมต่อ... ({cur_year})")
+        st.query_params["dept"] = "monitor_view"
+        time.sleep(10)
+        st.rerun()
 # ==========================================
 # 4. MAIN ENTRY (แก้ไขย่อหน้าให้ถูกต้อง)
 # ==========================================
