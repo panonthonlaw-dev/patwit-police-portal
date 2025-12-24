@@ -202,7 +202,9 @@ def investigation_module():
         if b_home.button("🏠 หน้าหลัก", use_container_width=True, key="inv_home_btn"):
             setattr(st.session_state, 'current_dept', None); st.rerun()
         if b_logout.button("🚪 ออก", key="inv_logout_btn", use_container_width=True):
-            st.session_state.clear(); st.rerun()
+            st.query_params.clear()  # <--- เพิ่มบรรทัดนี้ เพื่อล้างค่าใน URL
+            st.session_state.clear()
+            st.rerun()
             
     st.markdown("---")
 
@@ -354,8 +356,10 @@ def traffic_module():
         b_home, b_logout = st.columns(2)
         if b_home.button("🏠 หน้าหลัก", key="tra_home_btn", use_container_width=True):
             setattr(st.session_state, 'current_dept', None); st.rerun()
-        if b_logout.button("🚪 ออก", key="tra_logout_btn", use_container_width=True):
-            st.session_state.clear(); st.rerun()
+        if b_logout.button("🚪 ออก", key="inv_logout_btn", use_container_width=True):
+            st.query_params.clear()  # <--- เพิ่มบรรทัดนี้ เพื่อล้างค่าใน URL
+            st.session_state.clear()
+            st.rerun()
     st.markdown("---")
 
     def connect_gsheet_universal():
@@ -694,8 +698,10 @@ def main():
             with c_nav:
                 st.write("")
                 st.write("")
-                if st.button("🚪 ออกจากระบบ", key="main_logout", use_container_width=True):
-                    st.session_state.clear(); st.rerun()
+                if b_logout.button("🚪 ออก", key="inv_logout_btn", use_container_width=True):
+            st.query_params.clear()  # <--- เพิ่มบรรทัดนี้ เพื่อล้างค่าใน URL
+            st.session_state.clear()
+            st.rerun()
             
             st.markdown("---")
             c1, c2 = st.columns(2)
