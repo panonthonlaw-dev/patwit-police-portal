@@ -858,219 +858,137 @@ def traffic_module():
             st.info("💡 **หมายเหตุ:** ข้อมูลเปอร์เซ็นต์คำนวณจากจำนวนรถที่ลงทะเบียนในแต่ละระดับชั้นนั้นๆ")
             st.caption(f"ออกรายงาน ณ วันที่: {get_now_th().strftime('%d/%m/%Y %H:%M')}")
 
-# ==========================================
-# MODULE: MONITOR REAL-TIME (WAR ROOM) - END CREDIT STYLE FIX
-# ==========================================
 def monitor_center_module():
-    # 1. State Variables
+    # 1. Config: ตั้งค่าความไวตรงนี้
+    REFRESH_RATE = 10  # รีเฟรชข้อมูลทุกๆ 10 วินาที (ไวทันใจแน่นอน)
+    MAX_ITEMS_SHOW = 7 # แสดงแค่ 7 รายการล่าสุดพอ (เพื่อให้เวลา 10 วิ อ่านทัน)
+
+    # 2. State & Data
     if "last_seen_id" not in st.session_state: st.session_state.last_seen_id = 0
 
-    # โหลดข้อมูล
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         now_th = get_now_th()
         cur_year = (now_th.year + 543) if now_th.month >= 5 else (now_th.year + 542)
+        # โหลดแบบไม่แคช (ttl=0) เพื่อความสดใหม่
         df = conn.read(worksheet=f"Investigation_{cur_year}", ttl=0).fillna("")
-        
-        # เตรียมข้อมูลสำหรับคำนวณความเร็ว
-        if not df.empty and 'Status' in df.columns:
-            df['Status'] = df['Status'].astype(str).str.strip()
-            # นับจำนวนบรรทัดที่เยอะที่สุดใน 3 ช่อง เพื่อตั้งเวลาให้สัมพันธ์กัน
-            count_new = len(df[df['Status'] == "รอดำเนินการ"])
-            count_prog = len(df[df['Status'] == "อยู่ระหว่างการดำเนินการ"])
-            count_done = 10 # เรา fix ไว้ 10
-            
-            max_items = max(count_new, count_prog, count_done)
-            # สูตร: ยิ่งบรรทัดเยอะ ยิ่งต้องใช้เวลาเลื่อนนาน (ไม่งั้นจะวิ่งเร็วจนอ่านไม่ทัน)
-            # ให้เวลา 5 วินาทีต่อ 1 การ์ด (ปรับเลข 5 ได้ตามชอบ)
-            scroll_duration = max(20, max_items * 5) 
-        else:
-            scroll_duration = 20
-            
     except:
-        scroll_duration = 20
         df = pd.DataFrame()
 
-    # 2. CSS Styles (ปรับแก้ให้เป็น End Credit แท้ๆ)
+    # 3. CSS Styles (ปรับ Animation ให้สัมพันธ์กับ REFRESH_RATE)
     st.markdown(f"""
         <style>
-            /* ซ่อน Scrollbar ทุกจุดใน War Room */
-            .monitor-box ::-webkit-scrollbar {{ display: none; }}
-            .monitor-box {{ -ms-overflow-style: none; scrollbar-width: none; }}
-            
-            .monitor-box {{
-                height: 75vh;  /* ความสูงจอ */
-                overflow: hidden; /* ห้ามมี Scrollbar เด็ดขาด */
+            ::-webkit-scrollbar {{ display: none; }}
+            .monitor-window {{
+                height: 70vh; 
+                overflow: hidden;
                 position: relative;
-                background-color: #f1f5f9;
-                border-radius: 8px;
-                border: 2px solid #cbd5e1;
-                padding: 0; /* เอา padding ออกเพื่อให้เนียน */
+                background-color: #f8fafc;
+                border-radius: 0 0 8px 8px;
+                border: 1px solid #cbd5e1;
             }}
-
-            /* Animation Keyframes: เลื่อนจาก 0% ขึ้นไป -50% */
-            /* เคล็ดลับ: เราจะวางข้อมูลชุดเดิมซ้ำ 2 รอบ พอชุดแรกเลื่อนพ้นจอ ชุด 2 จะมาแทนที่พอดี */
+            
             @keyframes scroll-up {{
                 0% {{ transform: translateY(0%); }}
                 100% {{ transform: translateY(-50%); }} 
             }}
             
-            .content-scroll {{
+            .scroll-content {{
                 display: flex;
                 flex-direction: column;
-                /* ใช้เวลาที่คำนวณได้ */
-                animation: scroll-up {scroll_duration}s linear infinite;
+                /* บังคับให้วิ่งจบ Loop ภายในเวลา REFRESH_RATE */
+                animation: scroll-up {REFRESH_RATE}s linear infinite;
             }}
             
-            /* เอาเมาส์ชี้แล้วหยุดอ่าน */
-            .monitor-box:hover .content-scroll {{
-                animation-play-state: paused;
-            }}
+            .monitor-window:hover .scroll-content {{ animation-play-state: paused; }}
 
             .incident-card {{
-                display: block;
-                padding: 15px; 
-                margin: 10px 10px 15px 10px; /* ระยะห่างการ์ด */
-                border-radius: 8px; 
-                background: white; 
-                border: 1px solid #e2e8f0;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-                position: relative;
+                display: block; padding: 10px; margin: 8px;
+                border-radius: 6px; background: white;
+                box-shadow: 0 2px 3px rgba(0,0,0,0.05); border: 1px solid #e2e8f0;
             }}
-
-            /* แถบสีด้านซ้าย */
-            .card-new {{ border-left: 8px solid #dc2626 !important; }}
-            .card-prog {{ border-left: 8px solid #3b82f6 !important; background-color: #f0f9ff !important; }}
-            .card-done {{ border-left: 8px solid #22c55e !important; background-color: #f0fdf4 !important; opacity: 0.9; }}
-
-            /* หัวข้อคอลัมน์ */
-            .header-box {{
-                text-align: center; padding: 12px; border-radius: 6px 6px 0 0; 
-                color: white; font-weight: bold; font-size: 1.2em;
-                box-shadow: 0 2px 3px rgba(0,0,0,0.1);
-                position: relative; z-index: 10;
-                margin-bottom: -5px; /* ดึงให้ชิดกล่องล่าง */
-            }}
-
-            /* เอฟเฟกต์กะพริบสำหรับเคสใหม่ */
-            @keyframes border-flash {{
-                0% {{ box-shadow: 0 0 5px rgba(220, 38, 38, 0.2); }}
-                50% {{ box-shadow: 0 0 20px rgba(220, 38, 38, 0.6); border-color: red; }}
-                100% {{ box-shadow: 0 0 5px rgba(220, 38, 38, 0.2); }}
-            }}
-            .card-new-flash {{ 
-                border-left: 8px solid #dc2626 !important; 
-                animation: border-flash 1.5s infinite; 
-            }}
+            
+            .status-new {{ border-left: 6px solid #dc2626; }}
+            .status-prog {{ border-left: 6px solid #2563eb; background-color: #eff6ff; }}
+            .status-done {{ border-left: 6px solid #16a34a; background-color: #f0fdf4; }}
+            .col-header {{ text-align: center; padding: 8px; color: white; font-weight: bold; border-radius: 8px 8px 0 0; }}
         </style>
-        
-        <div style="text-align:center; padding:10px;">
-            <h2 style="color:#1e3a8a; margin:0; text-transform:uppercase; letter-spacing:1px;">🚨 War Room Real-Time Monitor</h2>
-            <div style="color:#64748b; font-size:0.9em;">
-                 Auto-Refresh: {scroll_duration}s | Status: ONLINE 🟢
-            </div>
-        </div>
     """, unsafe_allow_html=True)
 
-    # 3. ปุ่มย้อนกลับ
-    if st.button("⬅️ กลับหน้าเลือกแผนก", use_container_width=True):
-        st.session_state.current_dept = None
-        for key in ["dept", "t_page", "v_mode", "case_id"]:
-            if key in st.query_params: del st.query_params[key]
-        st.rerun()
+    # ปุ่มย้อนกลับ
+    if st.button("⬅️ กลับ", use_container_width=True):
+        st.session_state.current_dept = None; st.rerun()
 
-    # 4. ฟังก์ชันสร้าง HTML การ์ด
-    def create_card_html(row, status_type, is_flash=False):
-        if status_type == 'new':
-            css_class = "card-new-flash" if is_flash else "card-new"
-            color = "#b91c1c"; icon = "🔥"
-        elif status_type == 'prog':
-            css_class = "card-prog"; color = "#1e40af"; icon = "🔵"
-        else:
-            css_class = "card-done"; color = "#15803d"; icon = "✅"
+    # แสดงสถานะการเชื่อมต่อ
+    st.markdown(f"""
+        <div style='text-align:center; margin-bottom:10px;'>
+            <span style='color:#dc2626; font-weight:bold; animation: blink 1s infinite;'>● LIVE</span> 
+            <span style='color:#64748b; font-size:0.9em;'> อัปเดตทุก {REFRESH_RATE} วินาที</span>
+        </div>
+        <style>@keyframes blink {{ 50% {{ opacity: 0; }} }}</style>
+    """, unsafe_allow_html=True)
 
-        location = str(row['Location'] if pd.notna(row['Location']) else '-')
-        incident = str(row['Incident_Type'] if pd.notna(row['Incident_Type']) else '-')
-        timestamp = str(row['Timestamp'] if pd.notna(row['Timestamp']) else '-')
-        reporter = str(row['Reporter'] if pd.notna(row['Reporter']) else '-')
-        details = str(row['Details'] if pd.notna(row['Details']) else '-')
-        rid = str(row['Report_ID'] if pd.notna(row['Report_ID']) else '-')
+    # Helper Functions
+    def create_card_html(row, type_code):
+        if type_code == 'new':   cls="status-new"; ico="🔥"; c="#b91c1c"
+        elif type_code == 'prog': cls="status-prog"; ico="🔵"; c="#1d4ed8"
+        else:                    cls="status-done"; ico="✅"; c="#15803d"
         
-        time_show = timestamp.split(' ')[1] if ' ' in timestamp else timestamp
-        if status_type == 'done': time_show = timestamp.split(' ')[0]
-
-        html = f"""
-        <div class="incident-card {css_class}">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                <div style="font-size:1.1em; font-weight:bold; color:{color};">📍 {location}</div>
-                <div style="font-size:0.85em; background:#f1f5f9; padding:2px 6px; border-radius:4px;">{time_show}</div>
+        # ตัดข้อความยาวๆ ทิ้งเพื่อประหยัดที่
+        det = row.get('Details', '-')
+        if len(det) > 50: det = det[:50] + "..."
+        
+        return f"""
+        <div class="incident-card {cls}">
+            <div style="display:flex; justify-content:space-between; color:{c}; font-weight:bold; font-size:0.9em;">
+                <span>📍 {row.get('Location','-')}</span>
+                <span style="color:#64748b;">{str(row.get('Timestamp','-')).split(' ')[-1][:5]}</span>
             </div>
-            <div style="font-weight:bold; color:#334155; font-size:1em; margin-bottom:5px;">
-                {icon} {incident}
-            </div>
-            <div style="background:rgba(0,0,0,0.03); padding:8px; border-radius:4px; font-size:0.9em; color:#475569; margin-bottom:8px;">
-                "{details}"
-            </div>
-            <div style="display:flex; justify-content:space-between; font-size:0.8em; color:#94a3b8;">
-                <span>👤 {reporter}</span>
-                <span style="font-family:monospace; font-weight:bold;">#{rid}</span>
-            </div>
+            <div style="font-weight:bold; font-size:0.95em; margin:2px 0;">{ico} {row.get('Incident_Type','-')}</div>
+            <div style="font-size:0.85em; color:#475569;">{det}</div>
         </div>
         """
-        return html
 
-    # 5. ฟังก์ชันแสดงผล (แก้ Logic ให้บังคับเลื่อนเสมอ)
-    def render_monitor_column(title, bg_color, df_data, status_type):
-        st.markdown(f'<div class="header-box" style="background:{bg_color};">{title}</div>', unsafe_allow_html=True)
-        
-        # สร้าง HTML ของการ์ดทั้งหมด
-        cards_html = ""
-        if df_data.empty:
-            # ถ้าไม่มีข้อมูล ให้สร้างการ์ดเปล่าๆ เพื่อให้จอไม่โล่ง หรือแสดงข้อความ
-            cards_html = f"""
-            <div class="incident-card" style="text-align:center; padding:40px; color:#cbd5e1;">
-                <h3>✅ เหตุการณ์ปกติ</h3>
-                <p>ไม่มีรายการแจ้งเหตุในหมวดนี้</p>
-            </div>
-            """
+    def render_col(title, color, data, type_code):
+        st.markdown(f'<div class="col-header" style="background:{color};">{title}</div>', unsafe_allow_html=True)
+        html_cards = ""
+        if data.empty:
+            html_cards = "<div style='padding:20px; text-align:center; color:#cbd5e1;'>- ว่าง -</div>"
         else:
-            for i, (_, row) in enumerate(df_data.iterrows()):
-                should_flash = (status_type == 'new' and i < 3)
-                cards_html += create_card_html(row, status_type, is_flash=should_flash)
+            for _, row in data.iterrows():
+                html_cards += create_card_html(row, type_code)
         
-        # --- KEY FIX: บังคับสร้าง Animation Loop เสมอ ---
-        # นำ html มาต่อกัน 2 รอบ (cards_html + cards_html) เพื่อให้ Loop เนียน
-        full_html = f"""
-        <div class="monitor-box">
-            <div class="content-scroll">
-                {cards_html}
-                {cards_html} 
+        # Double Content for Seamless Loop
+        st.markdown(f"""
+        <div class="monitor-window">
+            <div class="scroll-content">
+                {html_cards}{html_cards} 
             </div>
-        </div>
-        """
-        st.markdown(full_html, unsafe_allow_html=True)
+        </div>""", unsafe_allow_html=True)
 
-    # 6. Main Display Logic
+    # Logic การแสดงผล
     if not df.empty and 'Status' in df.columns:
-        current_count = len(df)
-        if current_count > st.session_state.last_seen_id:
-            if st.session_state.last_seen_id != 0: st.toast("🚨 มีเหตุแจ้งเข้ามาใหม่!", icon="🔥")
-            st.session_state.last_seen_id = current_count
+        df['Status'] = df['Status'].astype(str).str.strip()
+        
+        # แจ้งเตือนด้วยเสียง/Toast เมื่อมีเคสใหม่เพิ่มขึ้น
+        curr_len = len(df)
+        if curr_len > st.session_state.last_seen_id:
+            if st.session_state.last_seen_id != 0: 
+                st.toast("🚨 มีเหตุด่วนแจ้งเข้ามา!", icon="🔥")
+            st.session_state.last_seen_id = curr_len
 
-        df_new = df[df['Status'] == "รอดำเนินการ"].iloc[::-1]
-        df_prog = df[df['Status'] == "อยู่ระหว่างการดำเนินการ"].iloc[::-1]
-        df_done = df[df['Status'].isin(["ดำเนินการเรียบร้อย", "ยกเลิก"])].iloc[::-1].head(15) # เอา 15 รายการล่าสุด
+        # กรองเอาเฉพาะ "ล่าสุด" ตามจำนวน MAX_ITEMS_SHOW
+        d_new = df[df['Status'] == "รอดำเนินการ"].iloc[::-1].head(MAX_ITEMS_SHOW)
+        d_prog = df[df['Status'] == "อยู่ระหว่างการดำเนินการ"].iloc[::-1].head(MAX_ITEMS_SHOW)
+        d_done = df[df['Status'].isin(["ดำเนินการเรียบร้อย", "ยกเลิก"])].iloc[::-1].head(MAX_ITEMS_SHOW)
 
-        c1, c2, c3 = st.columns(3, gap="medium")
-        with c1: render_monitor_column("🔥 แจ้งใหม่", "#dc2626", df_new, "new")
-        with c2: render_monitor_column("🔵 กำลังดำเนินการ", "#2563eb", df_prog, "prog")
-        with c3: render_monitor_column("✅ เสร็จสิ้นล่าสุด", "#16a34a", df_done, "done")
-
-    # 7. Auto-Refresh Logic
-    # ใช้วิธี sleep แล้ว rerun เพื่อดึงข้อมูลใหม่ตามรอบ
-    st.query_params["dept"] = "monitor_view"
-    st.query_params["logged_in"] = "true"
-    time.sleep(scroll_duration) 
+        c1, c2, c3 = st.columns(3)
+        with c1: render_col(f"🔥 แจ้งใหม่ ({len(d_new)})", "#dc2626", d_new, "new")
+        with c2: render_col(f"🔵 กำลังทำ ({len(d_prog)})", "#2563eb", d_prog, "prog")
+        with c3: render_col(f"✅ เสร็จสิ้น ({len(d_done)})", "#16a34a", d_done, "done")
+        
+    # Auto Refresh แบบ Fixed Time
+    time.sleep(REFRESH_RATE)
     st.rerun()
 # ==========================================
 # 4. MAIN ENTRY (แก้ไขย่อหน้าให้ถูกต้อง)
