@@ -728,18 +728,59 @@ def traffic_module():
         if st.button("ยกเลิก", use_container_width=True): st.session_state.traffic_page = 'teacher'; st.rerun()
 
     elif st.session_state.traffic_page == 'dash':
-        if st.button("⬅️ กลับ"): st.session_state.traffic_page = 'teacher'; st.rerun()
+        if st.button("⬅️ กลับหน้าจัดการจราจร", use_container_width=True): 
+            st.session_state.traffic_page = 'teacher'; st.rerun()
+            
         if st.session_state.df_tra is not None:
             df = st.session_state.df_tra.copy()
-            df.columns = [f"Col_{i}" for i in range(len(df.columns))] 
+            
+            # --- จัดเตรียมข้อมูลสำหรับการทำกราฟ ---
+            # คอลัมน์: C3=ชั้น/ห้อง, C7=ใบขับขี่, C8=ภาษี, C9=หมวก, C13=คะแนน
+            df['Score'] = pd.to_numeric(df['C13'], errors='coerce').fillna(100)
+            df['LV'] = df['C3'].apply(lambda x: str(x).split('/')[0]) # แยกเฉพาะระดับชั้น เช่น ม.4
+            
+            st.markdown("### 📊 รายงานสถิติจราจรภาพรวม")
+            
+            # --- แถวที่ 1: กราฟวงกลมสถานะทางกฎหมาย ---
             c1, c2, c3 = st.columns(3)
-            with c1: st.plotly_chart(px.pie(df, names='Col_7', title="ใบขับขี่", hole=0.3), use_container_width=True)
-            with c2: st.plotly_chart(px.pie(df, names='Col_8', title="ภาษี", hole=0.3), use_container_width=True)
-            with c3: st.plotly_chart(px.pie(df, names='Col_9', title="หมวก", hole=0.3), use_container_width=True)
-            total = len(df); lok = df[df['Col_7'].str.contains("มี", na=False)].shape[0]
+            with c1:
+                fig1 = px.pie(df, names='C7', title="🪪 สถานะใบขับขี่", hole=0.3,
+                             color_discrete_sequence=px.colors.qualitative.Pastel)
+                st.plotly_chart(fig1, use_container_width=True)
+            with c2:
+                fig2 = px.pie(df, names='C8', title="📝 สถานะภาษี/พรบ.", hole=0.3,
+                             color_discrete_sequence=px.colors.qualitative.Safe)
+                st.plotly_chart(fig2, use_container_width=True)
+            with c3:
+                fig3 = px.pie(df, names='C9', title="🪖 การสวมหมวกกันน็อค", hole=0.3,
+                             color_discrete_sequence=px.colors.qualitative.Antique)
+                st.plotly_chart(fig3, use_container_width=True)
+            
+            st.divider()
+            
+            # --- แถวที่ 2: กราฟแท่งวิเคราะห์รายระดับชั้น ---
+            c4, c5 = st.columns(2)
+            with c4:
+                # คำนวณคะแนนเฉลี่ยรายชั้น
+                avg_scores = df.groupby('LV')['Score'].mean().reset_index()
+                fig4 = px.bar(avg_scores, x='LV', y='Score', title="📉 คะแนนวินัยเฉลี่ยแยกตามระดับชั้น",
+                             color='Score', color_continuous_scale='RdYlGn', range_y=[0, 100])
+                st.plotly_chart(fig4, use_container_width=True)
+            with c5:
+                # จำนวนรถที่ลงทะเบียนรายชั้น
+                count_df = df.groupby('LV').size().reset_index(name='จำนวนรถ')
+                fig5 = px.bar(count_df, x='LV', y='จำนวนรถ', title="🏍️ จำนวนรถที่ลงทะเบียนแยกตามระดับชั้น",
+                             color='LV', color_discrete_sequence=px.colors.qualitative.Set3)
+                st.plotly_chart(fig5, use_container_width=True)
+
+            # --- ส่วนสรุปตัวเลขสำคัญ ---
+            total = len(df)
+            low_score_count = len(df[df['Score'] < 60])
+            
+            st.markdown("---")
             m1, m2 = st.columns(2)
-            with m1: st.markdown(f'<div class="metric-card"><div class="metric-value">{total}</div><div class="metric-label">รถทั้งหมด</div></div>', unsafe_allow_html=True)
-            with m2: st.markdown(f'<div class="metric-card"><div class="metric-value">{lok}</div><div class="metric-label">มีใบขับขี่</div></div>', unsafe_allow_html=True)
+            m1.markdown(f'<div class="metric-card"><div class="metric-label">จำนวนรถทั้งหมด</div><div class="metric-value">{total} คัน</div></div>', unsafe_allow_html=True)
+            m2.markdown(f'<div class="metric-card"><div class="metric-label">กลุ่มที่ต้องเฝ้าระวัง (แต้มต่ำกว่า 60)</div><div class="metric-value" style="color:#ef4444;">{low_score_count} คน</div></div>', unsafe_allow_html=True)
 
 # ==========================================
 # 4. MAIN ENTRY (แก้ไขย่อหน้าให้ถูกต้อง)
