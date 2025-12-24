@@ -866,72 +866,41 @@ def monitor_center_module():
     if "last_seen_id" not in st.session_state: st.session_state.last_seen_id = 0
     if "latest_arrival_time" not in st.session_state: st.session_state.latest_arrival_time = None
 
-    # 2. CSS Styles (ปรับ Animation ให้แรงชัดจัดเต็ม)
+    # 2. CSS Styles
     st.markdown("""
         <style>
-            /* ซ่อน Scrollbar */
             ::-webkit-scrollbar { width: 0px; background: transparent; }
             
-            /* === Animation กะพริบแบบชัดเจน (Strong Flash) === */
             @keyframes strong_flash {
-                0% { 
-                    background-color: #fff1f2; 
-                    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); 
-                    border-color: #dc2626;
-                }
-                50% { 
-                    background-color: #fecaca; /* พื้นหลังแดงขึ้น */
-                    box-shadow: 0 0 15px 0 rgba(220, 38, 38, 0.6); /* เงาสีแดงฟุ้งกระจาย */
-                    border-color: #ff0000;
-                }
-                100% { 
-                    background-color: #fff1f2; 
-                    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); 
-                    border-color: #dc2626;
-                }
+                0% { background-color: #fff1f2; border-color: #dc2626; box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
+                50% { background-color: #fecaca; border-color: #ff0000; box-shadow: 0 0 15px 0 rgba(220, 38, 38, 0.6); }
+                100% { background-color: #fff1f2; border-color: #dc2626; box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
             }
-            
             .incident-card {
                 padding: 12px; border-radius: 10px; margin-bottom: 12px;
                 background: white; border: 1px solid #e2e8f0;
                 box-shadow: 0 1px 2px rgba(0,0,0,0.05);
             }
-
-            /* 🔴 สถานะ: รอดำเนินการ -> บังคับกะพริบด้วย !important */
             .card-new { 
                 border-left: 8px solid #dc2626 !important; 
-                animation: strong_flash 1s infinite !important; /* กะพริบเร็วทุก 1 วินาที */
+                animation: strong_flash 1s infinite !important;
             }
-
-            /* 🔵 สถานะ: กำลังดำเนินการ */
-            .card-progress { 
-                border-left: 8px solid #3b82f6 !important; 
-                background-color: #eff6ff !important; 
-            }
-
-            /* 🟢 สถานะ: เรียบร้อย */
-            .card-done { 
-                border-left: 8px solid #22c55e !important; 
-                background-color: #f0fdf4 !important; 
-                opacity: 0.8; 
-            }
-
+            .card-progress { border-left: 8px solid #3b82f6 !important; background-color: #eff6ff !important; }
+            .card-done { border-left: 8px solid #22c55e !important; background-color: #f0fdf4 !important; opacity: 0.8; }
+            
             .header-badge {
                 padding: 10px; border-radius: 8px; text-align: center; 
                 font-weight: bold; margin-bottom: 15px; font-size: 1.2em;
-                color: white;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             }
-            
             .case-id-badge {
                 font-family: monospace; font-size: 0.85em; font-weight: bold;
                 background: rgba(255,255,255,0.8); padding: 2px 6px; border-radius: 4px;
             }
         </style>
-        
         <div style="text-align:center; padding:10px; border-bottom:2px solid #f1f5f9; margin-bottom:20px;">
             <h2 style="color:#1e3a8a; margin:0;">🚨 War Room: ศูนย์เฝ้าระวังเหตุฉุกเฉิน</h2>
-            <p style="color:#64748b; font-size:0.9em;">(โหมดเฝ้าระวัง: รีเฟรชทุก 10 วินาที)</p>
+            <p style="color:#64748b; font-size:0.9em;">(Real-time Monitor: อัปเดตทุก 10 วินาที)</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -942,41 +911,46 @@ def monitor_center_module():
             if key in st.query_params: del st.query_params[key]
         st.rerun()
 
-    # 4. โหลดและแสดงข้อมูล
+    # 4. โหลดข้อมูล
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         now_th = get_now_th()
         cur_year = (now_th.year + 543) if now_th.month >= 5 else (now_th.year + 542)
         
-        df = conn.read(worksheet=f"Investigation_{cur_year}", ttl=2).fillna("")
+        # บังคับโหลดใหม่ (ttl=0) เพื่อความ Real-time
+        df = conn.read(worksheet=f"Investigation_{cur_year}", ttl=0).fillna("")
         
-        if not df.empty:
+        if not df.empty and 'Status' in df.columns:
+            
+            # แจ้งเตือนเมื่อมีเคสใหม่
             current_count = len(df)
             if current_count > st.session_state.last_seen_id:
-                if st.session_state.last_seen_id != 0: st.toast("🚨 มีเหตุแจ้งเข้ามาใหม่!", icon="🔥")
+                if st.session_state.last_seen_id != 0: 
+                    st.toast("🚨 มีเหตุแจ้งเข้ามาใหม่!", icon="🔥")
                 st.session_state.last_seen_id = current_count
                 st.session_state.latest_arrival_time = datetime.now()
 
-            # แยกข้อมูล 3 กลุ่ม
-            df_new = df[df['Status'].astype(str).str.strip() == "รอดำเนินการ"].iloc[::-1].head(10)
-            df_prog = df[df['Status'].astype(str).str.strip() == "อยู่ระหว่างการดำเนินการ"].iloc[::-1].head(10)
-            df_done = df[df['Status'].astype(str).str.strip().isin(["ดำเนินการเรียบร้อย", "ยกเลิก"])].iloc[::-1].head(10)
+            # Clean ข้อมูล
+            df['Status'] = df['Status'].astype(str).str.strip()
+
+            # แยกกลุ่มข้อมูล (10 รายการล่าสุด)
+            df_new = df[df['Status'] == "รอดำเนินการ"].iloc[::-1].head(10)
+            df_prog = df[df['Status'] == "อยู่ระหว่างการดำเนินการ"].iloc[::-1].head(10)
+            df_done = df[df['Status'].isin(["ดำเนินการเรียบร้อย", "ยกเลิก"])].iloc[::-1].head(10)
 
             c1, c2, c3 = st.columns(3, gap="small")
 
-            # === [COL 1: รอดำเนินการ (แดงกะพริบ)] ===
+            # === [COL 1: รอดำเนินการ (แดง)] ===
             with c1:
                 st.markdown('<div class="header-badge" style="background:#dc2626;">🔥 แจ้งใหม่ (ด่วน)</div>', unsafe_allow_html=True)
-                if df_new.empty: 
-                    st.info("✅ เหตุการณ์ปกติ")
+                if df_new.empty: st.info("✅ เหตุการณ์ปกติ")
                 else:
                     for _, row in df_new.iterrows():
-                        # การ์ดนี้จะกะพริบเพราะ Class 'card-new'
                         st.markdown(f"""
                         <div class="incident-card card-new">
                             <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
                                 <span class="case-id-badge" style="color:#b91c1c;">📝 {row['Report_ID']}</span>
-                                <span style="font-size:0.8em; color:#7f1d1d;">{row['Timestamp'].split(' ')[1] if ' ' in row['Timestamp'] else row['Timestamp']}</span>
+                                <span style="font-size:0.8em; color:#7f1d1d;">{str(row['Timestamp']).split(' ')[1] if ' ' in str(row['Timestamp']) else row['Timestamp']}</span>
                             </div>
                             <div style="font-size:1.2em; font-weight:bold; color:#b91c1c;">📍 {row['Location']}</div>
                             <div style="font-weight:bold; color:#1e293b;">{row['Incident_Type']}</div>
@@ -992,16 +966,17 @@ def monitor_center_module():
                 if df_prog.empty: st.caption("- ว่าง -")
                 else:
                     for _, row in df_prog.iterrows():
+                        # ✅ แก้ไขตรงนี้: เปลี่ยนจาก Teacher เป็น Student Police
                         st.markdown(f"""
                         <div class="incident-card card-progress">
                             <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
                                 <span class="case-id-badge" style="color:#1e40af;">📝 {row['Report_ID']}</span>
-                                <span style="font-size:0.8em; color:#1e40af;">{row['Timestamp'].split(' ')[1] if ' ' in row['Timestamp'] else row['Timestamp']}</span>
+                                <span style="font-size:0.8em; color:#1e40af;">{str(row['Timestamp']).split(' ')[1] if ' ' in str(row['Timestamp']) else row['Timestamp']}</span>
                             </div>
                             <div style="font-size:1.1em; font-weight:bold; color:#1e3a8a;">📍 {row['Location']}</div>
                             <div style="color:#1e293b;">{row['Incident_Type']}</div>
                             <div style="font-size:0.85em; color:#475569; margin-top:5px;">
-                                ผู้รับผิดชอบ: <b>{row['Teacher_Investigator']}</b>
+                                ผู้รับผิดชอบ: <b>{row['Student_Police_Investigator']}</b>
                             </div>
                         </div>
                         """, unsafe_allow_html=True)
@@ -1012,15 +987,16 @@ def monitor_center_module():
                 if df_done.empty: st.caption("- ว่าง -")
                 else:
                     for _, row in df_done.iterrows():
+                        # ✅ แก้ไขตรงนี้: เปลี่ยนจาก Teacher เป็น Student Police เช่นกัน
                         st.markdown(f"""
                         <div class="incident-card card-done">
                             <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
                                 <span class="case-id-badge" style="color:#14532d;">✅ {row['Report_ID']}</span>
-                                <span style="font-size:0.8em; color:#14532d;">{row['Timestamp'].split(' ')[0]}</span>
+                                <span style="font-size:0.8em; color:#14532d;">{str(row['Timestamp']).split(' ')[0]}</span>
                             </div>
                             <div style="font-weight:bold; color:#14532d;">📍 {row['Location']}</div>
                             <div style="color:#14532d; font-size:0.9em;">{row['Incident_Type']}</div>
-                            <div style="font-size:0.8em; color:#15803d;">ผู้สรุป: {row['Teacher_Investigator']}</div>
+                            <div style="font-size:0.8em; color:#15803d;">ผู้สรุป: {row['Student_Police_Investigator']}</div>
                         </div>
                         """, unsafe_allow_html=True)
 
@@ -1031,7 +1007,8 @@ def monitor_center_module():
         st.rerun()
 
     except Exception as e:
-        st.warning(f"⏳ กำลังเชื่อมต่อ... ({cur_year})")
+        # กรณีรอยต่อปี หรือชีตยังไม่มา
+        st.warning(f"⏳ กำลังเชื่อมต่อฐานข้อมูล... ({cur_year})")
         st.query_params["dept"] = "monitor_view"
         time.sleep(10)
         st.rerun()
