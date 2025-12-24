@@ -64,43 +64,40 @@ st.markdown("""
 TIMEOUT_SECONDS = 60 * 60  # ตั้งเวลา 60 นาที
 
 def check_inactivity():
-    # 1. ตรวจสอบเวลา Timeout (60 นาที)
     if 'last_active' not in st.session_state:
         st.session_state.last_active = time.time()
-        
     if time.time() - st.session_state.last_active > TIMEOUT_SECONDS:
         st.session_state.clear()
-        st.query_params.clear() 
-        st.session_state.timeout_msg = "⏳ หมดเวลาการเชื่อมต่อ (60 นาที) กรุณาเข้าสู่ระบบใหม่"
+        st.query_params.clear()
         st.rerun()
     else:
         st.session_state.last_active = time.time()
 
-    # 2. ระบบกู้คืนสถานะเมื่อกด Refresh (Sync URL -> Session State)
+    # ระบบกู้คืนสถานะจาก URL
     if st.query_params.get("logged_in") == "true":
-        # ... ส่วน Login เดิม (ข้ามไป) ...
+        if not st.session_state.get('logged_in'):
+            st.session_state.logged_in = True
+            accs = st.secrets.get("OFFICER_ACCOUNTS", {})
+            pwd = st.query_params.get("pwd", "")
+            if pwd in accs:
+                st.session_state.user_info = accs[pwd]
+                st.session_state.current_user_pwd = pwd
         
-        # กู้คืนหน้าแผนก
+        # กู้คืนหน้าปัจจุบันและ ID เคส
         if st.query_params.get("dept"):
             st.session_state.current_dept = st.query_params.get("dept")
-        
-        # --- แก้ไขตรงนี้: กู้คืนหน้าย่อยและ ID เคส ---
         if st.query_params.get("v_mode"):
             st.session_state.view_mode = st.query_params.get("v_mode")
         if st.query_params.get("case_id"):
             st.session_state.selected_case_id = st.query_params.get("case_id")
-        if st.query_params.get("t_page"):
-            st.session_state.traffic_page = st.query_params.get("t_page")
 
-    # 3. บันทึกสถานะปัจจุบันลง URL (Sync Session State -> URL)
+    # บันทึกสถานะลง URL
     if st.session_state.get('logged_in'):
         st.query_params["logged_in"] = "true"
         st.query_params["pwd"] = st.session_state.current_user_pwd
-        if st.session_state.get("current_dept"):
+        if st.session_state.current_dept:
             st.query_params["dept"] = st.session_state.current_dept
             st.query_params["v_mode"] = st.session_state.get("view_mode", "list")
-            st.query_params["t_page"] = st.session_state.get("traffic_page", "teacher")
-            # ถ้ามีการเลือกเคส ให้บันทึกลง URL ด้วย
             if st.session_state.get("selected_case_id"):
                 st.query_params["case_id"] = st.session_state.selected_case_id
         else:
