@@ -859,7 +859,7 @@ def traffic_module():
             st.caption(f"ออกรายงาน ณ วันที่: {get_now_th().strftime('%d/%m/%Y %H:%M')}")
 
 # ==========================================
-# MODULE: MONITOR REAL-TIME (WAR ROOM) - FINAL FIX
+# MODULE: MONITOR REAL-TIME (WAR ROOM) - FINAL FIXED VERSION
 # ==========================================
 def monitor_center_module():
     # 1. State Variables
@@ -869,12 +869,12 @@ def monitor_center_module():
     # 2. CSS Styles
     st.markdown("""
         <style>
-            /* ซ่อน Scrollbar */
+            /* Hide Scrollbar */
             ::-webkit-scrollbar { display: none; }
             
-            /* Container หลัก */
-            .monitor-wrapper {
-                height: 75vh; /* ความสูงจอ */
+            /* Container for Monitor */
+            .monitor-box {
+                height: 75vh; 
                 overflow: hidden;
                 position: relative;
                 background-color: #f8fafc;
@@ -883,7 +883,7 @@ def monitor_center_module():
                 padding: 10px;
             }
 
-            /* Class สำหรับ Animation เลื่อนขึ้น */
+            /* Scroll Animation */
             @keyframes scroll-up {
                 0% { transform: translateY(0%); }
                 100% { transform: translateY(-50%); } 
@@ -891,16 +891,11 @@ def monitor_center_module():
             .content-scroll {
                 animation: scroll-up 60s linear infinite;
             }
-            .content-static {
-                /* ไม่มีการเลื่อน */
-            }
-            
-            /* หยุดเลื่อนเมื่อเอาเมาส์ชี้ */
-            .monitor-wrapper:hover .content-scroll {
+            .monitor-box:hover .content-scroll {
                 animation-play-state: paused;
             }
 
-            /* การ์ดรายการ */
+            /* Incident Card Styling */
             .incident-card {
                 display: block;
                 padding: 15px; 
@@ -911,10 +906,10 @@ def monitor_center_module():
                 box-shadow: 0 2px 5px rgba(0,0,0,0.05);
             }
 
-            /* Animation กะพริบ (เฉพาะสีแดง) */
+            /* Flash Animation for New Cases */
             @keyframes border-flash {
                 0% { border-color: #dc2626; background-color: #fff1f2; }
-                50% { border-color: #ff0000; background-color: #fee2e2; box-shadow: 0 0 8px rgba(220, 38, 38, 0.4); }
+                50% { border-color: #ff0000; background-color: #fee2e2; box-shadow: 0 0 10px rgba(220, 38, 38, 0.4); }
                 100% { border-color: #dc2626; background-color: #fff1f2; }
             }
 
@@ -923,13 +918,17 @@ def monitor_center_module():
             .card-done { border-left: 8px solid #22c55e !important; background-color: #f0fdf4 !important; opacity: 0.9; }
 
             .badge-id {
-                float: right; font-family: monospace; font-size: 0.9em; font-weight: bold;
-                background: rgba(255,255,255,0.7); padding: 2px 6px; border-radius: 4px;
+                float: right; font-family: monospace; font-size: 0.85em; font-weight: bold;
+                background: rgba(0,0,0,0.05); padding: 2px 6px; border-radius: 4px;
             }
             .header-box {
-                text-align: center; padding: 10px; border-radius: 8px; 
+                text-align: center; padding: 12px; border-radius: 8px; 
                 color: white; font-weight: bold; font-size: 1.2em; margin-bottom: 15px;
                 box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .detail-box {
+                font-size: 0.9em; color: #475569; margin-top: 8px; 
+                padding-top: 8px; border-top: 1px solid #e2e8f0;
             }
         </style>
         
@@ -939,63 +938,80 @@ def monitor_center_module():
         </div>
     """, unsafe_allow_html=True)
 
-    # 3. ปุ่มย้อนกลับ
+    # 3. Back Button
     if st.button("⬅️ กลับหน้าเลือกแผนก", use_container_width=True):
         st.session_state.current_dept = None
         for key in ["dept", "t_page", "v_mode", "case_id"]:
             if key in st.query_params: del st.query_params[key]
         st.rerun()
 
-    # 4. Helper Function: สร้าง HTML สำหรับการ์ด 1 ใบ
+    # 4. Card Builder Function
     def build_card(row, status_type):
+        # Define styles based on status
         if status_type == 'new':
-            css = "card-new"; color = "#b91c1c"; icon = "🔥"; responsible = "-"
+            css = "card-new"; color = "#b91c1c"; icon = "🔥"
         elif status_type == 'prog':
-            css = "card-prog"; color = "#1e40af"; icon = "🔵"; responsible = row.get('Student_Police_Investigator', '-')
+            css = "card-prog"; color = "#1e40af"; icon = "🔵"
         else:
-            css = "card-done"; color = "#15803d"; icon = "✅"; responsible = row.get('Student_Police_Investigator', '-')
+            css = "card-done"; color = "#15803d"; icon = "✅"
         
-        # จัดการข้อมูลวันเวลา
+        # Handle Time Display
         ts = str(row['Timestamp'])
         time_show = ts.split(' ')[1] if ' ' in ts else ts
-        if status_type == 'done': time_show = ts.split(' ')[0] # เสร็จแล้วโชว์วันที่
+        if status_type == 'done': time_show = ts.split(' ')[0] # Show date for finished cases
 
+        # Handle Responsible Person Name (Student Police)
+        # Using .get() to avoid errors if column doesn't exist
+        investigator = row.get('Student_Police_Investigator', '-')
+        reporter_name = row.get('Reporter', '-')
+
+        # Construct HTML
         return f"""
         <div class="incident-card {css}">
-            <div style="margin-bottom:5px;">
-                <span style="font-size:1.2em; font-weight:bold; color:{color};">📍 {row['Location']}</span>
+            <div style="font-size:1.3em; font-weight:bold; color:{color}; margin-bottom:5px;">
+                📍 {row['Location']}
             </div>
-            <div style="font-weight:bold; color:#1e293b; margin-bottom:5px;">
+            
+            <div style="font-weight:bold; color:#1e293b; font-size:1.1em; margin-bottom:5px;">
                 {icon} {row['Incident_Type']}
             </div>
-            <div style="font-size:0.85em; color:{color}; margin-bottom:8px;">
-                🕒 {time_show}
+            
+            <div style="font-size:0.9em; color:#64748b;">
+                🕒 เวลา: {time_show}
+            </div>
+
+            <div style="font-size:0.9em; color:#334155;">
+                👤 ผู้แจ้ง: {reporter_name}
+            </div>
+
+            <div class="detail-box">
+                📝 {row['Details']}
+            </div>
+
+            <div style="margin-top:8px; overflow:hidden;">
                 <span class="badge-id" style="color:{color};">🆔 {row['Report_ID']}</span>
+                {f'<span style="float:left; font-size:0.8em; color:#64748b;">👮 {investigator}</span>' if status_type != 'new' else ''}
             </div>
-            <div style="font-size:0.9em; color:#475569; border-top:1px dashed {color}; padding-top:5px;">
-                {row['Details']}
-            </div>
-            {f'<div style="font-size:0.85em; color:#334155; margin-top:5px;"><b>ผู้รับผิดชอบ:</b> {responsible}</div>' if status_type != 'new' else ''}
         </div>
         """
 
-    # 5. Helper Function: สร้าง Container (นิ่ง หรือ เลื่อน)
+    # 5. Column Renderer Function
     def render_column(title, bg_color, df_data, status_type, limit_scroll=10):
-        # หัวข้อ
+        # Header
         st.markdown(f'<div class="header-box" style="background:{bg_color};">{title}</div>', unsafe_allow_html=True)
         
         if df_data.empty:
             st.info("✅ ว่าง / ไม่มีรายการ")
             return
 
-        # สร้าง HTML รวม
+        # Build HTML content
         html_cards = "".join([build_card(row, status_type) for _, row in df_data.iterrows()])
         
-        # ตัดสินใจว่าจะเลื่อนหรือไม่
+        # Decide: Scroll or Static
         if len(df_data) > limit_scroll:
-            # กรณีเกิน 10 เคส -> ใช้ Animation เลื่อน (ใส่ซ้ำ 2 รอบเพื่อให้ Loop เนียน)
+            # Scroll Mode (Duplicate content for seamless loop)
             st.markdown(f"""
-            <div class="monitor-wrapper">
+            <div class="monitor-box">
                 <div class="content-scroll">
                     {html_cards}
                     {html_cards} 
@@ -1003,26 +1019,26 @@ def monitor_center_module():
             </div>
             """, unsafe_allow_html=True)
         else:
-            # กรณีไม่เกิน -> แสดงนิ่งๆ
+            # Static Mode
             st.markdown(f"""
-            <div class="monitor-wrapper" style="overflow-y:auto;">
-                <div class="content-static">
+            <div class="monitor-box" style="overflow-y:auto;">
+                <div>
                     {html_cards}
                 </div>
             </div>
             """, unsafe_allow_html=True)
 
-    # 6. Load Data
+    # 6. Main Logic
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         now_th = get_now_th()
         cur_year = (now_th.year + 543) if now_th.month >= 5 else (now_th.year + 542)
         
-        # บังคับโหลดสด (ttl=0)
+        # Force reload data
         df = conn.read(worksheet=f"Investigation_{cur_year}", ttl=0).fillna("")
         
         if not df.empty and 'Status' in df.columns:
-            # แจ้งเตือน
+            # Alert Logic
             current_count = len(df)
             if current_count > st.session_state.last_seen_id:
                 if st.session_state.last_seen_id != 0: st.toast("🚨 เหตุแจ้งใหม่!", icon="🔥")
@@ -1030,23 +1046,23 @@ def monitor_center_module():
 
             df['Status'] = df['Status'].astype(str).str.strip()
 
-            # แยกข้อมูล
-            # 1. แดง: เอาทั้งหมด (เรียงใหม่ไปเก่า)
+            # Filter Data
+            # 1. New Cases (Red) - Show ALL (Scroll if > 10)
             df_new = df[df['Status'] == "รอดำเนินการ"].iloc[::-1]
             
-            # 2. ฟ้า: เอาทั้งหมด (เรียงใหม่ไปเก่า)
+            # 2. In Progress (Blue) - Show ALL (Scroll if > 10)
             df_prog = df[df['Status'] == "อยู่ระหว่างการดำเนินการ"].iloc[::-1]
             
-            # 3. เขียว: เอาแค่ 10 อันล่าสุด
+            # 3. Finished (Green) - Show ONLY TOP 10 (Always Static)
             df_done = df[df['Status'].isin(["ดำเนินการเรียบร้อย", "ยกเลิก"])].iloc[::-1].head(10)
 
-            # แสดงผล 3 คอลัมน์
+            # Render Layout
             c1, c2, c3 = st.columns(3, gap="small")
 
-            with c1: render_column("🔥 แจ้งใหม่ (ทั้งหมด)", "#dc2626", df_new, "new")
-            with c2: render_column("🔵 กำลังดำเนินการ (ทั้งหมด)", "#2563eb", df_prog, "prog")
+            with c1: render_column("🔥 แจ้งใหม่ (ทั้งหมด)", "#dc2626", df_new, "new", limit_scroll=10)
+            with c2: render_column("🔵 กำลังดำเนินการ (ทั้งหมด)", "#2563eb", df_prog, "prog", limit_scroll=10)
             with c3: render_column("✅ เสร็จสิ้น (10 ล่าสุด)", "#16a34a", df_done, "done", limit_scroll=999) 
-            # limit_scroll=999 ของช่องเขียว คือเทคนิคบังคับให้มัน "ไม่เลื่อน" (เพราะเราตัดมาแค่ 10 ยังไงก็ไม่เกิน 999)
+            # limit_scroll=999 ensures Green column never scrolls because it only has 10 items.
 
         # Auto-Refresh
         st.query_params["dept"] = "monitor_view"
