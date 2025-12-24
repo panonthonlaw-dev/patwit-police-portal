@@ -974,7 +974,7 @@ def main():
         del st.session_state.timeout_msg
 
     if not st.session_state.logged_in:
-        # --- หน้า Login (เหมือนเดิม) ---
+        # --- [1] หน้า Login (จะแสดงเมื่อยังไม่ได้เข้าระบบ) ---
         _, col, _ = st.columns([1, 1.2, 1])
         with col:
             st.markdown("<br><br>", unsafe_allow_html=True)
@@ -989,37 +989,39 @@ def main():
                         st.session_state.logged_in = True
                         st.session_state.user_info = accs[pwd_in]
                         st.session_state.current_user_pwd = pwd_in
+                        # บันทึกสถานะลง URL ทันทีที่ล็อกอิน
                         st.query_params["logged_in"] = "true"
                         st.query_params["pwd"] = pwd_in
                         st.rerun()
                     else: st.error("❌ รหัสผิด")
     else:
-        # --- ตรวจสอบว่าเลือกแผนกหรือยัง ---
+        # --- [2] ส่วนที่ล็อกอินแล้ว ---
+        
         if st.session_state.current_dept is None:
-            # ส่วนหัวเมนูเลือกแผนก
-            st.markdown("""
+            # ✅ ก) หน้าเลือกแผนก (จะแสดงเฉพาะตอน current_dept เป็น None)
+            st.markdown(f"""
                 <div style="text-align:center; padding:20px; border-bottom:2px solid #f0f2f6; margin-bottom:20px;">
                     <h1 style="color:#1E3A8A; margin:0;">🏢 เลือกแผนกปฏิบัติงาน</h1>
-                    <p style="color:#64748b;">ยินดีต้อนรับคุณ {}</p>
+                    <p style="color:#64748b;">เจ้าหน้าที่: {st.session_state.user_info.get('name')}</p>
                 </div>
-            """.format(st.session_state.user_info.get('name')), unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 
-            # !!! จุดสำคัญที่ต้องมี: ประกาศสร้างคอลัมน์ c1, c2, c3 !!!
+            # สร้างคอลัมน์เฉพาะในหน้านี้
             c1, c2, c3 = st.columns(3) 
 
             with c1:
                 with st.container(border=True):
                     st.subheader("🕵️ งานสอบสวน")
-                    if st.button("เข้าใช้งานสอบสวน", use_container_width=True, type='primary', key="btn_to_inv"):
+                    if st.button("เข้าใช้งานสอบสวน", use_container_width=True, type='primary', key="main_to_inv"):
                         st.session_state.current_dept = "inv"
                         st.session_state.view_mode = "list"
-                        st.query_params["dept"] = "inv"
+                        st.query_params["dept"] = "inv" # บันทึกเพื่อกัน Refresh หลุด
                         st.rerun()
 
             with c2:
                 with st.container(border=True):
                     st.subheader("🚦 งานจราจร")
-                    if st.button("เข้าใช้งานจราจร", use_container_width=True, type='primary', key="btn_to_tra"):
+                    if st.button("เข้าใช้งานจราจร", use_container_width=True, type='primary', key="main_to_tra"):
                         st.session_state.current_dept = "tra"
                         st.session_state.traffic_page = 'teacher'
                         st.query_params["dept"] = "tra"
@@ -1028,18 +1030,20 @@ def main():
             with c3:
                 with st.container(border=True):
                     st.subheader("🖥️ War Room")
-                    if st.button("เปิดจอเฝ้าระวังเหตุ", use_container_width=True, type='primary', key="btn_to_monitor"):
+                    if st.button("เปิดจอเฝ้าระวังเหตุ", use_container_width=True, type='primary', key="main_to_monitor"):
                         st.session_state.current_dept = "monitor_view"
                         st.query_params["dept"] = "monitor_view"
                         st.rerun()
             
-            if st.button("🚪 ออกจากระบบ", use_container_width=True, key="main_logout"):
+            st.write("")
+            if st.button("🚪 ออกจากระบบ", use_container_width=True, key="main_logout_btn"):
                 st.query_params.clear()
                 st.session_state.clear()
                 st.rerun()
         
         else:
-            # --- ส่วนแสดงผลหน้าแผนกต่างๆ (Indentation ต้องตรงกัน) ---
+            # ✅ ข) หน้า Module ต่างๆ (จะแสดงเมื่อเลือกแผนกแล้ว)
+            # เมื่อเข้ามาที่นี่ ปุ่ม c1, c2, c3 จะถูกซ่อนอัตโนมัติเพราะอยู่คนละเงื่อนไขกัน
             if st.session_state.current_dept == "inv":
                 investigation_module()
             elif st.session_state.current_dept == "tra":
@@ -1047,5 +1051,6 @@ def main():
             elif st.session_state.current_dept == "monitor_view":
                 monitor_center_module()
 
+# เรียกฟังก์ชันหลัก
 if __name__ == "__main__": 
     main()
