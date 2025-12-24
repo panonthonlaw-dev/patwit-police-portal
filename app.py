@@ -903,7 +903,9 @@ def main():
         else:
             if st.session_state.current_dept == "inv": investigation_module()
             elif st.session_state.current_dept == "tra": traffic_module()
-            # --- วาง Module หน้าจอ Monitor ตรงนี้ ---
+# ==========================================
+# MODULE: MONITOR REAL-TIME (วางไว้ก่อน def main)
+# ==========================================
 def monitor_center_module():
     if st.button("⬅️ ออกจากหน้าจอมอนิเตอร์", use_container_width=True):
         st.session_state.current_dept = None
@@ -916,16 +918,14 @@ def monitor_center_module():
         </div>
     """, unsafe_allow_html=True)
 
-    # ดึงข้อมูลจากชีตล่าสุด (อ้างอิงจากปีปัจจุบัน)
     conn = st.connection("gsheets", type=GSheetsConnection)
     now_th = get_now_th()
     cur_year = (now_th.year + 543) if now_th.month >= 5 else (now_th.year + 542)
     
     try:
         df = conn.read(worksheet=f"Investigation_{cur_year}", ttl=10).fillna("")
-        df = df.iloc[::-1] # เอาเหตุการณ์ใหม่ขึ้นก่อน
+        df = df.iloc[::-1]
 
-        # Metrics แถวบน
         m1, m2, m3 = st.columns(3)
         m1.metric("เหตุการณ์ทั้งหมด", len(df))
         m2.metric("🚨 รอดำเนินการ", len(df[df['Status'] == 'รอดำเนินการ']))
