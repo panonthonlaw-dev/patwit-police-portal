@@ -166,13 +166,6 @@ def navigate_to_detail(case_id):
     st.query_params["v_mode"] = "detail"
     st.query_params["case_id"] = case_id
 
-# แก้ไขปุ่มใน Loop แสดงรายการ
-with cc1: 
-    st.button(f"📝 {row['Report_ID']}", 
-              key=f"btn_{row['Report_ID']}", 
-              use_container_width=True, 
-              on_click=navigate_to_detail, 
-              args=(row['Report_ID'],))
 def create_pdf_inv(row):
     rid = str(row.get('Report_ID', '')); date_str = str(row.get('Timestamp', ''))
     audit_log = str(row.get('Audit_Log', '')); latest_date = "-"
