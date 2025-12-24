@@ -64,36 +64,52 @@ st.markdown("""
 TIMEOUT_SECONDS = 60 * 60  # ตั้งเวลา 60 นาที
 
 def check_inactivity():
+    def check_inactivity():
     # 1. ตรวจสอบเวลา Timeout
     if 'last_active' not in st.session_state:
         st.session_state.last_active = time.time()
         
     if time.time() - st.session_state.last_active > TIMEOUT_SECONDS:
         st.session_state.clear()
-        st.query_params.clear() # ล้างค่าใน URL ด้วย
+        st.query_params.clear() 
         st.session_state.timeout_msg = "⏳ หมดเวลาการเชื่อมต่อ (60 นาที) กรุณาเข้าสู่ระบบใหม่"
         st.rerun()
     else:
         st.session_state.last_active = time.time()
 
     # 2. ระบบกู้คืนสถานะเมื่อกด Refresh (ดึงค่าจาก URL กลับมา)
-    if not st.session_state.get('logged_in') and st.query_params.get("logged_in") == "true":
-        st.session_state.logged_in = True
-        st.session_state.user_info = {
-            'name': st.query_params.get("name", ""),
-            'role': st.query_params.get("role", "")
-        }
-        st.session_state.current_user_pwd = st.query_params.get("pwd", "")
-        st.rerun() # รีโหลดเพื่อเข้าสู่ระบบทันที
+    if st.query_params.get("logged_in") == "true":
+        if not st.session_state.get('logged_in'):
+            st.session_state.logged_in = True
+            st.session_state.user_info = {
+                'name': st.query_params.get("name", ""),
+                'role': st.query_params.get("role", "")
+            }
+            st.session_state.current_user_pwd = st.query_params.get("pwd", "")
+        
+        # --- กู้คืนสถานะหน้าแผนกและหน้าย่อย ---
+        if 'current_dept' not in st.session_state or st.session_state.current_dept is None:
+            st.session_state.current_dept = st.query_params.get("dept", None)
+        if 'traffic_page' not in st.session_state:
+            st.session_state.traffic_page = st.query_params.get("t_page", "teacher")
+        if 'view_mode' not in st.session_state:
+            st.session_state.view_mode = st.query_params.get("v_mode", "list")
 
-    # 3. บันทึกสถานะปัจจุบันลง URL (เพื่อให้กด Refresh แล้วไม่หาย)
+    # 3. บันทึกสถานะปัจจุบันลง URL ตลอดเวลา
     if st.session_state.get('logged_in'):
-        # อัปเดต URL เฉพาะเมื่อค่ายังไม่ตรง
-        if st.query_params.get("logged_in") != "true":
-            st.query_params["logged_in"] = "true"
-            st.query_params["name"] = st.session_state.user_info.get("name", "")
-            st.query_params["role"] = st.session_state.user_info.get("role", "")
-            st.query_params["pwd"] = st.session_state.current_user_pwd
+        st.query_params["logged_in"] = "true"
+        st.query_params["name"] = st.session_state.user_info.get("name", "")
+        st.query_params["role"] = st.session_state.user_info.get("role", "")
+        st.query_params["pwd"] = st.session_state.current_user_pwd
+        
+        # บันทึกแผนกและหน้าย่อยลง URL
+        if st.session_state.get("current_dept"):
+            st.query_params["dept"] = st.session_state.current_dept
+        else:
+            if "dept" in st.query_params: del st.query_params["dept"]
+            
+        st.query_params["t_page"] = st.session_state.get("traffic_page", "teacher")
+        st.query_params["v_mode"] = st.session_state.get("view_mode", "list")
 
 check_inactivity()
 
@@ -206,12 +222,10 @@ def investigation_module():
         st.write("")
         st.write("")
         b_home, b_logout = st.columns(2)
-        if b_home.button("🏠 หน้าหลัก", use_container_width=True, key="inv_home_btn"):
-            setattr(st.session_state, 'current_dept', None); st.rerun()
-        if b_logout.button("🚪 ออก", key="inv_logout_btn", use_container_width=True):
-            st.query_params.clear()  # <--- เพิ่มบรรทัดนี้ เพื่อล้างค่าใน URL
-            st.session_state.clear()
-            st.rerun()
+        if st.button("🏠 หน้าหลัก"):
+    st.session_state.current_dept = None
+    if "dept" in st.query_params: del st.query_params["dept"] # ล้างค่าใน URL
+    st.rerun()
             
     
     # --- [ส่วนที่เพิ่ม: คำนวณปีการศึกษา (พ.ค. - เม.ย.) + เผื่อปีหน้า] ---
@@ -829,6 +843,25 @@ def traffic_module():
 # ==========================================
 # 4. MAIN ENTRY (แก้ไขย่อหน้าให้ถูกต้อง)
 # ==========================================
+# คอลัมน์ที่ 1: สอบสวน
+            if st.button("เข้าใช้งานสอบสวน", key="btn_to_inv"):
+                st.session_state.current_dept = "inv"
+                st.session_state.view_mode = "list"
+                st.query_params["dept"] = "inv" # บันทึกทันที
+                st.rerun()
+
+            # คอลัมน์ที่ 2: จราจร
+            if st.button("เข้าใช้งานจราจร", key="btn_to_tra"):
+                st.session_state.current_dept = "tra"
+                st.session_state.traffic_page = 'teacher'
+                st.query_params["dept"] = "tra" # บันทึกทันที
+                st.rerun()
+
+            # คอลัมน์ที่ 3: War Room
+            if st.button("เปิดจอเฝ้าระวังเหตุ", key="btn_to_monitor"):
+                st.session_state.current_dept = "monitor_view"
+                st.query_params["dept"] = "monitor_view" # บันทึกทันที
+                st.rerun()
 # ==========================================
 # MODULE: MONITOR REAL-TIME (ฉบับสมบูรณ์ - กะพริบถี่ & รีเฟรช 30 วิ)
 # ==========================================
