@@ -969,88 +969,26 @@ def monitor_center_module():
     except Exception as e:
         st.error(f"⚠️ การเชื่อมต่อขัดข้อง หรือไม่พบข้อมูลปี {cur_year}")
 def main():
-    if 'timeout_msg' in st.session_state and st.session_state.timeout_msg:
-        st.error(st.session_state.timeout_msg)
-        del st.session_state.timeout_msg
-
+    # ... โค้ดส่วนบน ...
     if not st.session_state.logged_in:
-        # --- [1] หน้า Login (จะแสดงเมื่อยังไม่ได้เข้าระบบ) ---
-        _, col, _ = st.columns([1, 1.2, 1])
-        with col:
-            st.markdown("<br><br>", unsafe_allow_html=True)
-            with st.container(border=True):
-                if LOGO_PATH and os.path.exists(LOGO_PATH):
-                    st.image(LOGO_PATH, width=120)
-                st.markdown("<h3 style='text-align:center;'>ศูนย์ปฏิบัติการกลาง<br>สถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</h3>", unsafe_allow_html=True)
-                pwd_in = st.text_input("รหัสผ่านเจ้าหน้าที่", type="password")
-                if st.button("เข้าสู่ระบบ", use_container_width=True, type='primary'):
-                    accs = st.secrets.get("OFFICER_ACCOUNTS", {})
-                    if pwd_in in accs:
-                        st.session_state.logged_in = True
-                        st.session_state.user_info = accs[pwd_in]
-                        st.session_state.current_user_pwd = pwd_in
-                        # บันทึกสถานะลง URL ทันทีที่ล็อกอิน
-                        st.query_params["logged_in"] = "true"
-                        st.query_params["pwd"] = pwd_in
-                        st.rerun()
-                    else: st.error("❌ รหัสผิด")
+        # หน้า Login
     else:
-        # --- [2] ส่วนที่ล็อกอินแล้ว ---
-        
         if st.session_state.current_dept is None:
-            # ✅ ก) หน้าเลือกแผนก (จะแสดงเฉพาะตอน current_dept เป็น None)
-            st.markdown(f"""
-                <div style="text-align:center; padding:20px; border-bottom:2px solid #f0f2f6; margin-bottom:20px;">
-                    <h1 style="color:#1E3A8A; margin:0;">🏢 เลือกแผนกปฏิบัติงาน</h1>
-                    <p style="color:#64748b;">เจ้าหน้าที่: {st.session_state.user_info.get('name')}</p>
-                </div>
-            """, unsafe_allow_html=True)
-
-            # สร้างคอลัมน์เฉพาะในหน้านี้
-            c1, c2, c3 = st.columns(3) 
-
+            # ✅ ปุ่ม 3 ปุ่ม "ต้องอยู่ตรงนี้ที่เดียว"
+            c1, c2, c3 = st.columns(3)
             with c1:
-                with st.container(border=True):
-                    st.subheader("🕵️ งานสอบสวน")
-                    if st.button("เข้าใช้งานสอบสวน", use_container_width=True, type='primary', key="main_to_inv"):
-                        st.session_state.current_dept = "inv"
-                        st.session_state.view_mode = "list"
-                        st.query_params["dept"] = "inv" # บันทึกเพื่อกัน Refresh หลุด
-                        st.rerun()
-
+                if st.button("เข้าใช้งานสอบสวน", key="main_inv"): ...
             with c2:
-                with st.container(border=True):
-                    st.subheader("🚦 งานจราจร")
-                    if st.button("เข้าใช้งานจราจร", use_container_width=True, type='primary', key="main_to_tra"):
-                        st.session_state.current_dept = "tra"
-                        st.session_state.traffic_page = 'teacher'
-                        st.query_params["dept"] = "tra"
-                        st.rerun()
-
+                if st.button("เข้าใช้งานจราจร", key="main_tra"): ...
             with c3:
-                with st.container(border=True):
-                    st.subheader("🖥️ War Room")
-                    if st.button("เปิดจอเฝ้าระวังเหตุ", use_container_width=True, type='primary', key="main_to_monitor"):
-                        st.session_state.current_dept = "monitor_view"
-                        st.query_params["dept"] = "monitor_view"
-                        st.rerun()
-            
-            st.write("")
-            if st.button("🚪 ออกจากระบบ", use_container_width=True, key="main_logout_btn"):
-                st.query_params.clear()
-                st.session_state.clear()
-                st.rerun()
-        
+                if st.button("เปิดจอเฝ้าระวังเหตุ", key="main_mon"): ...
         else:
-            # ✅ ข) หน้า Module ต่างๆ (จะแสดงเมื่อเลือกแผนกแล้ว)
-            # เมื่อเข้ามาที่นี่ ปุ่ม c1, c2, c3 จะถูกซ่อนอัตโนมัติเพราะอยู่คนละเงื่อนไขกัน
-            if st.session_state.current_dept == "inv":
-                investigation_module()
-            elif st.session_state.current_dept == "tra":
-                traffic_module()
-            elif st.session_state.current_dept == "monitor_view":
-                monitor_center_module()
+            # ✅ ส่วนนี้คือตอนเข้าแผนกแล้ว (สถิติจะโชว์ตรงนี้)
+            # ปุ่ม 3 ปุ่มข้างบนจะไม่ตามเข้ามาในนี้เด็ดขาด
+            if st.session_state.current_dept == "inv": investigation_module()
+            elif st.session_state.current_dept == "tra": traffic_module()
+            elif st.session_state.current_dept == "monitor_view": monitor_center_module()
 
-# เรียกฟังก์ชันหลัก
-if __name__ == "__main__": 
+# บรรทัดสุดท้ายของไฟล์ต้องมีแค่นี้:
+if __name__ == "__main__":
     main()
