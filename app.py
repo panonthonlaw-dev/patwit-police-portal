@@ -830,18 +830,41 @@ def traffic_module():
 # 4. MAIN ENTRY (แก้ไขย่อหน้าให้ถูกต้อง)
 # ==========================================
 # ==========================================
-# MODULE: MONITOR REAL-TIME (ฉบับกะทัดรัด - Compact View)
+# MODULE: MONITOR REAL-TIME (ฉบับ Minimal & Pulse)
 # ==========================================
 def monitor_center_module():
-    if st.button("⬅️ ออกจากหน้าจอมอนิเตอร์", use_container_width=True):
+    if st.button("⬅️ กลับหน้าหลัก", use_container_width=True):
         st.session_state.current_dept = None
         st.rerun()
 
+    # ส่วนหัวแบบสะอาดตา (Light Mode)
     st.markdown("""
-        <div style="background-color:#0f172a; padding:15px; border-radius:12px; border-bottom:4px solid #3b82f6; text-align:center; margin-bottom:15px;">
-            <h2 style="color:#f8fafc; margin:0; letter-spacing: 1px; font-size: 24px;">🚨 LIVE MONITOR</h2>
-            <p style="color:#60a5fa; margin:2px 0 0 0; font-size: 14px; font-weight:bold;">สถานีตำรวจนักเรียนโพนทองพัฒนาวิทยา</p>
+        <div style="text-align:center; padding:10px; border-bottom:2px solid #f0f2f6; margin-bottom:20px;">
+            <h2 style="color:#1E3A8A; margin:0;">🚨 ศูนย์เฝ้าระวังเหตุการณ์สด</h2>
+            <p style="color:#64748b; margin:0; font-size:14px;">รายการแจ้งเหตุล่าสุดจากระบบสอบสวน</p>
         </div>
+        <style>
+            @keyframes pulse_red {
+                0% { background-color: #ffffff; }
+                50% { background-color: #fee2e2; border: 2px solid #ef4444; }
+                100% { background-color: #ffffff; }
+            }
+            .incident-card {
+                padding: 12px;
+                border-radius: 10px;
+                border: 1px solid #e2e8f0;
+                margin-bottom: 8px;
+                transition: all 0.2s;
+            }
+            .pulse-active {
+                animation: pulse_red 2s infinite;
+                border-left: 8px solid #ef4444 !important;
+            }
+            .normal-active {
+                border-left: 8px solid #10b981 !important;
+                background-color: #f8fafc;
+            }
+        </style>
     """, unsafe_allow_html=True)
 
     conn = st.connection("gsheets", type=GSheetsConnection)
@@ -849,39 +872,39 @@ def monitor_center_module():
     cur_year = (now_th.year + 543) if now_th.month >= 5 else (now_th.year + 542)
     
     try:
+        # ดึงข้อมูล 15 รายการล่าสุด
         df = conn.read(worksheet=f"Investigation_{cur_year}", ttl=5).fillna("")
         df = df.iloc[::-1]
 
-        # ลดขนาด Metric ลง
-        m1, m2, m3 = st.columns(3)
-        m1.metric("เหตุทั้งหมด", len(df))
-        m2.metric("🚨 รอดำเนินการ", len(df[df['Status'] == 'รอดำเนินการ']))
-        m3.metric("✅ เสร็จสิ้น", len(df[df['Status'] == 'ดำเนินการเรียบร้อย']))
-
-        st.markdown("### 🔴 Incident Feed")
-        
-        # ปรับการ์ดให้เล็กลง (Compact Card)
-        for _, row in df.head(15).iterrows():
-            status_color = "#ef4444" if row['Status'] == 'รอดำเนินการ' else "#10b981"
-            st.markdown(f"""
-                <div style="background-color:#1e293b; border-radius:8px; padding:8px 12px; margin-bottom:6px; border-left:5px solid {status_color};">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span style="font-size:16px; color:#f8fafc; font-weight:bold;">📍 {row['Location']}</span>
-                        <span style="font-size:11px; color:#94a3b8;">{row['Timestamp']}</span>
+        if df.empty:
+            st.info("💡 ยังไม่มีรายการแจ้งเหตุในขณะนี้")
+        else:
+            for _, row in df.head(15).iterrows():
+                # แยกสถานะ: หาก 'รอดำเนินการ' ให้ใช้ Class กะพริบ (Pulse)
+                is_urgent = row['Status'] == 'รอดำเนินการ'
+                status_class = "pulse-active" if is_urgent else "normal-active"
+                
+                st.markdown(f"""
+                    <div class="incident-card {status_class}">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-size:18px; font-weight:bold; color:#1e293b;">📍 {row['Location']}</span>
+                            <span style="font-size:12px; color:#94a3b8;">{row['Timestamp']}</span>
+                        </div>
+                        <div style="margin-top:4px; font-size:14px;">
+                            <b style="color:#ef4444;">{row['Incident_Type']}</b> 
+                            <span style="color:#64748b; margin-left:10px;">👤 {row['Reporter']}</span>
+                        </div>
+                        <div style="margin-top:2px; font-size:13px; color:#475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                            {row['Details']}
+                        </div>
                     </div>
-                    <div style="display:flex; gap:10px; font-size:13px; margin-top:2px;">
-                        <span style="color:#ef4444; font-weight:bold;">⚠️ {row['Incident_Type']}</span>
-                        <span style="color:#cbd5e1;">👤 {row['Reporter']}</span>
-                    </div>
-                    <div style="color:#94a3b8; font-size:12px; margin-top:2px; border-top:0.5px solid #334155; padding-top:2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                        {row['Details']}
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
             
-        st.button("🔄 อัปเดตข้อมูล")
+            # ปุ่มอัปเดตแบบเรียบง่าย
+            st.button("🔄 ตรวจสอบเหตุการณ์ใหม่")
+            
     except:
-        st.error("ไม่พบข้อมูลปีการศึกษาปัจจุบัน")
+        st.error("⚠️ ไม่พบข้อมูลปีการศึกษาปัจจุบัน")
 def main():
     if 'timeout_msg' in st.session_state and st.session_state.timeout_msg:
         st.error(st.session_state.timeout_msg)
