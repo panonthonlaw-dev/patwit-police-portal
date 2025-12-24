@@ -741,34 +741,62 @@ def traffic_module():
             st.markdown("<h2 style='text-align:center; color:#1E3A8A; margin-bottom:20px;'>📋 รายงานสรุปผลการดำเนินงานด้านวินัยจราจร</h2>", unsafe_allow_html=True)
 
             # --- หมวดหมู่ที่ 1: กรอบภาพรวม (ดีไซน์ทางการ) ---
-            avg_all = df['Score'].mean()
-            at_risk = len(df[df['Score'] < 60])
+# 1. คำนวณค่าสถิติพื้นฐาน
+total_all = len(df)
+avg_all = df['Score'].mean()
+at_risk = len(df[df['Score'] < 60])
 
-            # สร้างกรอบทางการด้วย HTML/CSS
-            st.markdown(f"""
-            <div style="border: 2px solid #1E3A8A; border-radius: 15px; padding: 25px; background-color: #f8fafc; margin-bottom: 25px;">
-                <h4 style="color: #1E3A8A; margin-top: 0; border-bottom: 1px solid #cbd5e1; padding-bottom: 10px;">📌 บทสรุปผู้บริหาร (Executive Summary)</h4>
-                <div style="display: flex; justify-content: space-around; align-items: center; flex-wrap: wrap; gap: 20px; padding-top: 15px;">
-                    <div style="text-align: center;">
-                        <div style="font-size: 14px; color: #64748b; font-weight: bold;">จำนวนพาหนะลงทะเบียน</div>
-                        <div style="font-size: 32px; font-weight: 800; color: #1e293b;">{total_all} <span style="font-size: 16px; font-weight: normal;">คัน</span></div>
-                    </div>
-                    <div style="border-left: 1px solid #cbd5e1; height: 50px;" class="hide-mobile"></div>
-                    <div style="text-align: center;">
-                        <div style="font-size: 14px; color: #64748b; font-weight: bold;">คะแนนวินัยเฉลี่ยภาพรวม</div>
-                        <div style="font-size: 32px; font-weight: 800; color: #16a34a;">{avg_all:.2f} <span style="font-size: 16px; font-weight: normal;">แต้ม</span></div>
-                    </div>
-                    <div style="border-left: 1px solid #cbd5e1; height: 50px;" class="hide-mobile"></div>
-                    <div style="text-align: center;">
-                        <div style="font-size: 14px; color: #64748b; font-weight: bold;">กลุ่มเฝ้าระวังพิเศษ (แต้ม < 60)</div>
-                        <div style="font-size: 32px; font-weight: 800; color: #ef4444;">{at_risk} <span style="font-size: 16px; font-weight: normal;">คน</span></div>
-                    </div>
-                </div>
-            </div>
-            <style>
-                @media (max-width: 600px) {{ .hide-mobile {{ display: none; }} }}
-            </style>
-            """, unsafe_allow_html=True)
+# 2. คำนวณสถิติเพิ่มเติม (ใบขับขี่, ภาษี, หมวก)
+lic_total = (df['C7'].str.contains("มี", na=False)).sum()
+tax_total = (df['C8'].str.contains("ปกติ|✅", na=False)).sum()
+hel_total = (df['C9'].str.contains("มี", na=False)).sum()
+
+# คำนวณร้อยละ
+lic_p = (lic_total / total_all * 100) if total_all > 0 else 0
+tax_p = (tax_total / total_all * 100) if total_all > 0 else 0
+hel_p = (hel_total / total_all * 100) if total_all > 0 else 0
+
+# 3. สร้างกรอบทางการด้วย HTML/CSS
+st.markdown(f"""
+<div style="border: 2px solid #1E3A8A; border-radius: 15px; padding: 20px; background-color: #f8fafc; margin-bottom: 25px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+    <h4 style="color: #1E3A8A; margin-top: 0; border-bottom: 2px solid #1E3A8A; padding-bottom: 10px; text-align: center; font-weight: bold;">📊 บทสรุปผู้บริหาร (Executive Summary)</h4>
+    
+    <div style="display: flex; justify-content: space-around; align-items: center; flex-wrap: wrap; gap: 15px; padding: 15px 0;">
+        <div style="text-align: center; min-width: 120px;">
+            <div style="font-size: 13px; color: #64748b; font-weight: bold;">พาหนะลงทะเบียน</div>
+            <div style="font-size: 28px; font-weight: 800; color: #1e293b;">{total_all} <span style="font-size: 14px; font-weight: normal;">คัน</span></div>
+        </div>
+        <div style="text-align: center; min-width: 120px;">
+            <div style="font-size: 13px; color: #64748b; font-weight: bold;">คะแนนวินัยเฉลี่ย</div>
+            <div style="font-size: 28px; font-weight: 800; color: #16a34a;">{avg_all:.1f} <span style="font-size: 14px; font-weight: normal;">แต้ม</span></div>
+        </div>
+        <div style="text-align: center; min-width: 120px;">
+            <div style="font-size: 13px; color: #64748b; font-weight: bold;">กลุ่มเฝ้าระวัง (<60)</div>
+            <div style="font-size: 28px; font-weight: 800; color: #ef4444;">{at_risk} <span style="font-size: 14px; font-weight: normal;">คน</span></div>
+        </div>
+    </div>
+
+    <div style="border-top: 1px dashed #cbd5e1; margin: 5px 0;"></div>
+
+    <div style="display: flex; justify-content: space-around; align-items: center; flex-wrap: wrap; gap: 15px; padding-top: 15px;">
+        <div style="text-align: center; min-width: 120px;">
+            <div style="font-size: 12px; color: #1e40af; font-weight: bold;">🪪 มีใบขับขี่</div>
+            <div style="font-size: 22px; font-weight: 800; color: #1e3a8a;">{lic_total} <span style="font-size: 13px; font-weight: normal;">คน</span></div>
+            <div style="font-size: 11px; color: #3b82f6;">({lic_p:.1f}%)</div>
+        </div>
+        <div style="text-align: center; min-width: 120px;">
+            <div style="font-size: 12px; color: #166534; font-weight: bold;">📝 ภาษี/พรบ. ปกติ</div>
+            <div style="font-size: 22px; font-weight: 800; color: #14532d;">{tax_total} <span style="font-size: 13px; font-weight: normal;">คัน</span></div>
+            <div style="font-size: 11px; color: #22c55e;">({tax_p:.1f}%)</div>
+        </div>
+        <div style="text-align: center; min-width: 120px;">
+            <div style="font-size: 12px; color: #92400e; font-weight: bold;">🪖 สวมหมวกนิรภัย</div>
+            <div style="font-size: 22px; font-weight: 800; color: #78350f;">{hel_total} <span style="font-size: 13px; font-weight: normal;">คน</span></div>
+            <div style="font-size: 11px; color: #f59e0b;">({hel_p:.1f}%)</div>
+        </div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
             # --- หมวดหมู่ที่ 2: สถิติละเอียดแยกตามระดับชั้น (ตารางครบทุกข้อมูล) ---
             st.markdown("#### 📚 ข้อมูลวิเคราะห์เชิงลึกรายระดับชั้น / กลุ่มบุคลากร")
