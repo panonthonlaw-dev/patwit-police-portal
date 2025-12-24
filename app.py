@@ -148,6 +148,23 @@ def calculate_pagination(key, total_items, limit=5):
 # ==========================================
 # 2. MODULE: INVESTIGATION
 # ==========================================
+# ... (ส่วนต้นของ investigation_module) ...
+    
+    # 1. สร้างตัวเลือกปีการศึกษา (วางไว้บนสุดของหน้าสอบสวน)
+    c_year, c_dummy = st.columns([2, 8])
+    selected_year = c_year.selectbox("📅 ปีการศึกษา", ["2568", "2569"], index=0)
+    
+    # 2. ผูกชื่อชีตกับปีที่เลือก
+    # ตั้งชื่อใน Google Sheets ให้ตรง เช่น "Investigation_2568"
+    sheet_name_to_load = f"Investigation_{selected_year}" 
+    
+    # 3. ดึงข้อมูลจากชีตนั้น
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    try:
+        # ใช้ worksheet=... เพื่อระบุชื่อชีตเจาะจง
+        df_raw = conn.read(worksheet=sheet_name_to_load, ttl=10) 
+        
+        # ... (หลังจากนี้ใช้ code เดิมได้เลย) ...
 def create_pdf_inv(row):
     rid = str(row.get('Report_ID', '')); date_str = str(row.get('Timestamp', ''))
     audit_log = str(row.get('Audit_Log', '')); latest_date = "-"
