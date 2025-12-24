@@ -215,13 +215,48 @@ def investigation_module():
             
     st.markdown("---")
 
+    st.markdown("---")
+
+    # --- [ส่วนที่เพิ่ม: คำนวณปีการศึกษาอัตโนมัติ (เริ่มนับใหม่เดือน พ.ค.)] ---
+    now_th = get_now_th()
+    current_buddhist_year = now_th.year + 543
+    
+    # Logic: ถ้าเดือนปัจจุบัน >= 5 (พฤษภาคม) -> ใช้ปีปัจจุบัน
+    #        ถ้าเดือนปัจจุบัน < 5 (มกราคม-เมษายน) -> ใช้ปีก่อนหน้า (ถือเป็นปีการศึกษาที่แล้ว)
+    if now_th.month >= 5:
+        default_ac_year = str(current_buddhist_year)
+    else:
+        default_ac_year = str(current_buddhist_year - 1)
+
+    # สร้างตัวเลือกปี: ปีปัจจุบัน + ย้อนหลัง 2 ปี 
+    # (เช่น ถ้าปีนี้ 2568 ตัวเลือกจะเป็น ['2568', '2567', '2566'])
+    year_options = [str(int(default_ac_year) - i) for i in range(3)]
+
+    c_year_filter, _ = st.columns([2, 8])
+    with c_year_filter:
+        sel_year = st.selectbox("📅 เลือกปีการศึกษา", year_options, index=0, key="inv_year_sel")
+    
+    # สร้างชื่อชีตเป้าหมาย: เช่น "Investigation_2568"
+    # *สำคัญ: ต้องไปเปลี่ยนชื่อ Tab ใน Google Sheets ให้ตรงตามนี้ด้วย*
+    target_sheet = f"Investigation_{sel_year}"
+    # ---------------------------------------------------------------------
+
     conn = st.connection("gsheets", type=GSheetsConnection)
     try:
-        df_raw = conn.read(ttl="10")
+        # อ่านข้อมูลจากชีตตามปีที่เลือก (ใช้ ttl=10 เพื่อความลื่นไหล)
+        df_raw = conn.read(worksheet=target_sheet, ttl=10)
+        
+        # --- [Logic เดิม: การจัดการข้อมูล] ---
         df_display = df_raw.copy().fillna("")
-        for c in ['Report_ID', 'Timestamp', 'Reporter', 'Incident_Type', 'Location', 'Details', 'Status', 'Image_Data', 'Audit_Log', 'Victim', 'Accused', 'Witness', 'Teacher_Investigator', 'Student_Police_Investigator', 'Statement', 'Evidence_Image']:
+        
+        # ตรวจสอบและสร้างคอลัมน์ที่ขาดหายไป (ป้องกัน Error กรณีขึ้นปีใหม่แล้วหัวตารางไม่ครบ)
+        required_cols = ['Report_ID', 'Timestamp', 'Reporter', 'Incident_Type', 'Location', 'Details', 'Status', 'Image_Data', 'Audit_Log', 'Victim', 'Accused', 'Witness', 'Teacher_Investigator', 'Student_Police_Investigator', 'Statement', 'Evidence_Image']
+        for c in required_cols:
             if c not in df_display.columns: df_display[c] = ""
+            
         df_display['Report_ID'] = df_display['Report_ID'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
+
+        # ... (หลังจากนี้เป็นโค้ด if st.session_state.view_mode == "list": ของเดิม ปล่อยไว้เหมือนเดิม) ...
 
         if st.session_state.view_mode == "list":
             tab_list, tab_dash = st.tabs(["📋 รายการแจ้งเหตุ", "📊 แดชบอร์ดสถิติ"])
