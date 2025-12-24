@@ -727,22 +727,65 @@ def traffic_module():
                 load_tra_data(); st.success("เสร็จสิ้น"); st.session_state.traffic_page = 'teacher'; st.rerun()
         if st.button("ยกเลิก", use_container_width=True): st.session_state.traffic_page = 'teacher'; st.rerun()
 
-    elif st.session_state['page'] == 'dashboard':
-    if st.button("⬅️ กลับหน้าจัดการ", use_container_width=True): go_to_page('teacher')
-    st.subheader("📊 สถิติจราจร")
-    if 'df' in st.session_state:
-        df = st.session_state.df.copy()
-        df.columns = [f"Col_{i}_{name}" for i, name in enumerate(df.columns)]
-        score_col = df.columns[13]; class_col = df.columns[3]
-        df[score_col] = pd.to_numeric(df[score_col], errors='coerce').fillna(100)
-        df['LV'] = df[class_col].apply(lambda x: str(x).split('/')[0])
-        c1, c2, c3 = st.columns(3)
-        with c1: st.plotly_chart(px.pie(df, names=df.columns[7], title="ใบขับขี่", hole=0.3), use_container_width=True)
-        with c2: st.plotly_chart(px.pie(df, names=df.columns[8], title="ภาษี/พรบ", hole=0.3), use_container_width=True)
-        with c3: st.plotly_chart(px.pie(df, names=df.columns[9], title="หมวก", hole=0.3), use_container_width=True)
-        c4, c5 = st.columns(2)
-        with c4: st.plotly_chart(px.bar(df[['LV', score_col]].groupby('LV').mean().reset_index(), x='LV', y=score_col, title="คะแนนเฉลี่ย"), use_container_width=True)
-        with c5: st.plotly_chart(px.bar(df.groupby('LV').size().reset_index(name='จำนวน'), x='LV', y='จำนวน', title="จำนวนรถ"), use_container_width=True)
+    elif st.session_state.traffic_page == 'dash':
+        if st.button("⬅️ กลับหน้าจัดการจราจร", use_container_width=True): 
+            st.session_state.traffic_page = 'teacher'; st.rerun()
+            
+        if st.session_state.df_tra is not None:
+            df = st.session_state.df_tra.copy()
+            # เตรียมข้อมูลพื้นฐาน
+            df['Score'] = pd.to_numeric(df['C13'], errors='coerce').fillna(100)
+            df['LV'] = df['C3'].apply(lambda x: str(x).split('/')[0] if pd.notna(x) and '/' in str(x) else str(x))
+            total = len(df)
+
+            st.markdown("<h2 style='text-align:center; color:#1E3A8A;'>📋 รายงานสรุปข้อมูลจราจร</h2>", unsafe_allow_html=True)
+
+            # --- หมวดหมู่ที่ 1: ดัชนีชี้วัดภาพรวม (Metrics) ---
+            st.markdown("#### 📌 1. ภาพรวมการลงทะเบียน")
+            m1, m2, m3 = st.columns(3)
+            m1.metric("จำนวนรถทั้งหมด", f"{total} คัน")
+            m2.metric("คะแนนวินัยเฉลี่ย", f"{df['Score'].mean():.2f} แต้ม")
+            m3.metric("กลุ่มแต้มต่ำกว่า 60", f"{len(df[df['Score'] < 60])} คน")
+
+            st.write("")
+            
+            # --- หมวดหมู่ที่ 2: ความพร้อมด้านกฎหมายและความปลอดภัย (คำนวณเป็นร้อยละ) ---
+            st.markdown("#### 🛡️ 2. ความพร้อมทางกฎหมายและอุปกรณ์")
+            
+            def get_stat(col_idx, target_keyword):
+                count = len(df[df[col_idx].str.contains(target_keyword, na=False)])
+                percent = (count / total * 100) if total > 0 else 0
+                return count, percent
+
+            lic_c, lic_p = get_stat('C7', "มี")
+            tax_c, tax_p = get_stat('C8', "ปกติ|✅")
+            hel_c, hel_p = get_stat('C9', "มี")
+
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                st.info(f"**🪪 ใบขับขี่**\n\n- มี: {lic_c} คน ({lic_p:.1f}%)\n- ไม่มี: {total-lic_c} คน")
+            with c2:
+                st.success(f"**📝 ภาษี/พรบ.**\n\n- ปกติ: {tax_c} คัน ({tax_p:.1f}%)\n- ขาด: {total-tax_c} คัน")
+            with c3:
+                st.warning(f"**🪖 หมวกกันน็อค**\n\n- มี/สวม: {hel_c} คน ({hel_p:.1f}%)\n- ไม่สวม: {total-hel_c} คน")
+
+            st.write("")
+
+            # --- หมวดหมู่ที่ 3: สถิติแยกตามระดับชั้น (แสดงเป็นตารางข้อความแทนกราฟ) ---
+            st.markdown("#### 📚 3. ข้อมูลแยกตามระดับชั้น / กลุ่มบุคลากร")
+            
+            # สร้างตารางสรุป
+            summary_df = df.groupby('LV').agg(
+                จำนวนรถ=('LV', 'size'),
+                คะแนนเฉลี่ย=('Score', 'mean')
+            ).reset_index()
+            summary_df = summary_df.sort_values('จำนวนรถ', ascending=False)
+            summary_df['คะแนนเฉลี่ย'] = summary_df['คะแนนเฉลี่ย'].map('{:,.2f}'.format)
+            
+            # แสดงผลเป็นตารางที่อ่านง่าย (ตารางจะไม่เบี้ยวเหมือนกราฟ)
+            st.table(summary_df)
+
+            st.caption(f"อัปเดตล่าสุดเมื่อ: {get_now_th().strftime('%d/%m/%Y %H:%M')}")
 # ==========================================
 # 4. MAIN ENTRY (แก้ไขย่อหน้าให้ถูกต้อง)
 # ==========================================
