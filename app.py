@@ -863,12 +863,12 @@ def traffic_module():
 # MODULE: MONITOR REAL-TIME (WAR ROOM)
 # ==========================================
 def monitor_center_module():
-    # 1. State Variables (ตัวแปรสำหรับระบบ)
+    # 1. State Variables
     if "last_seen_id" not in st.session_state: st.session_state.last_seen_id = 0
     if "latest_arrival_time" not in st.session_state: st.session_state.latest_arrival_time = None
     if "monitor_loop_index" not in st.session_state: st.session_state.monitor_loop_index = 0
 
-    # 2. CSS Styles (ตกแต่งความสวยงาม)
+    # 2. CSS Styles
     st.markdown("""
         <style>
             @keyframes pulse_border {
@@ -900,6 +900,14 @@ def monitor_center_module():
                 padding: 8px; border-radius: 6px; text-align: center; 
                 font-weight: bold; margin-bottom: 15px; font-size: 1.1em;
                 border: 1px solid rgba(0,0,0,0.05);
+            }
+            /* เพิ่มสไตล์สำหรับเลขเคส */
+            .case-id-badge {
+                font-family: monospace;
+                background: rgba(0,0,0,0.05);
+                padding: 2px 6px;
+                border-radius: 4px;
+                font-weight: bold;
             }
         </style>
         <div style="text-align:center; padding:10px; border-bottom:2px solid #f1f5f9; margin-bottom:20px;">
@@ -959,9 +967,13 @@ def monitor_center_module():
                 show_new, is_scroll_new = get_chunk(df_new)
                 if df_new.empty: st.info("✅ ไม่มีรายการค้าง")
                 for _, row in show_new.iterrows():
+                    # ✅ เพิ่ม Report_ID ตรงนี้
                     st.markdown(f"""<div class="incident-card card-new">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                            <span class="case-id-badge" style="color:#b91c1c;">📝 {row['Report_ID']}</span>
+                            <span style="font-size:0.8em; color:#7f1d1d;">🕒 {row['Timestamp']}</span>
+                        </div>
                         <div style="font-weight:bold; color:#b91c1c; font-size:1.1em;">📍 {row['Location']}</div>
-                        <div style="font-size:0.85em; color:#7f1d1d; margin-bottom:5px;">🕒 {row['Timestamp']}</div>
                         <div style="font-weight:bold; color:#1e293b;">{row['Incident_Type']}</div>
                         <div style="font-size:0.9em; color:#475569; margin-top:5px; border-top:1px dashed #fecaca; padding-top:5px;">{row['Details']}</div>
                     </div>""", unsafe_allow_html=True)
@@ -973,9 +985,13 @@ def monitor_center_module():
                 show_prog, is_scroll_prog = get_chunk(df_prog)
                 if df_prog.empty: st.caption("ว่าง")
                 for _, row in show_prog.iterrows():
+                    # ✅ เพิ่ม Report_ID ตรงนี้
                     st.markdown(f"""<div class="incident-card card-progress">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                            <span class="case-id-badge" style="color:#1e40af;">📝 {row['Report_ID']}</span>
+                            <span style="font-size:0.8em; color:#1e40af;">🕒 {row['Timestamp']}</span>
+                        </div>
                         <div style="font-weight:bold; color:#1e3a8a;">📍 {row['Location']}</div>
-                        <div style="font-size:0.85em; color:#1e40af; margin-bottom:5px;">🕒 {row['Timestamp']}</div>
                         <div style="color:#1e293b;">{row['Incident_Type']}</div>
                         <div style="font-size:0.85em; color:#475569; margin-top:5px;">ผู้รับผิดชอบ: <b>{row['Teacher_Investigator']}</b></div>
                     </div>""", unsafe_allow_html=True)
@@ -987,9 +1003,13 @@ def monitor_center_module():
                 show_done, is_scroll_done = get_chunk(df_done)
                 if df_done.empty: st.caption("ว่าง")
                 for _, row in show_done.iterrows():
+                    # ✅ เพิ่ม Report_ID ตรงนี้
                     st.markdown(f"""<div class="incident-card card-done">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                            <span class="case-id-badge" style="color:#14532d;">✅ {row['Report_ID']}</span>
+                            <span style="font-size:0.8em; color:#166534;">🕒 {row['Timestamp']}</span>
+                        </div>
                         <div style="font-weight:bold; color:#14532d;">📍 {row['Location']}</div>
-                        <div style="font-size:0.85em; color:#166534; margin-bottom:5px;">🕒 {row['Timestamp']}</div>
                         <div style="color:#14532d;">{row['Incident_Type']}</div>
                         <div style="font-size:0.85em; color:#15803d; margin-top:5px;">ผู้สรุป: {row['Teacher_Investigator']}</div>
                     </div>""", unsafe_allow_html=True)
