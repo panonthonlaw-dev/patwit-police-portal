@@ -733,90 +733,63 @@ def traffic_module():
             
         if st.session_state.df_tra is not None:
             df = st.session_state.df_tra.copy()
-            # เตรียมข้อมูล
+            # 1. เตรียมข้อมูลพื้นฐาน (คำนวณใหม่ทุกครั้งที่เปิดหน้าเพื่อความแม่นยำ)
             df['Score'] = pd.to_numeric(df['C13'], errors='coerce').fillna(100)
             df['LV'] = df['C3'].apply(lambda x: str(x).split('/')[0] if pd.notna(x) and '/' in str(x) else str(x))
+            total = len(df)
+
+            st.markdown("<h2 style='text-align:center; color:#1E3A8A;'>📋 รายงานสรุปข้อมูลจราจร</h2>", unsafe_allow_html=True)
+
+            # --- หมวดหมู่ที่ 1: ดัชนีชี้วัดภาพรวม ---
+            st.subheader("📌 1. ภาพรวมการลงทะเบียน")
+            m1, m2, m3 = st.columns(3)
+            m1.metric("จำนวนรถทั้งหมด", f"{total} คัน")
+            m2.metric("คะแนนวินัยเฉลี่ย", f"{df['Score'].mean():.2f}")
+            m3.metric("กลุ่มเสี่ยง (แต้ม < 60)", f"{len(df[df['Score'] < 60])} คน")
+
+            st.divider()
             
-            # คำนวณค่าสถิติ
-            total_all = len(df)
-            avg_all = df['Score'].mean()
-            at_risk = len(df[df['Score'] < 60])
-            lic_total = (df['C7'].str.contains("มี", na=False)).sum()
-            tax_total = (df['C8'].str.contains("ปกติ|✅", na=False)).sum()
-            hel_total = (df['C9'].str.contains("มี", na=False)).sum()
-
-            st.markdown("<h2 style='text-align:center; color:#1E3A8A;'>📋 รายงานสรุปผลงานวินัยจราจร</h2>", unsafe_allow_html=True)
-
-            # --- [จุดแก้ไขสำคัญ] ส่วนบทสรุปผู้บริหาร แบบ Render HTML ---
-            summary_html = f"""
-            <div style="border: 2px solid #1E3A8A; border-radius: 15px; padding: 20px; background-color: #f8fafc; margin-bottom: 25px;">
-                <h4 style="color: #1E3A8A; margin-top: 0; border-bottom: 2px solid #1E3A8A; padding-bottom: 10px; text-align: center; font-weight: bold;">📊 บทสรุปผู้บริหาร (Executive Summary)</h4>
-                
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; padding-top: 15px; text-align: center;">
-                    <div style="background: white; padding: 10px; border-radius: 10px; border: 1px solid #e2e8f0;">
-                        <div style="font-size: 12px; color: #64748b; font-weight: bold;">พาหนะลงทะเบียน</div>
-                        <div style="font-size: 26px; font-weight: 800; color: #1e293b;">{total_all} <span style="font-size: 14px; font-weight: normal;">คัน</span></div>
-                    </div>
-                    <div style="background: white; padding: 10px; border-radius: 10px; border: 1px solid #e2e8f0;">
-                        <div style="font-size: 12px; color: #64748b; font-weight: bold;">คะแนนวินัยเฉลี่ย</div>
-                        <div style="font-size: 26px; font-weight: 800; color: #16a34a;">{avg_all:.1f} <span style="font-size: 14px; font-weight: normal;">แต้ม</span></div>
-                    </div>
-                    <div style="background: white; padding: 10px; border-radius: 10px; border: 1px solid #e2e8f0;">
-                        <div style="font-size: 12px; color: #64748b; font-weight: bold;">กลุ่มเฝ้าระวัง (<60)</div>
-                        <div style="font-size: 26px; font-weight: 800; color: #ef4444;">{at_risk} <span style="font-size: 14px; font-weight: normal;">คน</span></div>
-                    </div>
-                </div>
-
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; padding-top: 15px; text-align: center;">
-                    <div style="background: #eff6ff; padding: 10px; border-radius: 10px; border: 1px solid #bfdbfe;">
-                        <div style="font-size: 12px; color: #1e40af; font-weight: bold;">🪪 มีใบขับขี่</div>
-                        <div style="font-size: 22px; font-weight: 800; color: #1e3a8a;">{lic_total} <span style="font-size: 13px;">คน</span></div>
-                        <div style="font-size: 11px; color: #3b82f6;">({(lic_total/total_all*100 if total_all > 0 else 0):.1f}%)</div>
-                    </div>
-                    <div style="background: #f0fdf4; padding: 10px; border-radius: 10px; border: 1px solid #bbf7d0;">
-                        <div style="font-size: 12px; color: #166534; font-weight: bold;">📝 ภาษี/พรบ. ปกติ</div>
-                        <div style="font-size: 22px; font-weight: 800; color: #14532d;">{tax_total} <span style="font-size: 13px;">คัน</span></div>
-                        <div style="font-size: 11px; color: #22c55e;">({(tax_total/total_all*100 if total_all > 0 else 0):.1f}%)</div>
-                    </div>
-                    <div style="background: #fffbeb; padding: 10px; border-radius: 10px; border: 1px solid #fef3c7;">
-                        <div style="font-size: 12px; color: #92400e; font-weight: bold;">🪖 สวมหมวกนิรภัย</div>
-                        <div style="font-size: 22px; font-weight: 800; color: #78350f;">{hel_total} <span style="font-size: 13px;">คน</span></div>
-                        <div style="font-size: 11px; color: #f59e0b;">({(hel_total/total_all*100 if total_all > 0 else 0):.1f}%)</div>
-                    </div>
-                </div>
-            </div>
-            """
-            # บรรทัดนี้สำคัญที่สุด ห้ามลืม unsafe_allow_html=True
-            st.markdown(summary_html, unsafe_allow_html=True)
-
-            # --- หมวดหมู่ที่ 2: ตารางข้อมูลรายชั้น ---
-            st.markdown("#### 📚 วิเคราะห์ข้อมูลรายระดับชั้น / กลุ่มบุคลากร")
+            # --- หมวดหมู่ที่ 2: ความพร้อมด้านกฎหมายและความปลอดภัย ---
+            st.subheader("🛡️ 2. ความพร้อมทางกฎหมายและอุปกรณ์")
             
-            def calc_detailed(group):
-                n = len(group)
-                lic = (group['C7'].str.contains("มี", na=False)).sum()
-                tax = (group['C8'].str.contains("ปกติ|✅", na=False)).sum()
-                hel = (group['C9'].str.contains("มี", na=False)).sum()
-                return pd.Series({
-                    'จำนวนรถ': n,
-                    'คะแนนเฉลี่ย': group['Score'].mean(),
-                    'ใบขับขี่ (%)': (lic/n*100) if n>0 else 0,
-                    'ภาษีปกติ (%)': (tax/n*100) if n>0 else 0,
-                    'สวมหมวก (%)': (hel/n*100) if n>0 else 0
-                })
+            # ฟังก์ชันคำนวณสถิติแบบปลอดภัย
+            def get_counts(col_idx, keyword):
+                ok = len(df[df[col_idx].str.contains(keyword, na=False)])
+                fail = total - ok
+                pct = (ok / total * 100) if total > 0 else 0
+                return ok, fail, pct
 
-            summary_table = df.groupby('LV').apply(calc_detailed).reset_index()
-            summary_table = summary_table.rename(columns={'LV': 'ระดับชั้น/กลุ่ม'}).sort_values('จำนวนรถ', ascending=False)
+            lic_ok, lic_no, lic_p = get_counts('C7', "มี")
+            tax_ok, tax_no, tax_p = get_counts('C8', "ปกติ|✅")
+            hel_ok, hel_no, hel_p = get_counts('C9', "มี")
 
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                st.info(f"**🪪 ใบขับขี่**\n\n- มี: {lic_ok} ({lic_p:.1f}%)\n- ไม่มี: {lic_no}")
+            with c2:
+                st.success(f"**📝 ภาษี/พรบ.**\n\n- ปกติ: {tax_ok} ({tax_p:.1f}%)\n- ขาด: {tax_no}")
+            with c3:
+                st.warning(f"**🪖 หมวกกันน็อค**\n\n- สวม: {hel_ok} ({hel_p:.1f}%)\n- ไม่สวม: {hel_no}")
+
+            st.divider()
+
+            # --- หมวดหมู่ที่ 3: สถิติแยกตามระดับชั้น (แก้ KeyError) ---
+            st.subheader("📚 3. ข้อมูลแยกตามระดับชั้น / กลุ่มบุคลากร")
+            
+            # คำนวณแบบแยกขั้นตอนเพื่อความชัวร์ (แก้ปัญหา KeyError)
+            summary = df.groupby('LV')['Score'].agg(['count', 'mean']).reset_index()
+            # ตั้งชื่อคอลัมน์ใหม่ให้ชัดเจนหลังคำนวณเสร็จ
+            summary.columns = ['ระดับชั้น', 'จำนวนรถ (คัน)', 'คะแนนเฉลี่ย']
+            
+            # เรียงลำดับจากรถมากไปน้อย
+            summary = summary.sort_values('จำนวนรถ (คัน)', ascending=False)
+            
             # จัดรูปแบบตัวเลขให้สวยงาม
-            format_rules = {
-                'คะแนนเฉลี่ย': '{:.2f}', 'ใบขับขี่ (%)': '{:.1f}%', 'ภาษีปกติ (%)': '{:.1f}%', 'สวมหมวก (%)': '{:.1f}%', 'จำนวนรถ': '{:,.0f}'
-            }
-            for col, fmt in format_rules.items():
-                summary_table[col] = summary_table[col].apply(lambda x: fmt.format(x))
+            summary['คะแนนเฉลี่ย'] = summary['คะแนนเฉลี่ย'].map('{:,.2f}'.format)
+            
+            # แสดงผลเป็นตาราง (Table) ซึ่งรองรับทุกหน้าจอ ไม่เบี้ยวแน่นอน
+            st.table(summary)
 
-            # ใช้ st.dataframe เพื่อให้อ่านง่ายและไม่เบี้ยว
-            st.dataframe(summary_table, use_container_width=True, hide_index=True)
             st.caption(f"อัปเดตล่าสุด: {get_now_th().strftime('%d/%m/%Y %H:%M')}")
 # ==========================================
 # 4. MAIN ENTRY (แก้ไขย่อหน้าให้ถูกต้อง)
