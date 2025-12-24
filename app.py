@@ -865,15 +865,15 @@ def monitor_center_module():
     if "last_seen_id" not in st.session_state: st.session_state.last_seen_id = 0
     if "latest_arrival_time" not in st.session_state: st.session_state.latest_arrival_time = None
 
-    # 2. CSS Styles (ปรับขนาดให้กะทัดรัดและเลื่อนสมูท)
+    # 2. CSS Styles
     st.markdown("""
         <style>
             /* ซ่อน Scrollbar */
             ::-webkit-scrollbar { width: 0px; background: transparent; }
             
-            /* พื้นที่แสดงผล (หน้าต่าง) */
+            /* หน้าต่างแสดงผล (Scroll Window) */
             .scroll-window {
-                height: 65vh; /* ปรับความสูงให้พอดีสายตา (ไม่ใหญ่เกินไป) */
+                height: 65vh; 
                 overflow: hidden;
                 position: relative;
                 background: #f8fafc;
@@ -882,26 +882,23 @@ def monitor_center_module():
                 padding: 5px;
             }
 
-            /* เนื้อหาที่เลื่อน */
+            /* เนื้อหาที่เลื่อน (Animation) */
             .scroll-content {
                 position: absolute;
                 width: 96%;
                 left: 2%;
-                /* Animation เลื่อนขึ้น: 40 วินาทีต่อรอบ (ปรับเลขนี้เพื่อเปลี่ยนความเร็ว) */
-                animation: scroll-up 40s linear infinite; 
+                animation: scroll-up 45s linear infinite; 
             }
 
-            /* หยุดเลื่อนเมื่อเอาเมาส์ชี้ */
-            .scroll-window:hover .scroll-content {
-                animation-play-state: paused;
-            }
+            /* หยุดเมื่อเอาเมาส์ชี้ */
+            .scroll-window:hover .scroll-content { animation-play-state: paused; }
 
             @keyframes scroll-up {
                 0% { transform: translateY(0%); }
-                100% { transform: translateY(-50%); } /* เลื่อน 50% เพราะเราเบิ้ลข้อมูลไว้ */
+                100% { transform: translateY(-50%); } 
             }
 
-            /* การ์ดรายการ (ปรับ Padding ให้เล็กกระชับ) */
+            /* การ์ดรายการ */
             .incident-card {
                 padding: 10px; border-radius: 8px; margin-bottom: 12px;
                 background: white; border: 1px solid #e2e8f0;
@@ -916,7 +913,7 @@ def monitor_center_module():
             .case-header { display: flex; justify-content: space-between; margin-bottom: 5px; }
             .case-id { font-family: monospace; font-size: 0.85em; font-weight: bold; background: rgba(0,0,0,0.05); padding: 1px 5px; border-radius: 4px; }
             
-            /* หัวข้อคอลัมน์ */
+            /* Header Box */
             .header-box {
                 padding: 8px; text-align: center; font-weight: bold; font-size: 1.1em;
                 border-radius: 6px; margin-bottom: 10px; border: 1px solid rgba(0,0,0,0.1);
@@ -941,9 +938,10 @@ def monitor_center_module():
             css_class = "card-new"; color_code = "#b91c1c"; icon = "🔥"
         elif status_type == "progress":
             css_class = "card-progress"; color_code = "#1e40af"; icon = "🔵"
-        else: # done
+        else: 
             css_class = "card-done"; color_code = "#15803d"; icon = "✅"
 
+        # สร้าง HTML string แบบก้อนเดียว (แก้ปัญหา </div> หลุด)
         return f"""
         <div class="incident-card {css_class}">
             <div class="case-header">
@@ -973,7 +971,7 @@ def monitor_center_module():
             for _, row in df_data.iterrows():
                 html_items += generate_card_html(row, status_type)
         
-        # เทคนิค Infinite Loop: ใส่ html_items ซ้ำ 2 รอบ
+        # ใส่ html_items ซ้ำ 2 รอบ เพื่อให้ Loop เนียน
         return f"""
         <div class="scroll-window">
             <div class="scroll-content">
@@ -996,7 +994,7 @@ def monitor_center_module():
                 if st.session_state.last_seen_id != 0: st.toast("🚨 มีเหตุแจ้งเข้ามาใหม่!", icon="🔥")
                 st.session_state.last_seen_id = current_count
 
-            # แยกข้อมูล 3 ส่วน (ตัดมาส่วนละ 15 รายการล่าสุดเพื่อไม่ให้หนักเกินไป)
+            # แยกข้อมูล 3 ส่วน
             df_new = df[df['Status'].astype(str).str.strip() == "รอดำเนินการ"].iloc[::-1].head(15)
             df_prog = df[df['Status'].astype(str).str.strip() == "อยู่ระหว่างการดำเนินการ"].iloc[::-1].head(15)
             df_done = df[df['Status'].astype(str).str.strip().isin(["ดำเนินการเรียบร้อย", "ยกเลิก"])].iloc[::-1].head(15)
