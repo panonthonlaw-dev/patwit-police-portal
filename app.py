@@ -958,6 +958,7 @@ def main():
         del st.session_state.timeout_msg
 
     if not st.session_state.logged_in:
+        # --- หน้า Login (เหมือนเดิม) ---
         _, col, _ = st.columns([1, 1.2, 1])
         with col:
             st.markdown("<br><br>", unsafe_allow_html=True)
@@ -966,64 +967,69 @@ def main():
                     st.image(LOGO_PATH, width=120)
                 st.markdown("<h3 style='text-align:center;'>ศูนย์ปฏิบัติการกลาง<br>สถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</h3>", unsafe_allow_html=True)
                 pwd_in = st.text_input("รหัสผ่านเจ้าหน้าที่", type="password")
-                if st.button("เข้าสู่ระบบ", width='stretch', type='primary'):
+                if st.button("เข้าสู่ระบบ", use_container_width=True, type='primary'):
                     accs = st.secrets.get("OFFICER_ACCOUNTS", {})
                     if pwd_in in accs:
                         st.session_state.logged_in = True
                         st.session_state.user_info = accs[pwd_in]
                         st.session_state.current_user_pwd = pwd_in
+                        st.query_params["logged_in"] = "true"
+                        st.query_params["pwd"] = pwd_in
                         st.rerun()
                     else: st.error("❌ รหัสผิด")
     else:
+        # --- ตรวจสอบว่าเลือกแผนกหรือยัง ---
         if st.session_state.current_dept is None:
-            c_brand, c_nav = st.columns([7, 2.5])
-            with c_brand:
-                c_logo, c_text = st.columns([1, 6])
-                with c_logo:
-                    if LOGO_PATH: st.image(LOGO_PATH, use_column_width=True)
-                with c_text:
-                    st.markdown("""
-                    <div style="display: flex; flex-direction: column; justify-content: center; height: 100%;">
-                        <div style="font-size: 22px; font-weight: bold; color: #1E3A8A; line-height: 1.2;">ศูนย์ปฏิบัติการกลางสถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</div>
-                        <div style="font-size: 16px; color: #475569; margin-top: 4px;">🏢 เลือกแผนกปฏิบัติงาน</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-            
-            # --- จุดที่เคย Error (แก้ไขแล้ว) ---
-            with c_nav:
-                st.write("")
-                st.write("")
-                # สังเกตการย่อหน้าใต้ if ต้องขยับเข้ามา
-                if st.button("🚪 ออกจากระบบ", key="main_logout", use_container_width=True):
-                    st.query_params.clear() 
-                    st.session_state.clear()
-                    st.rerun()
-            # --------------------------------
-            
-            st.markdown("---")
-            # ค้นหาช่วงปุ่ม c1, c2, c3 ในตอนท้ายของ main()
+            # ส่วนหัวเมนูเลือกแผนก
+            st.markdown("""
+                <div style="text-align:center; padding:20px; border-bottom:2px solid #f0f2f6; margin-bottom:20px;">
+                    <h1 style="color:#1E3A8A; margin:0;">🏢 เลือกแผนกปฏิบัติงาน</h1>
+                    <p style="color:#64748b;">ยินดีต้อนรับคุณ {}</p>
+                </div>
+            """.format(st.session_state.user_info.get('name')), unsafe_allow_html=True)
+
+            # !!! จุดสำคัญที่ต้องมี: ประกาศสร้างคอลัมน์ c1, c2, c3 !!!
+            c1, c2, c3 = st.columns(3) 
+
             with c1:
-                if st.button("เข้าใช้งานสอบสวน", use_container_width=True, type='primary', key="btn_to_inv"):
-                    st.session_state.current_dept = "inv"
-                    st.session_state.view_mode = "list"
-                    st.query_params["dept"] = "inv"
-                    st.rerun()
+                with st.container(border=True):
+                    st.subheader("🕵️ งานสอบสวน")
+                    if st.button("เข้าใช้งานสอบสวน", use_container_width=True, type='primary', key="btn_to_inv"):
+                        st.session_state.current_dept = "inv"
+                        st.session_state.view_mode = "list"
+                        st.query_params["dept"] = "inv"
+                        st.rerun()
+
             with c2:
-                if st.button("เข้าใช้งานจราจร", use_container_width=True, type='primary', key="btn_to_tra"):
-                    st.session_state.current_dept = "tra"
-                    st.session_state.traffic_page = 'teacher'
-                    st.query_params["dept"] = "tra"
-                    st.rerun()
+                with st.container(border=True):
+                    st.subheader("🚦 งานจราจร")
+                    if st.button("เข้าใช้งานจราจร", use_container_width=True, type='primary', key="btn_to_tra"):
+                        st.session_state.current_dept = "tra"
+                        st.session_state.traffic_page = 'teacher'
+                        st.query_params["dept"] = "tra"
+                        st.rerun()
+
             with c3:
-                if st.button("เปิดจอเฝ้าระวังเหตุ", use_container_width=True, type='primary', key="btn_to_monitor"):
-                    st.session_state.current_dept = "monitor_view"
-                    st.query_params["dept"] = "monitor_view"
-                    st.rerun()
-        else: # บล็อกที่แสดงหลังจากเลือกแผนกแล้ว
-            if st.session_state.current_dept == "inv": 
+                with st.container(border=True):
+                    st.subheader("🖥️ War Room")
+                    if st.button("เปิดจอเฝ้าระวังเหตุ", use_container_width=True, type='primary', key="btn_to_monitor"):
+                        st.session_state.current_dept = "monitor_view"
+                        st.query_params["dept"] = "monitor_view"
+                        st.rerun()
+            
+            if st.button("🚪 ออกจากระบบ", use_container_width=True, key="main_logout"):
+                st.query_params.clear()
+                st.session_state.clear()
+                st.rerun()
+        
+        else:
+            # --- ส่วนแสดงผลหน้าแผนกต่างๆ (Indentation ต้องตรงกัน) ---
+            if st.session_state.current_dept == "inv":
                 investigation_module()
-            elif st.session_state.current_dept == "tra": 
+            elif st.session_state.current_dept == "tra":
                 traffic_module()
             elif st.session_state.current_dept == "monitor_view":
                 monitor_center_module()
-if __name__ == "__main__": main()
+
+if __name__ == "__main__": 
+    main()
