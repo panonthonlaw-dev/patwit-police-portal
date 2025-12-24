@@ -395,7 +395,21 @@ def investigation_module():
                     with col2: st.markdown("**🔹 สถานที่เกิดเหตุ**"); st.bar_chart(df_display['Location'].value_counts(), color="#1E3A8A")
 
         elif st.session_state.view_mode == "detail":
-            st.button("⬅️ กลับหน้ารายการ", on_click=lambda: st.session_state.update({'view_mode': 'list'}), use_container_width=True)
+            elif st.session_state.view_mode == "detail":
+            # --- แก้ไขปุ่มย้อนกลับให้ล้างค่า URL ด้วย ---
+            if st.button("⬅️ กลับหน้ารายการ", use_container_width=True):
+                st.session_state.view_mode = 'list'
+                st.session_state.selected_case_id = None
+                
+                # ล้างค่าใน URL ทันที
+                st.query_params["v_mode"] = "list"
+                if "case_id" in st.query_params:
+                    del st.query_params["case_id"]
+                st.rerun()
+            # ---------------------------------------
+
+            sid = st.session_state.selected_case_id
+            # ... โค้ดส่วนแสดงรายละเอียดคดีเดิมของคุณครู ...
             sid = st.session_state.selected_case_id
             sel = df_display[df_display['Report_ID'] == sid]
             if not sel.empty:
