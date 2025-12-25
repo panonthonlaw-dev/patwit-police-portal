@@ -6,6 +6,8 @@ import pytz, random, os, base64, io, qrcode, glob, math, mimetypes, json, reques
 from PIL import Image
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+import base64
+import os
 
 # PDF & Chart Libraries
 try:
@@ -880,8 +882,6 @@ def traffic_module():
 #------------------------------------------#
 war room
 #--------------------------------------#
-import base64
-import os
 
 def monitor_center_module():
     # --- 1. เตรียม State ---
@@ -962,7 +962,7 @@ def monitor_center_module():
                     is_new_alert = True
                     
                     # 🔊 เล่นไฟล์เสียงจากเครื่อง (alet.mp3)
-                    audio_path = os.path.join(BASE_DIR, "alet.mp3") # หรือเปลี่ยนนามสกุลถ้าเป็น .wav
+                    audio_path = os.path.join(BASE_DIR, "alet.wav") # หรือเปลี่ยนนามสกุลถ้าเป็น .wav
                     
                     if os.path.exists(audio_path):
                         # แปลงไฟล์เสียงเป็น Base64 เพื่อฝังใน HTML
