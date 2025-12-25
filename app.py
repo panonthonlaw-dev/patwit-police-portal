@@ -878,91 +878,97 @@ def traffic_module():
             st.info("💡 **หมายเหตุ:** ข้อมูลเปอร์เซ็นต์คำนวณจากจำนวนรถที่ลงทะเบียนในแต่ละระดับชั้นนั้นๆ")
             st.caption(f"ออกรายงาน ณ วันที่: {get_now_th().strftime('%d/%m/%Y %H:%M')}")
 
+# ==========================================
+# MODULE: MONITOR REAL-TIME (WAR ROOM - AUTO SCROLLING)
+# ==========================================
 def monitor_center_module():
-    # 1. CSS ปรับปรุงใหม่เพื่อความชัดเจน
+    # 1. CSS สำหรับกล่องแจ้งเตือนด่วน และ Marquee
     st.markdown("""
         <style>
-            /* กล่องแจ้งเหตุใหม่ 3 รายการล่าสุด */
-            .critical-alert-zone {
-                background-color: #7f1d1d; /* สีแดงเข้ม */
-                border: 3px solid #f87171;
-                border-radius: 15px;
-                padding: 15px;
-                margin-bottom: 25px;
-                color: white;
-                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
-            }
-            .alert-card-item {
-                background: rgba(255, 255, 255, 0.1);
-                margin: 8px 0;
+            /* กล่องแจ้งเตือนด่วน 3 เคสล่าสุด */
+            .quick-alert-box {
+                background-color: #fff1f2;
+                border: 2px solid #dc2626;
+                border-radius: 10px;
                 padding: 10px;
-                border-radius: 8px;
-                border-left: 5px solid #fca5a5;
+                margin-bottom: 20px;
+                animation: border-blink 1.5s infinite;
             }
-            
-            /* Marquee พื้นที่หลัก */
-            .marquee-viewport { height: 600px; overflow: hidden; position: relative; background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; }
-            .marquee-content { display: flex; flex-direction: column; animation: scroll_up 50s linear infinite; }
+            @keyframes border-blink {
+                0% { border-color: #dc2626; box-shadow: 0 0 5px #dc2626; }
+                50% { border-color: #fca5a5; box-shadow: 0 0 15px #fca5a5; }
+                100% { border-color: #dc2626; box-shadow: 0 0 5px #dc2626; }
+            }
+            .alert-item {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border-bottom: 1px solid #fecaca;
+                padding: 5px 0;
+            }
+            .alert-item:last-child { border-bottom: none; }
+
+            /* Marquee CSS เดิม */
+            .marquee-viewport { height: 600px; overflow: hidden; position: relative; background: #fafafa; border-radius: 12px; border: 1px solid #e2e8f0; }
+            .marquee-content { display: flex; flex-direction: column; animation: scroll_up 40s linear infinite; }
             @keyframes scroll_up { 0% { transform: translateY(0); } 100% { transform: translateY(-50%); } }
+            .marquee-viewport:hover .marquee-content { animation-play-state: paused; }
             
             .incident-card { padding: 12px; border-radius: 8px; margin: 8px; background: white; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-            .card-new { border-left: 8px solid #dc2626 !important; }
-            .card-progress { border-left: 6px solid #3b82f6 !important; background-color: #eff6ff !important; }
-            .card-done { border-left: 6px solid #22c55e !important; background-color: #f0fdf4 !important; opacity: 0.8; }
+            .card-new { border-left: 6px solid #dc2626 !important; }
+            .card-progress { border-left: 6px solid #3b82f6 !important; background-color: #eff6ff !important; margin-bottom:10px; }
+            .card-done { border-left: 6px solid #22c55e !important; background-color: #f0fdf4 !important; margin-bottom:10px; opacity: 0.8; }
             .header-badge { padding: 10px; border-radius: 8px; text-align: center; font-weight: bold; margin-bottom: 10px; color: white; }
         </style>
     """, unsafe_allow_html=True)
 
+    # Header หลัก
+    st.markdown('<div style="text-align:center;"><h2 style="color:#1e3a8a; margin:0;">🚨 War Room: ระบบเฝ้าระวังเหตุอัตโนมัติ</h2></div>', unsafe_allow_html=True)
+    
     # ปุ่มย้อนกลับ
     if st.button("⬅️ กลับหน้าเลือกแผนก", use_container_width=True):
         st.session_state.current_dept = None
         st.rerun()
 
     try:
-        # 2. บังคับดึงข้อมูลสด (ttl=0) เพื่อให้เห็นเหตุใหม่ทันที
+        # ดึงข้อมูล
         conn = st.connection("gsheets", type=GSheetsConnection)
         now_th = get_now_th()
         cur_year = (now_th.year + 543) if now_th.month >= 5 else (now_th.year + 542)
+        df_raw = conn.read(worksheet=f"Investigation_{cur_year}", ttl=2).fillna("")
         
-        # ดึงข้อมูลแบบไม่ใช้ Cache
-        df_raw = conn.read(worksheet=f"Investigation_{cur_year}", ttl=0).fillna("")
-        
-        # แสดงเวลาที่อัปเดตล่าสุด (เพื่อเช็คว่าระบบยังดึงข้อมูลอยู่ไหม)
-        st.caption(f"🔄 อัปเดตข้อมูลล่าสุด: {now_th.strftime('%H:%M:%S')} (ทุก 10 วินาที)")
-
         if not df_raw.empty:
-            # 3. กรองสถานะแบบยืดหยุ่น (ป้องกันปัญหาเว้นวรรคใน Sheets)
-            df_new_all = df_raw[df_raw['Status'].str.contains("รอดำเนินการ", na=False)].iloc[::-1]
+            # กรอง "รอดำเนินการ" เรียงจากใหม่สุด
+            df_new_all = df_raw[df_raw['Status'].astype(str).str.strip() == "รอดำเนินการ"].iloc[::-1]
 
-            # --- [ กล่องสีแดงแจ้งเหตุ 3 เคสล่าสุด (เด้งขึ้นมาชัดเจน) ] ---
+            # --- [ ส่วนที่เพิ่ม: กล่องแจ้งเตือนด่วน 3 เคสล่าสุด ] ---
             if not df_new_all.empty:
-                st.markdown('<div style="text-align:center; font-weight:bold; color:#dc2626; font-size:1.2em; margin-bottom:10px;">🚨 ตรวจพบเหตุใหม่ล่าสุด! 🚨</div>', unsafe_allow_html=True)
+                st.markdown('<div style="color:#dc2626; font-weight:bold; margin-bottom:5px;">🔥 แจ้งเหตุใหม่ล่าสุด (3 รายการ):</div>', unsafe_allow_html=True)
                 
-                # ดึง 3 อันล่าสุด
+                # ดึงแค่ 3 รายการบนสุด
                 top_3 = df_new_all.head(3)
                 
-                alert_html = '<div class="critical-alert-zone">'
+                alert_html = '<div class="quick-alert-box">'
                 for _, row in top_3.iterrows():
                     alert_html += f"""
-                    <div class="alert-card-item">
-                        <div style="display:flex; justify-content:space-between;">
-                            <b style="font-size:1.1em;">🆔 {row['Report_ID']}</b>
-                            <span>⏱️ {row['Timestamp'].split(' ')[1] if ' ' in row['Timestamp'] else ''}</span>
+                    <div class="alert-item">
+                        <div style="font-size: 0.95em;">
+                            <b style="color:#dc2626;">[{row['Report_ID']}]</b> 
+                            <span>{row['Incident_Type']}</span> 📍 <b>{row['Location']}</b>
                         </div>
-                        <div style="font-size:1.2em; font-weight:bold; margin:5px 0;">📍 {row['Location']}</div>
-                        <div style="color:#fecaca;">⚠ {row['Incident_Type']}</div>
+                        <div style="font-size: 0.8em; color: #64748b;">{row['Timestamp'].split(' ')[1] if ' ' in row['Timestamp'] else ''}</div>
                     </div>
                     """
                 alert_html += '</div>'
                 st.markdown(alert_html, unsafe_allow_html=True)
+            # ---------------------------------------------------
 
-            # --- ส่วนแสดงผล 3 คอลัมน์หลัก ---
-            st.divider()
+            # แสดงผล 3 คอลัมน์ด้านล่าง
             c1, c2, c3 = st.columns(3)
             
             with c1:
-                st.markdown('<div class="header-badge" style="background:#dc2626;">🔥 ทั้งหมด (รอดำเนินการ)</div>', unsafe_allow_html=True)
-                if df_new_all.empty: st.info("✅ สถานะปกติ")
+                st.markdown('<div class="header-badge" style="background:#dc2626;">🎥 รายการทั้งหมด (Auto-Scroll)</div>', unsafe_allow_html=True)
+                if df_new_all.empty: st.info("✅ ปกติ")
                 else:
                     cards_html = ""
                     for _, row in df_new_all.iterrows():
@@ -976,24 +982,32 @@ def monitor_center_module():
 
             with c2:
                 st.markdown('<div class="header-badge" style="background:#2563eb;">🔵 กำลังดำเนินการ</div>', unsafe_allow_html=True)
-                df_prog = df_raw[df_raw['Status'].str.contains("อยู่ระหว่าง", na=False)].iloc[::-1].head(10)
+                df_prog = df_raw[df_raw['Status'].astype(str).str.strip() == "อยู่ระหว่างการดำเนินการ"].iloc[::-1].head(10)
                 for _, row in df_prog.iterrows():
-                    st.markdown(f'<div class="incident-card card-progress"><b>📝 {row["Report_ID"]}</b><br>📍 {row["Location"]}<br><small>โดย: {row["Teacher_Investigator"]}</small></div>', unsafe_allow_html=True)
+                    st.markdown(f"""
+                        <div class="incident-card card-progress">
+                            <b>📝 {row['Report_ID']}</b><br>
+                            📍 {row['Location']}<br>
+                            <small>ผู้รับผิดชอบ: {row['Teacher_Investigator']}</small>
+                        </div>""", unsafe_allow_html=True)
 
             with c3:
                 st.markdown('<div class="header-badge" style="background:#16a34a;">✅ ล่าสุด (10 รายการ)</div>', unsafe_allow_html=True)
-                df_done = df_raw[df_raw['Status'].str.contains("เรียบร้อย", na=False)].iloc[::-1].head(10)
+                df_done = df_raw[df_raw['Status'].astype(str).str.strip().isin(["ดำเนินการเรียบร้อย", "ยกเลิก"])].iloc[::-1].head(10)
                 for _, row in df_done.iterrows():
-                    st.markdown(f'<div class="incident-card card-done"><b>✅ {row["Report_ID"]}</b><br>📍 {row["Location"]}<br><small>{row["Incident_Type"]}</small></div>', unsafe_allow_html=True)
+                    st.markdown(f"""
+                        <div class="incident-card card-done">
+                            <b>✅ {row['Report_ID']}</b><br>
+                            📍 {row['Location']}<br>
+                            <small>{row['Incident_Type']}</small>
+                        </div>""", unsafe_allow_html=True)
 
-        # 4. รีเฟรชอัตโนมัติ (10 วินาที)
+        # Auto Refresh ทุก 10 วินาที
         time.sleep(10)
         st.rerun()
         
     except Exception as e:
-        st.error(f"⚠️ การเชื่อมต่อขัดข้อง: {e}")
-        time.sleep(10)
-        st.rerun()
+        time.sleep(10); st.rerun()
 # ==========================================
 # 4. MAIN ENTRY (แก้ไขย่อหน้าให้ถูกต้อง)
 # ==========================================
