@@ -886,10 +886,10 @@ def monitor_center_module():
     
     is_new_alert = False 
 
-    # --- 2. CSS: Minimal Style & Pulse Effect ---
+    # --- 2. CSS: Minimal + Pulse + Marquee Pause ---
     st.markdown("""
         <style>
-            /* Pulse Effect: กระพริบ 5 วินาที (1s x 5 รอบ) แล้วหยุด */
+            /* Pulse Effect: กระพริบ 5 วินาที */
             @keyframes pulse_soft {
                 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); border-color: #ef4444; }
                 50% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); border-color: #ef4444; }
@@ -901,18 +901,42 @@ def monitor_center_module():
                 background-color: #fff1f2 !important; 
             }
 
-            /* การ์ดแบบ Minimal (พื้นขาว) */
+            /* การ์ดแบบ Minimal (Compact) */
             .alert-card-minimal {
-                background-color: white; color: #1e293b; padding: 15px;
-                border-radius: 7px; border: 1px solid #e2e8f0;
-                border-left: 6px solid #ef4444; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-                height: 100%; min-height: 110px; transition: transform 0.2s;
+                background-color: white; 
+                color: #1e293b; 
+                padding: 10px; 
+                border-radius: 10px; 
+                border: 1px solid #e2e8f0;
+                border-left: 5px solid #ef4444; 
+                box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+                height: 100%; 
+                min-height: 90px; 
+                transition: transform 0.2s;
             }
             
-            /* Marquee */
-            .marquee-viewport { height: 650px; overflow: hidden; position: relative; background: #fff; border-radius: 7px; border: 1px solid #e2e8f0; }
-            .marquee-content { display: flex; flex-direction: column; animation: scroll_up 200s linear infinite; }
+            /* --- ส่วนควบคุม Marquee (เลื่อนอัตโนมัติ) --- */
+            .marquee-viewport { 
+                height: 650px; 
+                overflow: hidden; 
+                position: relative; 
+                background: #fff; 
+                border-radius: 12px; 
+                border: 1px solid #e2e8f0;
+                cursor: pointer; /* เปลี่ยนเมาส์เป็นรูปมือเมื่อชี้ */
+            }
+            .marquee-content { 
+                display: flex; 
+                flex-direction: column; 
+                animation: scroll_up 50s linear infinite; 
+            }
             @keyframes scroll_up { 0% { transform: translateY(0); } 100% { transform: translateY(-50%); } }
+            
+            /* ✅ คำสั่งหยุดเลื่อนเมื่อเอาเมาส์วาง (Hover) */
+            .marquee-viewport:hover .marquee-content { 
+                animation-play-state: paused !important; 
+            }
+            /* ------------------------------------------- */
             
             .incident-card { padding: 15px; border-radius: 10px; margin: 10px; background: white; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
             .card-new { border-left: 8px solid #dc2626 !important; }
@@ -936,19 +960,18 @@ def monitor_center_module():
         if not df_raw.empty:
             current_row_count = len(df_raw)
             
-            # --- ตรวจจับเหตุใหม่ ---
+            # --- ตรวจจับเหตุใหม่ + เสียง ---
             if current_row_count > st.session_state.last_row_count:
                 if st.session_state.last_row_count > 0:
                     is_new_alert = True
                     
-                    # --- 🔊 เพิ่มระบบเสียงกลับเข้ามา (Hidden AutoPlay) ---
+                    # Hidden Audio Player
                     sound_file = "alet.wav"
                     if os.path.exists(sound_file):
                         with open(sound_file, "rb") as f:
                             audio_bytes = f.read()
                         b64_audio = base64.b64encode(audio_bytes).decode()
                         
-                        # ซ่อน Player ไว้ (display:none) แต่สั่ง autoplay
                         audio_html = f"""
                             <audio autoplay style="display:none;">
                                 <source src="data:audio/wav;base64,{b64_audio}" type="audio/wav">
@@ -958,7 +981,6 @@ def monitor_center_module():
                         st.toast("🚨 พบเหตุแจ้งใหม่!", icon="🔊")
                     else:
                         st.error(f"❌ ไม่พบไฟล์ {sound_file}")
-                    # ---------------------------------------------------
 
                 st.session_state.last_row_count = current_row_count
             
@@ -966,20 +988,19 @@ def monitor_center_module():
 
             # --- หัวข้อ ---
             st.markdown(f"""
-                <div style="text-align:center; margin-bottom:20px;">
+                <div style="text-align:center; margin-bottom:15px;">
                     <h2 style="color:#1e293b; margin:0; display:inline-block; font-weight:800;">🚨 War Room: ระบบเฝ้าระวังเหตุอัตโนมัติ</h2>
                 </div>
             """, unsafe_allow_html=True)
             
-            # --- 📌 แสดงผล 3 กล่องบน (Minimal) ---
+            # --- 📌 แสดงผล 3 กล่องบน (Minimal & Compact) ---
             if not df_new_all.empty:
-                st.markdown('<div style="color:#64748b; font-weight:600; margin-bottom:10px; font-size:0.9em;">🔥 แจ้งเหตุล่าสุด (3 รายการ):</div>', unsafe_allow_html=True)
+                st.markdown('<div style="color:#64748b; font-weight:600; margin-bottom:5px; font-size:0.9em;">🔥 แจ้งเหตุล่าสุด (3 รายการ):</div>', unsafe_allow_html=True)
                 top_3 = df_new_all.head(3)
                 cols = st.columns(3) 
 
                 for i, ((idx, row), col) in enumerate(zip(top_3.iterrows(), cols)):
                     with col:
-                        # ใส่ Class ให้กระพริบ 5 วิ เฉพาะอันใหม่ล่าสุด
                         pulse_cls = "new-incident-active" if (i == 0 and is_new_alert) else ""
                         
                         itype = str(row['Incident_Type'])
@@ -993,15 +1014,15 @@ def monitor_center_module():
 
                         st.markdown(f"""
                         <div class="alert-card-minimal {pulse_cls}">
-                            <div style="display:flex; justify-content:space-between; margin-bottom:8px; border-bottom:1px solid #f1f5f9; padding-bottom:8px;">
-                                <b style="color:#ef4444; font-size:1em;">🆔 {row['Report_ID']}</b>
-                                <span style="font-size:0.85em; color:#94a3b8; font-weight:500;">⏱️ {t_show}</span>
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px; border-bottom:1px solid #f1f5f9; padding-bottom:2px;">
+                                <b style="color:#ef4444; font-size:0.95em;">🆔 {row['Report_ID']}</b>
+                                <span style="font-size:0.8em; color:#94a3b8; font-weight:500;">⏱️ {t_show}</span>
                             </div>
-                            <div style="font-weight:bold; font-size:1.1em; color:#1e293b; margin-bottom:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                            <div style="font-weight:bold; font-size:1.05em; color:#1e293b; margin-bottom:0px; line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                                 📍 {row['Location']}
                             </div>
-                            <div style="color:#475569; font-size:0.95em; display:flex; align-items:center; gap:5px;">
-                                <span style="font-size:1.2em;">{icon}</span> {itype}
+                            <div style="color:#475569; font-size:0.9em; display:flex; align-items:center; gap:5px; line-height:1.3;">
+                                <span style="font-size:1.1em;">{icon}</span> {itype}
                             </div>
                         </div>
                         """, unsafe_allow_html=True)
@@ -1040,12 +1061,7 @@ def monitor_center_module():
                     st.markdown(f'<div class="incident-card card-done"><b>✅ {row["Report_ID"]}</b><br>📍 {row["Location"]}<br><small style="color:#64748b;">{row["Incident_Type"]}</small></div>', unsafe_allow_html=True)
 
         time.sleep(10)
-        st.rerun()
-        
-    except Exception as e:
-        st.error(f"⚠️ Connection Error: {e}")
-        time.sleep(5)
-        st.rerun()
+        st
 # ==========================================
 # 4. MAIN ENTRY (แก้ไขย่อหน้าให้ถูกต้อง)
 # ==========================================
