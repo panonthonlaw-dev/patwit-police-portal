@@ -886,26 +886,24 @@ def monitor_center_module():
     
     is_new_alert = False 
 
-    # --- 2. CSS & JavaScript (Full Screen) ---
+    # --- 2. CSS & JavaScript ---
     st.markdown("""
         <script>
             function toggleFullScreen() {
                 var doc = window.document;
                 var docEl = doc.documentElement;
-
                 var requestFullScreen = docEl.requestFullscreen || docEl.mozRequestFullScreen || docEl.webkitRequestFullScreen || docEl.msRequestFullscreen;
                 var cancelFullScreen = doc.exitFullscreen || doc.mozCancelFullScreen || doc.webkitExitFullscreen || doc.msExitFullscreen;
 
                 if(!doc.fullscreenElement && !doc.mozFullScreenElement && !doc.webkitFullscreenElement && !doc.msFullscreenElement) {
                     requestFullScreen.call(docEl);
-                }
-                else {
+                } else {
                     cancelFullScreen.call(doc);
                 }
             }
         </script>
         <style>
-            /* Pulse Effect */
+            /* Pulse Effect: กระพริบต่อเนื่อง (Infinite) */
             @keyframes pulse_soft {
                 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); border-color: #ef4444; }
                 50% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); border-color: #ef4444; }
@@ -917,60 +915,40 @@ def monitor_center_module():
                 background-color: #fff1f2 !important; 
             }
 
+            /* ปุ่ม Full Screen (ปรับให้เข้ากับปุ่ม Streamlit) */
+            .fs-button {
+                display: flex; align-items: center; justify-content: center;
+                width: 100%; height: 42px; /* ความสูงใกล้เคียงปุ่มมาตรฐาน */
+                background-color: #1e293b; color: white;
+                border-radius: 8px; border: none; cursor: pointer;
+                font-weight: bold; font-size: 0.9em;
+                transition: background 0.2s;
+            }
+            .fs-button:hover { background-color: #334155; }
+
             /* การ์ดแบบ Minimal (Compact) */
             .alert-card-minimal {
-                background-color: white; 
-                color: #1e293b; 
-                padding: 10px; 
-                border-radius: 10px; 
-                border: 1px solid #e2e8f0;
+                background-color: white; color: #1e293b; padding: 10px; 
+                border-radius: 10px; border: 1px solid #e2e8f0;
                 border-left: 5px solid #ef4444; 
                 box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-                height: 100%; 
-                min-height: 90px; 
-                transition: transform 0.2s;
+                height: 100%; min-height: 90px; transition: transform 0.2s;
             }
             
             /* Marquee */
             .marquee-viewport { 
-                height: 650px; 
-                overflow: hidden; 
-                position: relative; 
-                background: #fff; 
-                border-radius: 12px; 
-                border: 1px solid #e2e8f0;
-                pointer-events: auto !important; 
-                z-index: 1;
-                cursor: pointer; 
+                height: 650px; overflow: hidden; position: relative; 
+                background: #fff; border-radius: 12px; border: 1px solid #e2e8f0;
+                pointer-events: auto !important; z-index: 1; cursor: pointer; 
             }
-            .marquee-content { 
-                display: flex; 
-                flex-direction: column; 
-                animation: scroll_up 50s linear infinite; 
-            }
+            .marquee-content { display: flex; flex-direction: column; animation: scroll_up 50s linear infinite; }
             @keyframes scroll_up { 0% { transform: translateY(0); } 100% { transform: translateY(-50%); } }
             
             /* หยุดเลื่อนเมื่อ Hover */
             .marquee-viewport:hover .marquee-content, .marquee-content:hover { 
                 animation-play-state: paused !important;
+                -webkit-animation-play-state: paused !important;
             }
-
-            /* ปุ่ม Full Screen สวยๆ */
-            .fs-button {
-                display: inline-block;
-                padding: 8px 16px;
-                background-color: #1e293b;
-                color: white;
-                border-radius: 8px;
-                border: none;
-                cursor: pointer;
-                font-size: 0.9em;
-                font-weight: bold;
-                transition: background 0.3s;
-                text-decoration: none;
-                margin-bottom: 10px;
-            }
-            .fs-button:hover { background-color: #334155; }
             
             .incident-card { padding: 15px; border-radius: 10px; margin: 10px; background: white; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
             .card-new { border-left: 8px solid #dc2626 !important; }
@@ -980,10 +958,19 @@ def monitor_center_module():
         </style>
     """, unsafe_allow_html=True)
 
-    # ปุ่มย้อนกลับ
-    if st.button("⬅️ กลับหน้าเลือกแผนก", use_container_width=True):
-        st.session_state.current_dept = None
-        st.rerun()
+    # --- 3. ส่วนปุ่มควบคุมด้านบน (ซ้ายสุด) ---
+    # แบ่งคอลัมน์: [เต็มจอ] [กลับ] [ว่าง................]
+    c_fs, c_back, c_space = st.columns([0.15, 0.15, 0.7])
+    
+    with c_fs:
+        # ปุ่ม HTML เรียก JavaScipt
+        st.markdown('<button onclick="toggleFullScreen()" class="fs-button">🖥️ เต็มจอ</button>', unsafe_allow_html=True)
+        
+    with c_back:
+        # ปุ่ม Streamlit (ลดข้อความให้สั้นลง)
+        if st.button("⬅️ กลับเมนู", use_container_width=True):
+            st.session_state.current_dept = None
+            st.rerun()
 
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
@@ -1000,7 +987,7 @@ def monitor_center_module():
                 if st.session_state.last_row_count > 0:
                     is_new_alert = True
                     
-                    # Hidden Audio Player
+                    # Hidden Audio Player (alet.wav)
                     sound_file = "alet.wav"
                     if os.path.exists(sound_file):
                         with open(sound_file, "rb") as f:
@@ -1019,14 +1006,10 @@ def monitor_center_module():
             
             df_new_all = df_raw[df_raw['Status'].str.contains("รอดำเนินการ", na=False)].iloc[::-1]
 
-            # --- หัวข้อ + ปุ่ม Full Screen ---
-            # ใช้ HTML สร้างปุ่มกดเพื่อเรียกฟังก์ชัน JS toggleFullScreen()
+            # --- หัวข้อ ---
             st.markdown(f"""
-                <div style="text-align:center; margin-bottom:15px; position:relative;">
+                <div style="text-align:center; margin-bottom:15px; margin-top:-20px;">
                     <h2 style="color:#1e293b; margin:0; display:inline-block; font-weight:800;">🚨 War Room: ระบบเฝ้าระวังเหตุอัตโนมัติ</h2>
-                    <div style="margin-top:10px;">
-                        <button onclick="toggleFullScreen()" class="fs-button">🖥️ เปิด/ปิด เต็มจอ (Full Screen)</button>
-                    </div>
                 </div>
             """, unsafe_allow_html=True)
             
