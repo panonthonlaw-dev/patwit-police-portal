@@ -15,80 +15,38 @@ from streamlit_folium import st_folium
 from folium.plugins import HeatMap, MarkerCluster
 #--------------------
 def hazard_analytics_module():
-    # ... ส่วนหัวเหมือนเดิม ...
+    if st.button("🏠 กลับเมนูหลัก"):
+        st.session_state.current_dept = None
+        st.rerun()
+
     try:
         target_sheet = get_target_sheet_name()
+        df = conn.read(worksheet=target_sheet, ttl=0)
         
-        # ✅ แก้ไขบรรทัดนี้: บังคับให้ระบบอ่านข้อมูลแบบ RAW และล้าง Cache ทันที
-        # ใช้คำสั่งอ่านข้อมูลแบบไม่ผ่านระบบ Cache ของ Streamlit โดยตรง
-        raw_data = conn.read(worksheet=target_sheet, ttl=0)
-        df_inv = pd.DataFrame(raw_data) 
+        # 1. แสดงชื่อคอลัมน์ทั้งหมดที่แอปอ่านได้จริงออกมาดู
+        st.write("📋 ชื่อคอลัมน์ที่ระบบตรวจพบใน Sheet ของคุณคือ:")
+        st.code(df.columns.tolist())
+
+        # 2. ตรวจสอบว่ามี lat/lon ไหม (แบบไม่สนใจช่องว่าง)
+        df.columns = df.columns.str.strip().str.lower()
         
-        # ✅ บังคับล้างช่องว่างชื่อคอลัมน์อีกรอบ
-        df_inv.columns = [str(c).strip() for c in df_inv.columns]
-
-        # 🔍 ตรวจสอบด่วน: ถ้าหา lat/lon ไม่เจอ ให้ระบบสร้างคอลัมน์ว่างขึ้นมาเองเลยเพื่อไม่ให้ Error
-        if 'lat' not in df_inv.columns: df_inv['lat'] = None
-        if 'lon' not in df_inv.columns: df_inv['lon'] = None
-
-        # แปลงเป็นตัวเลข
-        df_inv['lat'] = pd.to_numeric(df_inv['lat'], errors='coerce')
-        df_inv['lon'] = pd.to_numeric(df_inv['lon'], errors='coerce')
-        
-        df_map = df_inv.dropna(subset=['lat', 'lon'])
-
-        if df_map.empty:
-            st.warning("📍 เชื่อมต่อฐานข้อมูลสำเร็จ แต่ยังไม่พบข้อมูลที่มีพิกัดพิกัด")
-            st.info("กรุณาตรวจสอบว่าใน Google Sheet (R1: lat, S1: lon) มีตัวเลขพิกัดโผล่ขึ้นมาหรือยัง")
-            return
-
-        # ... (ส่วนที่เหลือคือการวาดแผนที่ Folium ตามโค้ดเดิมของคุณ) ...
-        # --- ส่วนที่ 2: สร้างแผนที่ ---
-        m1, m2 = st.columns([3, 1])
-        
-        with m2:
-            st.markdown("### 🔍 ตัวกรองวิเคราะห์")
-            map_type = st.radio("รูปแบบการแสดงผล", ["แผนที่ความร้อน (Heatmap)", "หมุดพิกัด (Markers)"])
-            # กรองประเภทเหตุ (กัน Error ถ้าคอลัมน์ว่าง)
-            all_types = df_map['Incident_Type'].unique().tolist()
-            incident_filter = st.multiselect("ประเภทเหตุ", options=all_types, default=all_types)
+        if 'lat' in df.columns and 'lon' in df.columns:
+            st.success("✅ ตรวจพบคอลัมน์ lat และ lon แล้ว!")
+            # แปลงค่า
+            df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
+            df['lon'] = pd.to_numeric(df['lon'], errors='coerce')
+            df_map = df.dropna(subset=['lat', 'lon'])
             
-        with m1:
-            # พิกัดกลางโรงเรียน
-            school_coords = [16.2941, 103.9782]
-            m = folium.Map(location=school_coords, zoom_start=15, tiles='https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', attr='Google Satellite')
-
-            # กรองตามตัวเลือก
-            current_df = df_map[df_map['Incident_Type'].isin(incident_filter)]
-            
-            if map_type == "แผนที่ความร้อน (Heatmap)":
-                heat_data = [[row['lat'], row['lon']] for index, row in current_df.iterrows()]
-                HeatMap(heat_data, radius=15, blur=10, gradient={0.4: 'blue', 0.65: 'lime', 1: 'red'}).add_to(m)
+            if not df_map.empty:
+                st.write(f"พบข้อมูลพร้อมพิกัดจำนวน {len(df_map)} รายการ")
+                st.map(df_map[['lat', 'lon']]) # ลองใช้แผนที่พื้นฐานของ Streamlit ก่อน
             else:
-                marker_cluster = MarkerCluster().add_to(m)
-                for idx, row in current_df.iterrows():
-                    folium.Marker(
-                        [row['lat'], row['lon']],
-                        popup=f"ID: {row['Report_ID']}<br>ประเภท: {row['Incident_Type']}<br>สถานที่: {row['Location']}",
-                        icon=folium.Icon(color='red', icon='exclamation-sign')
-                    ).add_to(marker_cluster)
-
-            st_folium(m, width="100%", height=550)
-
-        # --- ส่วนที่ 3: สถิติประกอบการวิเคราะห์ ---
-        st.markdown("---")
-        c1, c2 = st.columns(2)
-        with c1:
-            st.markdown("📊 **ความหนาแน่นของเหตุรายสถานที่**")
-            st.bar_chart(current_df['Location'].value_counts())
-        with c2:
-            st.markdown("🕒 **ช่วงเวลาที่เกิดเหตุบ่อย**")
-            # วิเคราะห์ชั่วโมง
-            current_df['hour'] = pd.to_datetime(current_df['Timestamp'], errors='coerce').dt.hour
-            st.line_chart(current_df['hour'].value_counts().sort_index())
+                st.warning("📍 พบคอลัมน์แล้ว แต่ 'ตัวเลข' ในช่อง R และ S ของคุณอ่านไม่ได้ หรือเป็นค่าว่าง")
+        else:
+            st.error("❌ ระบบยังมองไม่เห็นคำว่า 'lat' หรือ 'lon' ในบรรทัดแรกของ Sheet")
 
     except Exception as e:
-        st.error(f"❌ เกิดข้อผิดพลาดในการโหลดพิกัด: {e}")
+        st.error(f"❌ เกิดข้อผิดพลาด: {e}")
 #--------------------
 # PDF & Chart Libraries
 try:
