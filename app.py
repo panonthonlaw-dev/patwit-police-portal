@@ -902,7 +902,7 @@ def monitor_center_module():
             .marquee-content {
                 display: flex;
                 flex-direction: column;
-                animation: scroll_up 30s linear infinite; /* ปรับเวลา (30s) เพื่อให้ช้าหรือเร็วขึ้น */
+                animation: scroll_up 60s linear infinite; /* ปรับเวลา (30s) เพื่อให้ช้าหรือเร็วขึ้น */
             }
 
             /* คำสั่งเลื่อนจากล่างขึ้นบน */
