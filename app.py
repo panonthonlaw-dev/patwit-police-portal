@@ -941,38 +941,58 @@ def monitor_center_module():
             # กรอง "รอดำเนินการ" เรียงจากใหม่สุด
             df_new_all = df_raw[df_raw['Status'].astype(str).str.strip() == "รอดำเนินการ"].iloc[::-1]
 
-            # --- [ ส่วนที่แก้ไข: รวม HTML เป็นก้อนเดียวเพื่อแก้ปัญหาโค้ดโชว์เป็นตัวอักษร ] ---
             if not df_new_all.empty:
-                st.markdown('<div style="text-align:center; font-weight:bold; color:#dc2626; font-size:1.2em; margin-bottom:10px;">🚨 ตรวจพบเหตุใหม่ล่าสุด! 🚨</div>', unsafe_allow_html=True)
-                
-                # ดึง 3 อันล่าสุด
-                top_3 = df_new_all.head(3)
-                
-                # 1. เริ่มต้นสร้างตัวแปรเพื่อเก็บ HTML ทั้งก้อน
-                full_alert_html = '<div class="critical-alert-zone">' 
-                
-                # 2. ใช้ Loop เพื่อต่อสตริง (String Concatenation) เข้าไปในตัวแปรเดียว
-                for _, row in top_3.iterrows():
-                    time_only = row['Timestamp'].split(' ')[1] if ' ' in row['Timestamp'] else row['Timestamp']
-                    
-                    full_alert_html += f"""
-                    <div class="alert-card-item">
-                        <div style="display:flex; justify-content:space-between;">
-                            <b style="font-size:1.1em;">🆔 {row['Report_ID']}</b>
-                            <span>⏱️ {time_only}</span>
-                        </div>
-                        <div style="font-size:1.2em; font-weight:bold; margin:5px 0;">📍 {row['Location']}</div>
-                        <div style="color:#fecaca;">⚠ {row['Incident_Type']}</div>
-                    </div>
-                    """
-                
-                # 3. ปิดแท็ก div ก้อนใหญ่
-                full_alert_html += '</div>' 
-                
-                # 4. ✅ บรรทัดสำคัญ: สั่งแสดงผล HTML ทั้งก้อนในครั้งเดียว
-                st.markdown(full_alert_html, unsafe_allow_html=True)
-            # -----------------------------------------------------------------------
+            # 1. ส่วน CSS (ต้องมีเพื่อให้ div รู้ว่าต้องแสดงสีแดง/กรอบแบบไหน)
+            st.markdown("""
+                <style>
+                    .critical-alert-zone {
+                        background-color: #7f1d1d; 
+                        border: 3px solid #f87171;
+                        border-radius: 15px;
+                        padding: 15px;
+                        margin-bottom: 20px;
+                    }
+                    .alert-card-item {
+                        background: rgba(255, 255, 255, 0.1);
+                        margin: 10px 0;
+                        padding: 12px;
+                        border-radius: 10px;
+                        border-left: 5px solid #fca5a5;
+                        color: white;
+                    }
+                </style>
+            """, unsafe_allow_html=True)
 
+            st.markdown('<div style="text-align:center; font-weight:bold; color:#dc2626; font-size:1.2em; margin-bottom:10px;">🚨 ตรวจพบเหตุใหม่ล่าสุด! 🚨</div>', unsafe_allow_html=True)
+            
+            # ดึง 3 อันล่าสุด
+            top_3 = df_new_all.head(3)
+            
+            # 2. เริ่มต้นสร้างตัวแปรเก็บ HTML
+            full_alert_html = '<div class="critical-alert-zone">' 
+            
+            for _, row in top_3.iterrows():
+                # จัดรูปแบบเวลา
+                time_val = str(row['Timestamp'])
+                time_only = time_val.split(' ')[1] if ' ' in time_val else time_val
+                
+                # ต่อสตริง HTML เข้าไปเรื่อยๆ
+                full_alert_html += f"""
+                <div class="alert-card-item">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <b style="font-size:1.1em; color:#fecaca;">🆔 {row['Report_ID']}</b>
+                        <span style="font-size:0.9em; opacity:0.8;">⏱️ {time_only}</span>
+                    </div>
+                    <div style="font-size:1.3em; font-weight:bold; margin:8px 0; color:white;">📍 {row['Location']}</div>
+                    <div style="font-size:1.1em; color:#fca5a5; font-weight:500;">⚠ {row['Incident_Type']}</div>
+                </div>
+                """
+            
+            # 3. ปิดแท็กก้อนใหญ่
+            full_alert_html += '</div>' 
+            
+            # 4. แสดงผลครั้งเดียวจบ
+            st.markdown(full_alert_html, unsafe_allow_html=True)
             # แสดงผล 3 คอลัมน์ด้านล่าง
             c1, c2, c3 = st.columns(3)
             
