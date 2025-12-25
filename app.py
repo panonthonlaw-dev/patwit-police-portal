@@ -1028,7 +1028,7 @@ def monitor_center_module():
 
             # === [COL 3: เรียบร้อย (เขียว)] ===
             with c3:
-                st.markdown('<div class="header-badge" style="background:#16a34a;">✅ เสร็จสิ้นภารกิจ</div>', unsafe_allow_html=True)
+                st.markdown('<div class="header-badge" style="background:#16a34a;">✅ ดำเนินการเรียบร้อย</div>', unsafe_allow_html=True)
                 if df_done.empty: st.caption("- ว่าง -")
                 else:
                     for _, row in df_done.iterrows():
