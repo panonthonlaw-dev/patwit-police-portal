@@ -1075,7 +1075,7 @@ def monitor_center_module():
                     st.markdown(f'<div class="incident-card card-progress"><b>📝 {row["Report_ID"]}</b><br>📍 {row["Location"]}<br><small style="color:#64748b;">ผู้สอบสวน: {row["Teacher_Investigator"]}</small></div>', unsafe_allow_html=True)
 
             with c3:
-                st.markdown('<div class="header-badge" style="background:#22c55e;">✅ ดำเนินการเรียบร้อย</div>', unsafe_allow_html=True)
+                st.markdown('<div class="header-badge" style="background:#22c55e;">ดำเนินการเรียบร้อย</div>', unsafe_allow_html=True)
                 df_done = df_raw[df_raw['Status'].str.contains("เรียบร้อย", na=False)].iloc[::-1].head(10)
                 for _, row in df_done.iterrows():
                     st.markdown(f'<div class="incident-card card-done"><b>✅ {row["Report_ID"]}</b><br>📍 {row["Location"]}<br><small style="color:#64748b;">{row["Incident_Type"]}</small></div>', unsafe_allow_html=True)
