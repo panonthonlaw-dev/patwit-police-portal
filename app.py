@@ -881,33 +881,32 @@ def traffic_module():
 # ==========================================
 # MODULE: MONITOR REAL-TIME (WAR ROOM - AUTO SCROLLING)
 # ==========================================
-# --- [ส่วนเสริม] ฟังก์ชัน Pop-up แจ้งเหตุใหม่ทีละเคส ---
-@st.dialog("🚨 แจ้งเหตุฉุกเฉินใหม่!")
-def alert_new_incident(row):
+# --- ฟังก์ชัน Pop-up แจ้งเหตุใหม่ (วางไว้นอกสุดของไฟล์) ---
+@st.dialog("🚨 ตรวจพบเหตุแจ้งใหม่!")
+def alert_new_incident(row_dict):
     st.markdown(f"""
-        <div style="text-align: center; border-bottom: 2px solid #dc2626; padding-bottom: 10px;">
-            <h1 style="color: #dc2626; margin: 0;">🔥 ตรวจพบเหตุใหม่!</h1>
-        </div>
-        <div style="padding: 20px 0; text-align: center;">
-            <div style="background-color: #fff1f2; padding: 15px; border-radius: 12px; border: 2px dashed #dc2626; margin-bottom: 15px;">
-                <h2 style="margin:0; color: #1e293b;">📍 {row['Location']}</h2>
-                <h3 style="color: #b91c1c; margin-top: 5px;">{row['Incident_Type']}</h3>
+        <div style="text-align: center;">
+            <h1 style="color: #dc2626; margin: 0;">🔥 มีเหตุแจ้งใหม่!</h1>
+            <hr>
+            <div style="background-color: #fff1f2; padding: 20px; border-radius: 15px; border: 2px solid #dc2626;">
+                <h2 style="margin:0; color: #1e293b;">📍 {row_dict.get('Location', '-')}</h2>
+                <h3 style="color: #b91c1c; margin-top: 10px;">{row_dict.get('Incident_Type', '-')}</h3>
             </div>
-            <div style="text-align: left; background: #f8fafc; padding: 15px; border-radius: 8px;">
-                <b>เลขที่รับแจ้ง:</b> {row['Report_ID']}<br>
-                <b>เวลาที่เกิดเหตุ:</b> {row['Timestamp']}<br>
-                <b>รายละเอียด:</b><br>{row['Details']}
+            <div style="text-align: left; margin-top: 20px; background: #f8fafc; padding: 15px; border-radius: 10px;">
+                <b>เลขที่รับแจ้ง:</b> {row_dict.get('Report_ID', '-')}<br>
+                <b>เวลา:</b> {row_dict.get('Timestamp', '-')}<br>
+                <b>รายละเอียด:</b> {row_dict.get('Details', '-')}
             </div>
         </div>
     """, unsafe_allow_html=True)
-    if st.button("🔴 ปิดและรับทราบเหตุ", type="primary", use_container_width=True):
+    if st.button("รับทราบเหตุ (Close)", type="primary", use_container_width=True):
         st.rerun()
 def monitor_center_module():
-    # 1. เริ่มต้น Session State สำหรับเก็บรหัสที่แจ้งเตือนไปแล้ว
+    # 1. ตั้งค่า State สำหรับจดจำเคสล่าสุด
     if "last_alerted_rid" not in st.session_state:
-        st.session_state.last_alerted_rid = None
+        st.session_state.last_alerted_rid = "START" # กำหนดค่าเริ่มต้น
 
-    # 2. CSS สำหรับตัวกระพริบ และ Layout
+    # 2. CSS สำหรับ Marquee และตัวกระพริบ
     st.markdown("""
         <style>
             .blink-badge {
@@ -919,9 +918,10 @@ def monitor_center_module():
             @keyframes blinker { 50% { opacity: 0; } }
             
             .marquee-viewport { height: 650px; overflow: hidden; position: relative; background: #fff1f2; border-radius: 12px; border: 2px solid #dc2626; }
-            .marquee-content { display: flex; flex-direction: column; animation: scroll_up 45s linear infinite; }
+            .marquee-content { display: flex; flex-direction: column; animation: scroll_up 40s linear infinite; }
             @keyframes scroll_up { 0% { transform: translateY(0); } 100% { transform: translateY(-50%); } }
             .marquee-viewport:hover .marquee-content { animation-play-state: paused; }
+            
             .incident-card { padding: 15px; border-radius: 10px; margin: 10px; background: white; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
             .card-new { border-left: 10px solid #dc2626 !important; }
             .card-progress { border-left: 8px solid #3b82f6 !important; background-color: #eff6ff !important; margin-bottom:12px; }
@@ -931,72 +931,70 @@ def monitor_center_module():
     """, unsafe_allow_html=True)
 
     try:
-        # 3. ดึงข้อมูล
+        # 3. ดึงข้อมูลจาก Sheets (ใช้ TTL ต่ำเพื่อให้เรียลไทม์)
         conn = st.connection("gsheets", type=GSheetsConnection)
         now_th = get_now_th()
         cur_year = (now_th.year + 543) if now_th.month >= 5 else (now_th.year + 542)
-        df = conn.read(worksheet=f"Investigation_{cur_year}", ttl=2).fillna("")
+        df_raw = conn.read(worksheet=f"Investigation_{cur_year}", ttl=2).fillna("")
         
-        if not df.empty:
-            # 4. แยกเฉพาะเคสใหม่ (รอดำเนินการ) เรียงจากใหม่ไปเก่า
-            df_new = df[df['Status'].astype(str).str.strip() == "รอดำเนินการ"].iloc[::-1]
+        if not df_raw.empty:
+            # 4. กรองเคส "รอดำเนินการ" และเรียงจากใหม่ที่สุด (ล่าสุดอยู่บน)
+            df_new_all = df_raw[df_raw['Status'].astype(str).str.strip() == "รอดำเนินการ"].iloc[::-1]
 
-            # --- [จุดเช็คสำคัญ: ตรวจพบเคสใหม่หรือไม่] ---
-            if not df_new.empty:
-                # หยิบเคสบนสุด (ล่าสุดจริงๆ)
-                latest_case = df_new.iloc[0]
-                latest_rid = str(latest_case['Report_ID'])
+            # --- [จุดตรวจสอบเพื่อเด้ง POP-UP] ---
+            if not df_new_all.empty:
+                # ดึงเคสล่าสุดออกมาเป็น Dictionary
+                latest_row = df_new_all.iloc[0].to_dict()
+                latest_rid = str(latest_row['Report_ID']).strip()
 
-                # ถ้าเป็นเคสใหม่ (ไม่ตรงกับรหัสที่เคยแจ้งเตือน) และไม่ใช่การเปิดหน้าจอครั้งแรกที่มีเคสค้างอยู่แล้ว
-                # (หรือถ้าอยากให้เด้งทันทีที่เปิดหน้าจอก็เอาเงื่อนไข None ออกได้ครับ)
-                if st.session_state.last_alerted_rid != latest_rid:
+                # กรณีที่ 1: เปิดหน้าจอครั้งแรก (จดจำรหัสล่าสุดไว้ก่อน ไม่ต้องเด้ง)
+                if st.session_state.last_alerted_rid == "START":
                     st.session_state.last_alerted_rid = latest_rid
-                    alert_new_incident(latest_case) # 🔴 สั่งเด้ง Pop-up ทันที
-            # ------------------------------------------
+                
+                # กรณีที่ 2: มีรหัสใหม่เข้ามา และไม่ซ้ำกับรหัสเดิม
+                elif st.session_state.last_alerted_rid != latest_rid:
+                    st.session_state.last_alerted_rid = latest_rid # อัปเดตตัวล่าสุด
+                    alert_new_incident(latest_row) # 🔴 สั่งเด้ง Pop-up ทันที
+            # -----------------------------------
 
-            # 5. แสดงหัวข้อพร้อมตัวกระพริบ
-            has_pending = not df_new.empty
-            blink_html = '<span class="blink-badge">🚨 มีเหตุใหม่</span>' if has_pending else ''
-            st.markdown(f"""
-                <div style="text-align:center; padding-bottom: 15px; border-bottom: 2px solid #f1f5f9; margin-bottom: 20px;">
-                    <h2 style="color:#1e3a8a; margin:0; display: inline-block;">🚨 War Room: ระบบเฝ้าระวังเหตุอัตโนมัติ</h2>
-                    {blink_html}
-                </div>
-            """, unsafe_allow_html=True)
+            # 5. แสดงผล UI (Header)
+            has_p = not df_new_all.empty
+            blink_html = '<span class="blink-badge">🚨 มีเหตุใหม่</span>' if has_p else ''
+            st.markdown(f'<div style="text-align:center;"><h2 style="color:#1e3a8a; margin:0; display:inline-block;">🚨 War Room: ระบบเฝ้าระวังเหตุอัตโนมัติ</h2>{blink_html}</div>', unsafe_allow_html=True)
             
             if st.button("⬅️ กลับหน้าเลือกแผนก", use_container_width=True):
                 st.session_state.current_dept = None; st.rerun()
 
-            # 6. แสดงผล 3 คอลัมน์ (Auto-scroll และรายการคงที่)
+            # 6. แสดงผล 3 คอลัมน์
             c1, c2, c3 = st.columns(3)
             
             with c1:
                 st.markdown('<div class="header-badge" style="background:#dc2626;">🔥 รอดำเนินการ (Auto-Scroll)</div>', unsafe_allow_html=True)
-                if df_new.empty: st.info("✅ สถานะปกติ")
+                if df_new_all.empty: st.info("✅ สถานะปกติ")
                 else:
                     cards_html = ""
-                    for _, row in df_new.iterrows():
+                    for _, row in df_new_all.iterrows():
                         cards_html += f"""
                         <div class="incident-card card-new">
                             <div style="display:flex; justify-content:space-between;"><b style="color:#dc2626;">📝 {row['Report_ID']}</b><small>{row['Timestamp']}</small></div>
                             <div style="font-size:1.1em; font-weight:bold; margin-top:5px;">📍 {row['Location']}</div>
-                            <div>{row['Incident_Type']}</div>
+                            <div style="font-weight:bold;">{row['Incident_Type']}</div>
                         </div>"""
                     st.markdown(f'<div class="marquee-viewport"><div class="marquee-content">{cards_html}{cards_html}</div></div>', unsafe_allow_html=True)
 
             with c2:
                 st.markdown('<div class="header-badge" style="background:#2563eb;">🔵 กำลังดำเนินการ</div>', unsafe_allow_html=True)
-                df_prog = df[df['Status'].astype(str).str.strip() == "อยู่ระหว่างการดำเนินการ"].iloc[::-1].head(10)
+                df_prog = df_raw[df_raw['Status'].astype(str).str.strip() == "อยู่ระหว่างการดำเนินการ"].iloc[::-1].head(10)
                 for _, row in df_prog.iterrows():
                     st.markdown(f'<div class="incident-card card-progress"><b>📝 {row["Report_ID"]}</b><br>📍 {row["Location"]}<br><small>ผู้สอบสวน: {row["Teacher_Investigator"]}</small></div>', unsafe_allow_html=True)
 
             with c3:
                 st.markdown('<div class="header-badge" style="background:#16a34a;">✅ ล่าสุด (10 รายการ)</div>', unsafe_allow_html=True)
-                df_done = df[df['Status'].astype(str).str.strip().isin(["ดำเนินการเรียบร้อย", "ยกเลิก"])].iloc[::-1].head(10)
+                df_done = df_raw[df_raw['Status'].astype(str).str.strip().isin(["ดำเนินการเรียบร้อย", "ยกเลิก"])].iloc[::-1].head(10)
                 for _, row in df_done.iterrows():
                     st.markdown(f'<div class="incident-card card-done"><b>✅ {row["Report_ID"]}</b><br>📍 {row["Location"]}<br><small>{row["Incident_Type"]}</small></div>', unsafe_allow_html=True)
 
-        # 7. Auto Refresh ทุก 10 วินาที
+        # 7. สั่งรีโหลดอัตโนมัติ (10 วินาที)
         time.sleep(10)
         st.rerun()
         
