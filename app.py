@@ -966,7 +966,7 @@ def monitor_center_module():
 
             # === [COL 1: รอดำเนินการ (แดงกะพริบ)] ===
             with c1:
-                st.markdown('<div class="header-badge" style="background:#FF0000;">🔥 แจ้งใหม่ (ด่วน)</div>', unsafe_allow_html=True)
+                st.markdown('<div class="header-badge" style="background:#dc2626;">🔥 แจ้งใหม่ (ด่วน)</div>', unsafe_allow_html=True)
                 if df_new.empty: 
                     st.info("✅ เหตุการณ์ปกติ")
                 else:
