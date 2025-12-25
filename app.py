@@ -3,11 +3,10 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime, timedelta
 import pytz, random, os, base64, io, qrcode, glob, math, mimetypes, json, requests, re, textwrap, time, ast
+import html  # <--- ✅ สำคัญมาก ต้องมีบรรทัดนี้ครับ ไม่งั้นจะ Error
 from PIL import Image
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-import base64
-import os
 
 # PDF & Chart Libraries
 try:
