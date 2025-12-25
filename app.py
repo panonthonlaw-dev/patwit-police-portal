@@ -746,8 +746,8 @@ def traffic_module():
         else:
             st.info("ℹ️ กรุณากรอกคำค้นหาหรือใช้ตัวกรองเพื่อแสดงข้อมูล")
 
-st.markdown("---")
-# ✅ ย่อหน้าเท่ากับ st.markdown (ระดับที่ 2)
+        st.markdown("---")
+        # ✅ ย่อหน้าเท่ากับ st.markdown (ระดับที่ 2)
         if st.session_state.current_user_pwd == UPGRADE_PASSWORD:
             with st.expander("⚙️ ระบบจัดการเลื่อนชั้นเรียน (Super Admin Only)"):
                 st.warning("⚠️ คำเตือน: ระบบจะเป็นการแก้ไขถาวร ไม่สามารถย้อนกลับได้ กรุณาระมัดระวัง")
