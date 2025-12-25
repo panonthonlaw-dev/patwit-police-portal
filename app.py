@@ -335,23 +335,26 @@ def investigation_module():
                 if df_p.empty: st.caption("ไม่มีรายการ")
                 for i, row in df_p.iloc[start_p:end_p].iterrows():
                     cc1, cc2, cc3, cc4 = st.columns([2.5, 2, 3, 1.5])
-                    with cc1: st.button(f"📝 {row['Report_ID']}", key=f"p_{i}", use_container_width=True, on_click=lambda r=row['Report_ID']: st.session_state.update({'selected_case_id': r, 'view_mode': 'detail', 'unlock_password': ""}))
-                    cc2.write(row['Timestamp']); cc3.write(row['Incident_Type'])
-                    cc4.markdown(f"<span style='color:#DC2626;font-weight:bold'>⏳ {row['Status']}</span>", unsafe_allow_html=True); st.divider()
-                
-                if tot_p > 1:
-                    cp1, cp2, cp3 = st.columns([1, 2, 1])
-                    if cp1.button("⬅️ ย้อนกลับ", disabled=st.session_state.page_pending==1, key="pp"): st.session_state.page_pending-=1; st.rerun()
-                    cp2.markdown(f"<div style='text-align:center;'>{st.session_state.page_pending} / {tot_p}</div>", unsafe_allow_html=True)
-                    if cp3.button("ถัดไป ➡️", disabled=st.session_state.page_pending==tot_p, key="pn"): st.session_state.page_pending+=1; st.rerun()
-
-                st.markdown("<h4 style='color:#2e7d32; background-color:#e8f5e9; padding:10px; border-radius:5px;'>✅ รายการที่ดำเนินการเรียบร้อย</h4>", unsafe_allow_html=True)
-                start_f, end_f, cur_f, tot_f = calculate_pagination('page_finished', len(df_f), 5)
-                for i, row in df_f.iloc[start_f:end_f].iterrows():
-                    cc1, cc2, cc3, cc4 = st.columns([2.5, 2, 3, 1.5])
-                    with cc1: st.button(f"✅ {row['Report_ID']}", key=f"f_{i}", use_container_width=True, on_click=lambda r=row['Report_ID']: st.session_state.update({'selected_case_id': r, 'view_mode': 'detail', 'unlock_password': ""}))
-                    cc2.write(row['Timestamp']); cc3.write(row['Incident_Type'])
-                    cc4.markdown("<span style='color:green;font-weight:bold'>✅ ดำเนินการเรียบร้อย</span>", unsafe_allow_html=True); st.divider()
+                    with cc1: 
+                        st.button(f"📝 {row['Report_ID']}", key=f"p_{i}", on_click=lambda r=row['Report_ID']: st.session_state.update({'selected_case_id': r, 'view_mode': 'detail', 'unlock_password': ""}), use_container_width=True)
+                    cc2.write(row['Timestamp'])
+                    cc3.write(row['Incident_Type'])
+                    
+                    # เช็คเงื่อนไขเพื่อแยกสีตัวอักษร
+                    current_status = str(row['Status']).strip()
+                    if current_status == "รอดำเนินการ":
+                        s_color = "#dc2626"  # สีแดง
+                        s_icon = "⏳"
+                    elif current_status == "อยู่ระหว่างการดำเนินการ":
+                        s_color = "#2563eb"  # สีน้ำเงิน
+                        s_icon = "🔵"
+                    else:
+                        s_color = "orange"
+                        s_icon = "⏳"
+                        
+                    with cc4:
+                        st.markdown(f"<span style='color:{s_color}; font-weight:bold;'>{s_icon} {current_status}</span>", unsafe_allow_html=True)
+                    st.divider()
 
             with tab_dash:
                 tc = len(df_display)
