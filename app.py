@@ -886,17 +886,18 @@ def monitor_center_module():
     
     is_new_alert = False 
 
-    # --- 2. CSS: Minimal + Pulse + Marquee Pause ---
+    # --- 2. CSS ---
     st.markdown("""
         <style>
-            /* Pulse Effect: กระพริบ 5 วินาที */
+            /* ✅ Pulse Effect: กระพริบต่อเนื่องไม่หยุด (infinite) */
             @keyframes pulse_soft {
                 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); border-color: #ef4444; }
                 50% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); border-color: #ef4444; }
                 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); border-color: #ef4444; }
             }
             .new-incident-active { 
-                animation: pulse_soft 1s ease-in-out 5 !important; 
+                /* animation: ชื่อ duration timing-function iteration-count; */
+                animation: pulse_soft 1.5s ease-in-out infinite !important; 
                 border-left: 6px solid #dc2626 !important;
                 background-color: #fff1f2 !important; 
             }
@@ -905,7 +906,7 @@ def monitor_center_module():
             .alert-card-minimal {
                 background-color: white; 
                 color: #1e293b; 
-                padding: 10px; 
+                padding: 10px; /* กระชับ */
                 border-radius: 10px; 
                 border: 1px solid #e2e8f0;
                 border-left: 5px solid #ef4444; 
@@ -915,7 +916,7 @@ def monitor_center_module():
                 transition: transform 0.2s;
             }
             
-            /* --- ส่วนควบคุม Marquee (เลื่อนอัตโนมัติ) --- */
+            /* --- Marquee (ส่วนควบคุมการเลื่อน) --- */
             .marquee-viewport { 
                 height: 650px; 
                 overflow: hidden; 
@@ -923,20 +924,29 @@ def monitor_center_module():
                 background: #fff; 
                 border-radius: 12px; 
                 border: 1px solid #e2e8f0;
-                cursor: pointer; /* เปลี่ยนเมาส์เป็นรูปมือเมื่อชี้ */
+                
+                /* บังคับให้รับเมาส์ */
+                pointer-events: auto !important; 
+                z-index: 1;
+                cursor: pointer; 
             }
+            
             .marquee-content { 
                 display: flex; 
                 flex-direction: column; 
                 animation: scroll_up 50s linear infinite; 
             }
+            
             @keyframes scroll_up { 0% { transform: translateY(0); } 100% { transform: translateY(-50%); } }
             
-            /* ✅ คำสั่งหยุดเลื่อนเมื่อเอาเมาส์วาง (Hover) */
-            .marquee-viewport:hover .marquee-content { 
-                animation-play-state: paused !important; 
+            /* หยุดเลื่อนเมื่อเอาเมาส์วาง (รองรับทุก Browser) */
+            .marquee-viewport:hover .marquee-content,
+            .marquee-content:hover { 
+                animation-play-state: paused !important;
+                -webkit-animation-play-state: paused !important;
+                -moz-animation-play-state: paused !important;
+                -o-animation-play-state: paused !important;
             }
-            /* ------------------------------------------- */
             
             .incident-card { padding: 15px; border-radius: 10px; margin: 10px; background: white; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
             .card-new { border-left: 8px solid #dc2626 !important; }
@@ -946,6 +956,7 @@ def monitor_center_module():
         </style>
     """, unsafe_allow_html=True)
 
+    # ปุ่มย้อนกลับ
     if st.button("⬅️ กลับหน้าเลือกแผนก", use_container_width=True):
         st.session_state.current_dept = None
         st.rerun()
@@ -960,12 +971,12 @@ def monitor_center_module():
         if not df_raw.empty:
             current_row_count = len(df_raw)
             
-            # --- ตรวจจับเหตุใหม่ + เสียง ---
+            # --- ตรวจจับเหตุใหม่ ---
             if current_row_count > st.session_state.last_row_count:
                 if st.session_state.last_row_count > 0:
                     is_new_alert = True
                     
-                    # Hidden Audio Player
+                    # เล่นเสียง alet.wav 1 ครั้ง (Hidden Player)
                     sound_file = "alet.wav"
                     if os.path.exists(sound_file):
                         with open(sound_file, "rb") as f:
@@ -986,14 +997,14 @@ def monitor_center_module():
             
             df_new_all = df_raw[df_raw['Status'].str.contains("รอดำเนินการ", na=False)].iloc[::-1]
 
-            # --- หัวข้อ ---
+            # --- หัวข้อ (เอา NEW ออกแล้ว) ---
             st.markdown(f"""
                 <div style="text-align:center; margin-bottom:15px;">
                     <h2 style="color:#1e293b; margin:0; display:inline-block; font-weight:800;">🚨 War Room: ระบบเฝ้าระวังเหตุอัตโนมัติ</h2>
                 </div>
             """, unsafe_allow_html=True)
             
-            # --- 📌 แสดงผล 3 กล่องบน (Minimal & Compact) ---
+            # --- 📌 แสดงผล 3 กล่องบน (Minimal & Compact & Infinite Blink) ---
             if not df_new_all.empty:
                 st.markdown('<div style="color:#64748b; font-weight:600; margin-bottom:5px; font-size:0.9em;">🔥 แจ้งเหตุล่าสุด (3 รายการ):</div>', unsafe_allow_html=True)
                 top_3 = df_new_all.head(3)
@@ -1001,6 +1012,7 @@ def monitor_center_module():
 
                 for i, ((idx, row), col) in enumerate(zip(top_3.iterrows(), cols)):
                     with col:
+                        # ใส่ class กระพริบถ้าเป็นเหตุใหม่ (วนตลอดจนกว่าจะรีเฟรชแล้ว state หาย)
                         pulse_cls = "new-incident-active" if (i == 0 and is_new_alert) else ""
                         
                         itype = str(row['Incident_Type'])
@@ -1061,7 +1073,12 @@ def monitor_center_module():
                     st.markdown(f'<div class="incident-card card-done"><b>✅ {row["Report_ID"]}</b><br>📍 {row["Location"]}<br><small style="color:#64748b;">{row["Incident_Type"]}</small></div>', unsafe_allow_html=True)
 
         time.sleep(10)
-        st
+        st.rerun()
+        
+    except Exception as e:
+        st.error(f"⚠️ Connection Error: {e}")
+        time.sleep(10)
+        st.rerun()
 # ==========================================
 # 4. MAIN ENTRY (แก้ไขย่อหน้าให้ถูกต้อง)
 # ==========================================
