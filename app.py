@@ -881,6 +881,26 @@ def traffic_module():
 # ==========================================
 # MODULE: MONITOR REAL-TIME (WAR ROOM - AUTO SCROLLING)
 # ==========================================
+# --- ฟังก์ชัน Pop-up แจ้งเหตุใหม่ (ทีละเคส) ---
+@st.dialog("🚨 ตรวจพบเหตุแจ้งใหม่!")
+def alert_new_incident(row):
+    st.markdown(f"""
+        <div style="text-align: center; padding: 10px;">
+            <h2 style="color: #dc2626; margin-bottom: 0;">🔥 แจ้งเหตุใหม่!</h2>
+            <hr>
+            <div style="background-color: #fff1f2; padding: 15px; border-radius: 10px; border: 1px solid #dc2626;">
+                <h3 style="margin:0;">📍 {row['Location']}</h3>
+                <p style="font-size: 1.2em; font-weight: bold; color: #1e293b;">{row['Incident_Type']}</p>
+            </div>
+            <div style="text-align: left; margin-top: 15px;">
+                <b>เลขที่รับแจ้ง:</b> {row['Report_ID']}<br>
+                <b>เวลา:</b> {row['Timestamp']}<br>
+                <b>รายละเอียด:</b> {row['Details']}
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+    if st.button("รับทราบและปิดการแจ้งเตือน", type="primary", use_container_width=True):
+        st.rerun()
 def monitor_center_module():
     # 1. CSS สำหรับการเลื่อนอัตโนมัติแบบไร้รอยต่อ (Infinite Vertical Scroll)
     st.markdown("""
