@@ -934,34 +934,57 @@ def monitor_center_module():
             # 3. กรองสถานะแบบยืดหยุ่น (ป้องกันปัญหาเว้นวรรคใน Sheets)
             df_new_all = df_raw[df_raw['Status'].str.contains("รอดำเนินการ", na=False)].iloc[::-1]
 
-            # --- [ ส่วนที่แก้ไข: แก้ปัญหาโค้ดโชว์เป็นตัวอักษร ] ---
+            # --- [ กล่องสีแดงแจ้งเหตุ 3 เคสล่าสุด (เด้งขึ้นมาชัดเจน) ] ---
             if not df_new_all.empty:
                 st.markdown('<div style="text-align:center; font-weight:bold; color:#dc2626; font-size:1.2em; margin-bottom:10px;">🚨 ตรวจพบเหตุใหม่ล่าสุด! 🚨</div>', unsafe_allow_html=True)
                 
                 # ดึง 3 อันล่าสุด
                 top_3 = df_new_all.head(3)
                 
-                # เริ่มต้นสร้างก้อน HTML เพียงก้อนเดียว
-                alert_html = '<div class="critical-alert-zone">' 
-                
+                alert_html = '<div class="critical-alert-zone">'
                 for _, row in top_3.iterrows():
-                    # ต่อสตริงเข้าไปใน alert_html เรื่อยๆ
                     alert_html += f"""
                     <div class="alert-card-item">
                         <div style="display:flex; justify-content:space-between;">
                             <b style="font-size:1.1em;">🆔 {row['Report_ID']}</b>
-                            <span>⏱️ {row['Timestamp'].split(' ')[1] if ' ' in row['Timestamp'] else row['Timestamp']}</span>
+                            <span>⏱️ {row['Timestamp'].split(' ')[1] if ' ' in row['Timestamp'] else ''}</span>
                         </div>
                         <div style="font-size:1.2em; font-weight:bold; margin:5px 0;">📍 {row['Location']}</div>
                         <div style="color:#fecaca;">⚠ {row['Incident_Type']}</div>
                     </div>
                     """
-                
-                alert_html += '</div>' # ปิดก้อนใหญ่
-                
-                # ✅ บรรทัดสำคัญ: สั่ง render HTML ทั้งก้อนพร้อมกันในครั้งเดียว
+                alert_html += '</div>'
                 st.markdown(alert_html, unsafe_allow_html=True)
-            # ---------------------------------------------------
+
+            # --- ส่วนแสดงผล 3 คอลัมน์หลัก ---
+            st.divider()
+            c1, c2, c3 = st.columns(3)
+            
+            with c1:
+                st.markdown('<div class="header-badge" style="background:#dc2626;">🔥 ทั้งหมด (รอดำเนินการ)</div>', unsafe_allow_html=True)
+                if df_new_all.empty: st.info("✅ สถานะปกติ")
+                else:
+                    cards_html = ""
+                    for _, row in df_new_all.iterrows():
+                        cards_html += f"""
+                        <div class="incident-card card-new">
+                            <div style="font-size:0.85em;"><b>📝 {row['Report_ID']}</b> | {row['Timestamp']}</div>
+                            <div style="font-weight:bold; color:#b91c1c;">📍 {row['Location']}</div>
+                            <div style="font-size:0.9em;">{row['Incident_Type']}</div>
+                        </div>"""
+                    st.markdown(f'<div class="marquee-viewport"><div class="marquee-content">{cards_html}{cards_html}</div></div>', unsafe_allow_html=True)
+
+            with c2:
+                st.markdown('<div class="header-badge" style="background:#2563eb;">🔵 กำลังดำเนินการ</div>', unsafe_allow_html=True)
+                df_prog = df_raw[df_raw['Status'].str.contains("อยู่ระหว่าง", na=False)].iloc[::-1].head(10)
+                for _, row in df_prog.iterrows():
+                    st.markdown(f'<div class="incident-card card-progress"><b>📝 {row["Report_ID"]}</b><br>📍 {row["Location"]}<br><small>โดย: {row["Teacher_Investigator"]}</small></div>', unsafe_allow_html=True)
+
+            with c3:
+                st.markdown('<div class="header-badge" style="background:#16a34a;">✅ ล่าสุด (10 รายการ)</div>', unsafe_allow_html=True)
+                df_done = df_raw[df_raw['Status'].str.contains("เรียบร้อย", na=False)].iloc[::-1].head(10)
+                for _, row in df_done.iterrows():
+                    st.markdown(f'<div class="incident-card card-done"><b>✅ {row["Report_ID"]}</b><br>📍 {row["Location"]}<br><small>{row["Incident_Type"]}</small></div>', unsafe_allow_html=True)
 
         # 4. รีเฟรชอัตโนมัติ (10 วินาที)
         time.sleep(10)
