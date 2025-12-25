@@ -886,17 +886,16 @@ def monitor_center_module():
     
     is_new_alert = False 
 
-    # --- 2. CSS: ปรับการกระพริบให้หยุดหลัง 5 วินาที ---
+    # --- 2. CSS: Minimal Style ---
     st.markdown("""
         <style>
-            /* Pulse Effect: เล่น 1 วินาที x 5 รอบ = 5 วินาที แล้วหยุด */
+            /* Pulse Effect: กระพริบ 5 วินาที (1s x 5 รอบ) แล้วหยุด */
             @keyframes pulse_soft {
                 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); border-color: #ef4444; }
                 50% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); border-color: #ef4444; }
                 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); border-color: #ef4444; }
             }
             .new-incident-active { 
-                /* animation: ชื่อ duration timing-function delay iteration-count direction; */
                 animation: pulse_soft 1s ease-in-out 5 !important; 
                 border-left: 6px solid #dc2626 !important;
                 background-color: #fff1f2 !important; 
@@ -940,33 +939,36 @@ def monitor_center_module():
                 if st.session_state.last_row_count > 0:
                     is_new_alert = True
                     
-                    # --- 🔊 จัดการเสียง (วน 5 รอบ) ---
+                    # --- 🔊 จัดการเสียง (เล่น 1 รอบถ้วน) ---
                     sound_file = "alet.wav"
                     if os.path.exists(sound_file):
                         with open(sound_file, "rb") as f:
                             audio_bytes = f.read()
                         b64_audio = base64.b64encode(audio_bytes).decode()
                         
-                        # Script JavaScript สำหรับวนลูป 5 รอบ
+                        # โชว์ Player เพื่อกัน Browser บล็อก แต่เล่นแค่รอบเดียว (เอา Loop ออกแล้ว)
                         audio_html = f"""
-                            <audio id="alertAudio" autoplay style="display:none;">
-                                <source src="data:audio/wav;base64,{b64_audio}" type="audio/wav">
-                            </audio>
+                            <div style="background:#fee2e2; padding:10px; border-radius:10px; border:1px solid #ef4444; margin-bottom:10px; text-align:center;">
+                                <div style="color:#b91c1c; font-weight:bold; margin-bottom:5px;">🔊 แจ้งเตือนเหตุใหม่ (กด Play หากเสียงเงียบ)</div>
+                                <audio id="alertAudio" controls autoplay style="width:100%;">
+                                    <source src="data:audio/wav;base64,{b64_audio}" type="audio/wav">
+                                </audio>
+                            </div>
                             <script>
                                 var audio = document.getElementById("alertAudio");
                                 audio.volume = 1.0;
-                                var count = 0;
-                                audio.onended = function() {{
-                                    if(count < 4) {{ // เล่นซ้ำอีก 4 ครั้ง (รวมเป็น 5)
-                                        count++;
-                                        this.currentTime = 0;
-                                        this.play();
-                                    }}
-                                }};
+                                
+                                // สั่งเล่นทันที 1 ครั้ง
+                                var promise = audio.play();
+                                if (promise !== undefined) {{
+                                    promise.catch(error => {{
+                                        console.log("Autoplay blocked. User interaction needed.");
+                                    }});
+                                }}
                             </script>
                         """
                         st.markdown(audio_html, unsafe_allow_html=True)
-                        st.toast("🚨 พบเหตุใหม่! (กำลังแจ้งเตือน)", icon="🔊")
+                        st.toast("🚨 พบเหตุใหม่!", icon="🔥")
                     else:
                         st.error(f"❌ ไม่พบไฟล์ {sound_file}")
 
@@ -974,7 +976,7 @@ def monitor_center_module():
             
             df_new_all = df_raw[df_raw['Status'].str.contains("รอดำเนินการ", na=False)].iloc[::-1]
 
-            # --- หัวข้อ (เอาคำว่า NEW ออกแล้ว) ---
+            # --- หัวข้อ (เอา NEW ออก) ---
             st.markdown(f"""
                 <div style="text-align:center; margin-bottom:20px;">
                     <h2 style="color:#1e293b; margin:0; display:inline-block; font-weight:800;">🚨 War Room: ระบบเฝ้าระวังเหตุอัตโนมัติ</h2>
@@ -989,7 +991,7 @@ def monitor_center_module():
 
                 for i, ((idx, row), col) in enumerate(zip(top_3.iterrows(), cols)):
                     with col:
-                        # ใส่ class กระพริบเฉพาะช่องแรก ถ้ามีเหตุใหม่ (จะหยุดเองใน 5 วิ ตาม CSS)
+                        # กระพริบ 5 วิ (ตาม CSS)
                         pulse_cls = "new-incident-active" if (i == 0 and is_new_alert) else ""
                         
                         itype = str(row['Incident_Type'])
@@ -1054,7 +1056,7 @@ def monitor_center_module():
         
     except Exception as e:
         st.error(f"⚠️ Connection Error: {e}")
-        time.sleep(5)
+        time.sleep(10)
         st.rerun()
 # ==========================================
 # 4. MAIN ENTRY (แก้ไขย่อหน้าให้ถูกต้อง)
