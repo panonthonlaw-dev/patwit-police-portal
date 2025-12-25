@@ -25,7 +25,6 @@ def get_target_sheet_name():
     return f"Investigation_{ac_year}"
 #--------------------
 def hazard_analytics_module():
-    # 1. ปุ่มกลับหน้าหลัก
     if st.button("🏠 กลับเมนูหลัก", use_container_width=True):
         st.session_state.current_dept = None
         st.rerun()
@@ -33,7 +32,10 @@ def hazard_analytics_module():
     st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📍 Intelligence Map & Risk Analytics</h2>", unsafe_allow_html=True)
 
     try:
-        # 2. คำนวณชื่อ Sheet โดยตรง (ไม่ต้องง้อฟังก์ชันนอก)
+        # ✅ เพิ่มบรรทัดนี้ เพื่อให้ฟังก์ชันรู้จักตัวแปร 'conn'
+        conn = st.connection("gsheets", type=GSheetsConnection)
+
+        # คำนวณชื่อ Sheet (โค้ดเดิม)
         from datetime import datetime
         import pytz
         now_th = datetime.now(pytz.timezone('Asia/Bangkok'))
@@ -43,37 +45,30 @@ def hazard_analytics_module():
 
         st.info(f"📁 กำลังดึงข้อมูลจากชีต: {target_sheet}")
 
-        # 3. อ่านข้อมูลสด (ttl=0)
+        # อ่านข้อมูลสด
         df_raw = conn.read(worksheet=target_sheet, ttl=0)
         df_inv = pd.DataFrame(df_raw)
 
-        # 4. ล้างชื่อคอลัมน์ให้สะอาด (ตัดช่องว่างทิ้ง)
+        # ล้างชื่อคอลัมน์ (โค้ดเดิม)
         df_inv.columns = [str(c).strip() for c in df_inv.columns]
-
-        # 5. ป้องกัน Error คอลัมน์ขาด
         for c in ['Report_ID', 'Location', 'lat', 'lon']:
-            if c not in df_inv.columns:
-                df_inv[c] = ""
+            if c not in df_inv.columns: df_inv[c] = ""
 
-        # --- 👇 ส่วนแสดงผลตารางเช็กข้อมูล 👇 ---
+        # แสดงผลตารางเช็กข้อมูล
         st.write("### 🔍 ตรวจสอบพิกัดล่าสุด (5 รายการล่าสุด)")
-        
-        # กรองเฉพาะแถวที่ไม่ได้ว่างเปล่า (ถ้ามี)
         check_df = df_inv[['Report_ID', 'Location', 'lat', 'lon']].tail(5)
         st.dataframe(check_df, use_container_width=True)
 
-        # 6. ตรวจสอบว่ามีตัวเลขพิกัดจริงๆ ไหม
+        # ตรวจสอบตัวเลขพิกัด
         df_inv['lat_num'] = pd.to_numeric(df_inv['lat'], errors='coerce')
         df_inv['lon_num'] = pd.to_numeric(df_inv['lon'], errors='coerce')
         valid_points = df_inv.dropna(subset=['lat_num', 'lon_num'])
 
         if not valid_points.empty:
             st.success(f"✅ ตรวจพบข้อมูลพิกัด {len(valid_points)} รายการ")
-            # ถ้าอยากลองพล็อตแผนที่แบบง่ายของ Streamlit ให้เปิดบรรทัดล่างนี้ครับ
-            # st.map(valid_points.rename(columns={'lat_num':'lat', 'lon_num':'lon'}))
+            st.map(valid_points.rename(columns={'lat_num':'lat', 'lon_num':'lon'}))
         else:
             st.warning("📍 เชื่อมต่อสำเร็จ! แต่ยังไม่มี 'ตัวเลข' พิกัดใน Google Sheet (ช่อง R, S)")
-            st.info("💡 คำแนะนำ: ลองพิมพ์เลข 16.2941 ในช่อง R2 และ 103.9782 ในช่อง S2 ของ Sheet ดูครับ")
 
     except Exception as e:
         st.error(f"❌ ระบบขัดข้อง: {e}")
