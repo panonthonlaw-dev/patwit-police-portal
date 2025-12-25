@@ -885,56 +885,63 @@ def monitor_center_module():
     
     is_new_alert = False 
 
-    # --- 2. CSS ---
+    # --- 2. CSS ปรับใหม่: เรียงแนวนอน (Flex) และกล่องเล็ก ---
     st.markdown("""
         <style>
             /* Pulse Effect */
             @keyframes pulse_red {
                 0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); border: 2px solid #dc2626; transform: scale(1); }
-                50% { box-shadow: 0 0 0 15px rgba(220, 38, 38, 0); border: 2px solid #dc2626; transform: scale(1.02); }
+                50% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); border: 2px solid #dc2626; transform: scale(1.02); }
                 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); border: 2px solid #dc2626; transform: scale(1); }
             }
             .new-pulse { animation: pulse_red 2s infinite !important; z-index: 10; }
 
             /* New Badge */
             .badge-new { 
-                background: #facc15; color: black; padding: 4px 10px; 
-                border-radius: 6px; font-size: 0.6em; font-weight: 800;
+                background: #facc15; color: black; padding: 2px 8px; 
+                border-radius: 4px; font-size: 0.7em; font-weight: 800;
                 animation: blinker 1s linear infinite; margin-left: 10px; vertical-align: middle;
-                border: 1px solid white;
             }
             @keyframes blinker { 50% { opacity: 0; } }
 
-            /* Critical Alert Zone (กล่องแดง) */
+            /* Critical Alert Zone (ปรับใหม่: แนวนอน Flexbox) */
             .critical-alert-zone {
+                display: flex;               /* จัดเรียงแนวนอน */
+                flex-direction: row;         /* ซ้ายไปขวา */
+                justify-content: space-between; /* กระจายให้เต็มพื้นที่ */
+                gap: 10px;                   /* เว้นระยะห่างระหว่างกล่อง */
+                
                 background-color: #7f1d1d; 
-                border: 3px solid #f87171;
-                border-radius: 15px;
-                padding: 15px;
-                margin-bottom: 25px;
-                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
-            }
-            .alert-card-item {
-                background: rgba(255, 255, 255, 0.1);
-                margin: 10px 0;
-                padding: 12px;
+                border: 2px solid #f87171;
                 border-radius: 10px;
-                border-left: 5px solid #fca5a5;
+                padding: 10px;
+                margin-bottom: 20px;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            }
+            
+            /* การ์ดแจ้งเตือน (ปรับใหม่: ขนาดเล็ก Compact) */
+            .alert-card-item {
+                flex: 1;                     /* ให้ขยายเต็มพื้นที่เท่าๆ กัน (1/3) */
+                background: rgba(255, 255, 255, 0.1);
+                padding: 8px;
+                border-radius: 6px;
+                border-left: 4px solid #fca5a5;
                 color: white;
+                font-size: 0.9em;            /* ลดขนาดตัวอักษรลง */
+                min-width: 0;                /* ป้องกันการล้น */
             }
 
-            /* Marquee */
-            .marquee-viewport { height: 650px; overflow: hidden; position: relative; background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; }
+            /* Marquee & Layout อื่นๆ คงเดิม */
+            .marquee-viewport { height: 600px; overflow: hidden; position: relative; background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; }
             .marquee-content { display: flex; flex-direction: column; animation: scroll_up 50s linear infinite; }
             @keyframes scroll_up { 0% { transform: translateY(0); } 100% { transform: translateY(-50%); } }
             .marquee-viewport:hover .marquee-content { animation-play-state: paused; }
             
-            /* Cards */
-            .incident-card { padding: 15px; border-radius: 10px; margin: 10px; background: white; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+            .incident-card { padding: 12px; border-radius: 8px; margin: 8px; background: white; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
             .card-new { border-left: 8px solid #dc2626 !important; }
-            .card-progress { border-left: 6px solid #3b82f6 !important; background-color: #eff6ff !important; margin-bottom:12px; }
-            .card-done { border-left: 6px solid #22c55e !important; background-color: #f0fdf4 !important; margin-bottom:12px; }
-            .header-badge { padding: 12px; border-radius: 8px; text-align: center; font-weight: bold; margin-bottom: 10px; color: white; font-size: 1.1em; }
+            .card-progress { border-left: 6px solid #3b82f6 !important; background-color: #eff6ff !important; margin-bottom:10px; }
+            .card-done { border-left: 6px solid #22c55e !important; background-color: #f0fdf4 !important; margin-bottom:10px; }
+            .header-badge { padding: 10px; border-radius: 8px; text-align: center; font-weight: bold; margin-bottom: 10px; color: white; font-size: 1.1em; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -950,7 +957,7 @@ def monitor_center_module():
         st.caption(f"🔄 Last Update: {now_th.strftime('%H:%M:%S')}")
 
         if not df_raw.empty:
-            # --- Logic ตรวจจับเหตุใหม่ ---
+            # Logic ตรวจจับเหตุใหม่
             current_row_count = len(df_raw)
             if current_row_count > st.session_state.last_row_count:
                 if st.session_state.last_row_count > 0:
@@ -960,23 +967,22 @@ def monitor_center_module():
             
             df_new_all = df_raw[df_raw['Status'].str.contains("รอดำเนินการ", na=False)].iloc[::-1]
 
-            # --- หัวข้อ ---
+            # หัวข้อ
             new_label = '<span class="badge-new">NEW ALERT</span>' if is_new_alert else ""
             st.markdown(f"""
-                <div style="text-align:center; padding:10px; margin-bottom:10px;">
+                <div style="text-align:center; margin-bottom:10px;">
                     <h2 style="color:#1e3a8a; margin:0; display:inline-block;">🚨 War Room: ระบบเฝ้าระวังเหตุอัตโนมัติ</h2>
                     {new_label}
                 </div>
             """, unsafe_allow_html=True)
 
-            # --- ✅ จุดแก้ไขสำคัญ: กล่องแดง แจ้งเหตุ 3 เคสล่าสุด ---
+            # --- ✅ จุดแก้ไข: แสดง 3 เคสล่าสุด แบบแนวนอน (Flex Row) ---
             if not df_new_all.empty:
                 top_3 = df_new_all.head(3)
                 
-                # 1. เปิดแท็ก div หลัก
+                # เริ่มสร้าง HTML ก้อนเดียว
                 full_alert_html = '<div class="critical-alert-zone">'
                 
-                # 2. วนลูปสร้าง HTML ของแต่ละการ์ด แล้วต่อเข้าไปในตัวแปรเดิม
                 for _, row in top_3.iterrows():
                     itype = str(row['Incident_Type'])
                     icon = "⚠️"
@@ -986,25 +992,23 @@ def monitor_center_module():
                     
                     time_only = row['Timestamp'].split(' ')[1] if ' ' in row['Timestamp'] else row['Timestamp']
                     
-                    # ต่อ String HTML (ห้ามใช้ st.write ในนี้เด็ดขาด)
                     full_alert_html += f"""
                     <div class="alert-card-item">
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <b style="font-size:1.1em; color:#fecaca;">🆔 {row['Report_ID']}</b>
-                            <span style="font-size:0.9em; opacity:0.8;">⏱️ {time_only}</span>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                            <b style="color:#fecaca;">🆔 {row['Report_ID']}</b>
+                            <span style="opacity:0.8; font-size:0.8em;">{time_only}</span>
                         </div>
-                        <div style="font-size:1.3em; font-weight:800; margin:8px 0; color:white;">📍 {row['Location']}</div>
-                        <div style="font-size:1.1em; color:white; font-weight:bold;">{icon} {itype}</div>
+                        <div style="font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">📍 {row['Location']}</div>
+                        <div style="color:white; font-size:0.9em; margin-top:2px;">{icon} {itype}</div>
                     </div>
                     """
                 
-                # 3. ปิดแท็ก div หลัก
                 full_alert_html += '</div>'
-                
-                # 4. สั่ง render HTML ทีเดียวจบ
+                # แสดงผลทีเดียว
                 st.markdown(full_alert_html, unsafe_allow_html=True)
-            # -------------------------------------------------------------
+            # -----------------------------------------------------------
 
+            # 3 คอลัมน์ด้านล่าง (เหมือนเดิม)
             c1, c2, c3 = st.columns(3)
             with c1:
                 st.markdown('<div class="header-badge" style="background:#dc2626;">🔥 รอดำเนินการ (Auto-Scroll)</div>', unsafe_allow_html=True)
@@ -1019,7 +1023,7 @@ def monitor_center_module():
                                 <b style="color:#dc2626;">📝 {row['Report_ID']}</b>
                                 <small>{row['Timestamp']}</small>
                             </div>
-                            <div style="font-size:1.2em; font-weight:bold; margin-top:5px;">📍 {row['Location']}</div>
+                            <div style="font-weight:bold; margin-top:5px;">📍 {row['Location']}</div>
                             <div>{row['Incident_Type']}</div>
                         </div>"""
                     st.markdown(f'<div class="marquee-viewport"><div class="marquee-content">{cards_html}{cards_html}</div></div>', unsafe_allow_html=True)
