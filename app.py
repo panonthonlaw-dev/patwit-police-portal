@@ -923,7 +923,7 @@ def monitor_center_module():
                 animation: strong_flash 1s infinite !important; /* กะพริบเร็วทุก 1 วินาที */
             }
 
-            /* 🔵 สถานะ: กำลังดำเนินการ */
+            /*  สถานะ: กำลังดำเนินการ */
             .card-progress { 
                 border-left: 8px solid #3b82f6 !important; 
                 background-color: #eff6ff !important; 
@@ -1008,7 +1008,7 @@ def monitor_center_module():
 
             # === [COL 2: กำลังดำเนินการ (ฟ้า)] ===
             with c2:
-                st.markdown('<div class="header-badge" style="background:#2563eb;">🔵 กำลังดำเนินการ</div>', unsafe_allow_html=True)
+                st.markdown('<div class="header-badge" style="background:#2563eb;"> กำลังดำเนินการ</div>', unsafe_allow_html=True)
                 if df_prog.empty: st.caption("- ว่าง -")
                 else:
                     for _, row in df_prog.iterrows():
