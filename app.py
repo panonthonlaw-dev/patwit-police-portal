@@ -886,7 +886,7 @@ def monitor_center_module():
     
     is_new_alert = False 
 
-    # --- 2. CSS: Minimal Style ---
+    # --- 2. CSS: Minimal Style & Pulse Effect ---
     st.markdown("""
         <style>
             /* Pulse Effect: กระพริบ 5 วินาที (1s x 5 รอบ) แล้วหยุด */
@@ -901,7 +901,7 @@ def monitor_center_module():
                 background-color: #fff1f2 !important; 
             }
 
-            /* การ์ดแบบ Minimal */
+            /* การ์ดแบบ Minimal (พื้นขาว) */
             .alert-card-minimal {
                 background-color: white; color: #1e293b; padding: 15px;
                 border-radius: 12px; border: 1px solid #e2e8f0;
@@ -935,55 +935,25 @@ def monitor_center_module():
 
         if not df_raw.empty:
             current_row_count = len(df_raw)
+            # --- ตรวจจับเหตุใหม่ (ตัดเสียงออกแล้ว) ---
             if current_row_count > st.session_state.last_row_count:
                 if st.session_state.last_row_count > 0:
                     is_new_alert = True
-                    
-                    # --- 🔊 จัดการเสียง (เล่น 1 รอบถ้วน) ---
-                    sound_file = "alet.wav"
-                    if os.path.exists(sound_file):
-                        with open(sound_file, "rb") as f:
-                            audio_bytes = f.read()
-                        b64_audio = base64.b64encode(audio_bytes).decode()
-                        
-                        # โชว์ Player เพื่อกัน Browser บล็อก แต่เล่นแค่รอบเดียว (เอา Loop ออกแล้ว)
-                        audio_html = f"""
-                            <div style="background:#fee2e2; padding:10px; border-radius:10px; border:1px solid #ef4444; margin-bottom:10px; text-align:center;">
-                                <div style="color:#b91c1c; font-weight:bold; margin-bottom:5px;">🔊 แจ้งเตือนเหตุใหม่ (กด Play หากเสียงเงียบ)</div>
-                                <audio id="alertAudio" controls autoplay style="width:100%;">
-                                    <source src="data:audio/wav;base64,{b64_audio}" type="audio/wav">
-                                </audio>
-                            </div>
-                            <script>
-                                var audio = document.getElementById("alertAudio");
-                                audio.volume = 1.0;
-                                
-                                // สั่งเล่นทันที 1 ครั้ง
-                                var promise = audio.play();
-                                if (promise !== undefined) {{
-                                    promise.catch(error => {{
-                                        console.log("Autoplay blocked. User interaction needed.");
-                                    }});
-                                }}
-                            </script>
-                        """
-                        st.markdown(audio_html, unsafe_allow_html=True)
-                        st.toast("🚨 พบเหตุใหม่!", icon="🔥")
-                    else:
-                        st.error(f"❌ ไม่พบไฟล์ {sound_file}")
+                    # เหลือแค่ Toast Message แจ้งเตือนเงียบๆ
+                    st.toast("🚨 พบเหตุแจ้งใหม่!", icon="🔥")
 
                 st.session_state.last_row_count = current_row_count
             
             df_new_all = df_raw[df_raw['Status'].str.contains("รอดำเนินการ", na=False)].iloc[::-1]
 
-            # --- หัวข้อ (เอา NEW ออก) ---
+            # --- หัวข้อ ---
             st.markdown(f"""
                 <div style="text-align:center; margin-bottom:20px;">
                     <h2 style="color:#1e293b; margin:0; display:inline-block; font-weight:800;">🚨 War Room: ระบบเฝ้าระวังเหตุอัตโนมัติ</h2>
                 </div>
             """, unsafe_allow_html=True)
             
-            # --- 📌 แสดงผล 3 กล่องบน ---
+            # --- 📌 แสดงผล 3 กล่องบน (Minimal) ---
             if not df_new_all.empty:
                 st.markdown('<div style="color:#64748b; font-weight:600; margin-bottom:10px; font-size:0.9em;">🔥 แจ้งเหตุล่าสุด (3 รายการ):</div>', unsafe_allow_html=True)
                 top_3 = df_new_all.head(3)
@@ -991,7 +961,7 @@ def monitor_center_module():
 
                 for i, ((idx, row), col) in enumerate(zip(top_3.iterrows(), cols)):
                     with col:
-                        # กระพริบ 5 วิ (ตาม CSS)
+                        # ใส่ Class ให้กระพริบ 5 วิ เฉพาะอันใหม่ล่าสุด
                         pulse_cls = "new-incident-active" if (i == 0 and is_new_alert) else ""
                         
                         itype = str(row['Incident_Type'])
