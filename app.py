@@ -879,55 +879,59 @@ def traffic_module():
             st.caption(f"ออกรายงาน ณ วันที่: {get_now_th().strftime('%d/%m/%Y %H:%M')}")
 
 def monitor_center_module():
-    # --- 1. เตรียม State ---
+    # --- 1. เตรียม State จำค่าเดิม ---
     if "last_row_count" not in st.session_state:
         st.session_state.last_row_count = 0
     
     is_new_alert = False 
 
-    # --- 2. CSS (ปรับให้ปลอดภัยและสวยงาม) ---
+    # --- 2. CSS แต่งสวย + เอฟเฟกต์กระพริบ ---
     st.markdown("""
         <style>
-            /* Pulse Effect (สำหรับรายการใน Marquee) */
-            @keyframes pulse_red {
-                0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); border: 2px solid #dc2626; transform: scale(1); }
-                50% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); border: 2px solid #dc2626; transform: scale(1.02); }
-                100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); border: 2px solid #dc2626; transform: scale(1); }
+            /* 🔴 เอฟเฟกต์กระพริบ (Pulse) แรงๆ สำหรับเหตุใหม่ */
+            @keyframes pulse_critical {
+                0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); border-color: #ff0000; transform: scale(1); }
+                50% { box-shadow: 0 0 0 15px rgba(220, 38, 38, 0); border-color: #ff4d4d; transform: scale(1.03); }
+                100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); border-color: #ff0000; transform: scale(1); }
             }
-            .new-pulse { animation: pulse_red 2s infinite !important; z-index: 10; }
+            .new-incident-active { 
+                animation: pulse_critical 1.5s infinite !important; 
+                z-index: 99;
+                background-color: #991b1b !important; /* แดงเข้มขึ้นเมื่อเป็นของใหม่ */
+            }
 
-            /* กล่องแจ้งเหตุจิ๋ว (Top 3) */
+            /* สไตล์การ์ดจิ๋ว (3 ช่องบน) */
             .mini-alert-card {
-                background-color: #7f1d1d; /* สีแดงเลือดหมู */
+                background-color: #7f1d1d; 
                 color: white;
-                padding: 10px;
-                border-radius: 8px;
-                border: 1px solid #f87171;
+                padding: 12px;
+                border-radius: 10px;
+                border: 2px solid #f87171;
                 border-left: 5px solid #fca5a5;
-                font-size: 0.9em;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-                height: 100%; /* ให้สูงเท่ากัน */
+                box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+                height: 100%;
+                transition: all 0.3s ease;
             }
-            
+
             /* Badge NEW */
             .badge-new { 
-                background: #facc15; color: black; padding: 2px 8px; 
-                border-radius: 4px; font-size: 0.7em; font-weight: 800;
-                animation: blinker 1s linear infinite; margin-left: 10px; vertical-align: middle;
+                background: #facc15; color: black; padding: 3px 8px; 
+                border-radius: 4px; font-size: 0.7em; font-weight: 900;
+                animation: blinker 0.5s linear infinite; margin-left: 10px; vertical-align: middle;
+                border: 1px solid white;
             }
             @keyframes blinker { 50% { opacity: 0; } }
 
-            /* Marquee */
+            /* Marquee & Layout */
             .marquee-viewport { height: 650px; overflow: hidden; position: relative; background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; }
             .marquee-content { display: flex; flex-direction: column; animation: scroll_up 50s linear infinite; }
             @keyframes scroll_up { 0% { transform: translateY(0); } 100% { transform: translateY(-50%); } }
+            .marquee-viewport:hover .marquee-content { animation-play-state: paused; }
             
-            /* Cards ทั่วไป */
             .incident-card { padding: 15px; border-radius: 10px; margin: 10px; background: white; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
             .card-new { border-left: 8px solid #dc2626 !important; }
             .card-progress { border-left: 6px solid #3b82f6 !important; background-color: #eff6ff !important; margin-bottom:12px; }
             .card-done { border-left: 6px solid #22c55e !important; background-color: #f0fdf4 !important; margin-bottom:12px; }
-            .header-badge { padding: 12px; border-radius: 8px; text-align: center; font-weight: bold; margin-bottom: 10px; color: white; font-size: 1.1em; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -943,12 +947,25 @@ def monitor_center_module():
         st.caption(f"🔄 Last Update: {now_th.strftime('%H:%M:%S')}")
 
         if not df_raw.empty:
-            # Logic ตรวจจับเหตุใหม่
+            # --- 🔥 ส่วนตรวจจับเหตุใหม่ (Detection Logic) ---
             current_row_count = len(df_raw)
+            
+            # ถ้าจำนวนแถวเพิ่มขึ้น แสดงว่ามีคนแจ้งเข้ามาใหม่
             if current_row_count > st.session_state.last_row_count:
+                # ป้องกันเสียงดังตอนเปิดโปรแกรมครั้งแรก (ต้องเคยโหลดมาก่อนอย่างน้อย 1 ครั้ง)
                 if st.session_state.last_row_count > 0:
                     is_new_alert = True
-                    st.markdown('<audio autoplay><source src="https://www.soundjay.com/buttons/beep-01a.mp3" type="audio/mpeg"></audio>', unsafe_allow_html=True)
+                    
+                    # 🔊 เล่นเสียง Beep (ใช้ไฟล์จากเน็ต)
+                    st.markdown("""
+                        <audio autoplay>
+                            <source src="https://www.soundjay.com/buttons/beep-01a.mp3" type="audio/mpeg">
+                        </audio>
+                    """, unsafe_allow_html=True)
+                    
+                    st.toast("🚨 มีเหตุแจ้งใหม่!", icon="🔥")
+                
+                # จำค่าใหม่ไว้เทียบรอบหน้า
                 st.session_state.last_row_count = current_row_count
             
             df_new_all = df_raw[df_raw['Status'].str.contains("รอดำเนินการ", na=False)].iloc[::-1]
@@ -962,46 +979,46 @@ def monitor_center_module():
                 </div>
             """, unsafe_allow_html=True)
 
-            # --- ✅ จุดแก้ไข: ใช้ st.columns(3) จัดวางแนวนอน ---
-            # วิธีนี้เสถียรที่สุด ไม่พัง ไม่หลุดเป็น Code แน่นอน
+            # --- ส่วนแสดงผล 3 กล่องบน (เรียงแนวนอน 3 ช่อง) ---
             if not df_new_all.empty:
                 st.markdown('<div style="color:#dc2626; font-weight:bold; margin-bottom:5px;">🔥 แจ้งเหตุใหม่ล่าสุด (3 รายการ):</div>', unsafe_allow_html=True)
                 
                 top_3 = df_new_all.head(3)
-                cols = st.columns(3) # สร้าง 3 คอลัมน์มาตรฐาน
+                cols = st.columns(3) # แบ่ง 3 คอลัมน์
 
-                # วนลูปหยอดข้อมูลใส่ทีละคอลัมน์ (ซ้าย -> กลาง -> ขวา)
-                for (idx, row), col in zip(top_3.iterrows(), cols):
+                # วนลูปใส่ข้อมูล
+                for i, ((idx, row), col) in enumerate(zip(top_3.iterrows(), cols)):
                     with col:
-                        # เตรียมไอคอน
+                        # ถ้าเป็นใบแรก (ล่าสุด) และมีเหตุใหม่ -> ให้ใส่คลาสกระพริบ
+                        pulse_cls = "new-incident-active" if (i == 0 and is_new_alert) else ""
+                        
                         itype = str(row['Incident_Type'])
                         icon = "⚠️"
                         if "อาวุธ" in itype: icon = "🔪"
                         elif "ทะเลาะ" in itype or "ทำร้าย" in itype: icon = "🥊"
                         elif "ยาเสพติด" in itype or "บุหรี่" in itype: icon = "🚭"
                         
-                        time_val = str(row['Timestamp'])
-                        t_show = time_val.split(' ')[1] if ' ' in time_val else time_val
+                        t_show = row['Timestamp'].split(' ')[1] if ' ' in row['Timestamp'] else row['Timestamp']
 
-                        # สร้างการ์ดเล็กๆ ในคอลัมน์ตัวเอง
+                        # สร้างการ์ด HTML แยกรายช่อง (ปลอดภัย ไม่พัง)
                         st.markdown(f"""
-                        <div class="mini-alert-card">
-                            <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                                <b style="color:#fecaca;">🆔 {row['Report_ID']}</b>
-                                <span style="font-size:0.8em; opacity:0.8;">{t_show}</span>
+                        <div class="mini-alert-card {pulse_cls}">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                                <b style="color:#fecaca; font-size:1.1em;">🆔 {row['Report_ID']}</b>
+                                <span style="font-size:0.9em; opacity:0.9; background:rgba(0,0,0,0.2); padding:2px 6px; border-radius:4px;">⏱️ {t_show}</span>
                             </div>
-                            <div style="font-weight:bold; font-size:1.1em; margin-bottom:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                            <div style="font-weight:bold; font-size:1.2em; margin-bottom:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                                 📍 {row['Location']}
                             </div>
-                            <div style="color:#ffd1d1; font-size:0.9em;">
+                            <div style="color:#fff; font-size:1em;">
                                 {icon} {itype}
                             </div>
                         </div>
                         """, unsafe_allow_html=True)
-            # ---------------------------------------------------
 
-            # 3 คอลัมน์ด้านล่าง (ส่วนแสดงผลหลัก)
             st.divider()
+
+            # --- 3 คอลัมน์ด้านล่าง (Marquee และรายการอื่นๆ) ---
             c1, c2, c3 = st.columns(3)
             with c1:
                 st.markdown('<div class="header-badge" style="background:#dc2626;">🔥 รอดำเนินการ (Auto-Scroll)</div>', unsafe_allow_html=True)
@@ -1009,9 +1026,9 @@ def monitor_center_module():
                 else:
                     cards_html = ""
                     for i, (_, row) in enumerate(df_new_all.iterrows()):
-                        pulse_class = "new-pulse" if (i == 0 and is_new_alert) else ""
+                        # ถ้าจะให้ใน Marquee กระพริบด้วย ก็ใส่ pulse_cls ได้เช่นกัน
                         cards_html += f"""
-                        <div class="incident-card card-new {pulse_class}">
+                        <div class="incident-card card-new">
                             <div style="display:flex; justify-content:space-between;">
                                 <b style="color:#dc2626;">📝 {row['Report_ID']}</b>
                                 <small>{row['Timestamp']}</small>
