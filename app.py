@@ -880,6 +880,9 @@ def traffic_module():
 #------------------------------------------#
 war room
 #--------------------------------------#
+import base64
+import os
+
 def monitor_center_module():
     # --- 1. เตรียม State ---
     if "last_row_count" not in st.session_state:
@@ -887,31 +890,32 @@ def monitor_center_module():
     
     is_new_alert = False 
 
-    # --- 2. CSS ปรับโฉมใหม่: Minimal Style (สะอาด สบายตา) ---
+    # --- 2. CSS: Minimal Style (พื้นขาว สบายตา) ---
     st.markdown("""
         <style>
-            /* 🔴 Pulse Effect แบบนุ่มนวล (Soft Glow) */
+            /* Pulse Effect แบบนุ่มนวล (Soft Glow) */
             @keyframes pulse_soft {
                 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); border-color: #ef4444; }
-                70% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); border-color: #ef4444; }
+                50% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); border-color: #ef4444; }
                 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); border-color: #ef4444; }
             }
             .new-incident-active { 
                 animation: pulse_soft 2s infinite !important; 
                 border-left: 6px solid #dc2626 !important;
-                background-color: #fef2f2 !important; /* พื้นหลังแดงจางๆ */
+                background-color: #fff1f2 !important; /* พื้นหลังแดงจางๆ */
             }
 
-            /* 🎨 การ์ดแบบ Minimal (พื้นขาว สะอาดตา) */
+            /* การ์ดแบบ Minimal (พื้นขาว) */
             .alert-card-minimal {
                 background-color: white;
-                color: #1e293b; /* สีเทาเข้ม อ่านง่าย */
+                color: #1e293b;
                 padding: 15px;
                 border-radius: 12px;
-                border: 1px solid #e2e8f0;     /* ขอบเทาจางๆ */
-                border-left: 6px solid #ef4444; /* แถบสีแดงด้านซ้าย */
-                box-shadow: 0 2px 8px rgba(0,0,0,0.05); /* เงาฟุ้งๆ */
+                border: 1px solid #e2e8f0;
+                border-left: 6px solid #ef4444;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.05);
                 height: 100%;
+                min-height: 110px;
                 transition: transform 0.2s;
             }
             .alert-card-minimal:hover {
@@ -931,13 +935,11 @@ def monitor_center_module():
             .marquee-viewport { height: 650px; overflow: hidden; position: relative; background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; }
             .marquee-content { display: flex; flex-direction: column; animation: scroll_up 50s linear infinite; }
             @keyframes scroll_up { 0% { transform: translateY(0); } 100% { transform: translateY(-50%); } }
-            .marquee-viewport:hover .marquee-content { animation-play-state: paused; }
             
             .incident-card { padding: 15px; border-radius: 10px; margin: 10px; background: white; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
             .card-new { border-left: 8px solid #dc2626 !important; }
             .card-progress { border-left: 6px solid #3b82f6 !important; background-color: #eff6ff !important; margin-bottom:12px; }
             .card-done { border-left: 6px solid #22c55e !important; background-color: #f0fdf4 !important; margin-bottom:12px; }
-            .header-badge { padding: 12px; border-radius: 8px; text-align: center; font-weight: bold; margin-bottom: 10px; color: white; font-size: 1.1em; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -953,17 +955,27 @@ def monitor_center_module():
         st.caption(f"🔄 Last Update: {now_th.strftime('%H:%M:%S')}")
 
         if not df_raw.empty:
-            # --- ตรวจจับเหตุใหม่ ---
+            # --- 🔥 ส่วนตรวจจับเหตุใหม่ & ไฟล์เสียง Local ---
             current_row_count = len(df_raw)
             if current_row_count > st.session_state.last_row_count:
                 if st.session_state.last_row_count > 0:
                     is_new_alert = True
-                    # 🔊 เสียง Beep
-                    st.markdown("""
-                        <audio autoplay>
-                            <source src="https://www.soundjay.com/buttons/beep-01a.mp3" type="audio/mpeg">
-                        </audio>
-                    """, unsafe_allow_html=True)
+                    
+                    # 🔊 เล่นไฟล์เสียงจากเครื่อง (alet.mp3)
+                    audio_path = os.path.join(BASE_DIR, "alet.mp3") # หรือเปลี่ยนนามสกุลถ้าเป็น .wav
+                    
+                    if os.path.exists(audio_path):
+                        # แปลงไฟล์เสียงเป็น Base64 เพื่อฝังใน HTML
+                        with open(audio_path, "rb") as f:
+                            audio_bytes = f.read()
+                        b64_audio = base64.b64encode(audio_bytes).decode()
+                        audio_html = f'<audio autoplay><source src="data:audio/mp3;base64,{b64_audio}" type="audio/mp3"></audio>'
+                        st.markdown(audio_html, unsafe_allow_html=True)
+                    else:
+                        # ถ้าหาไฟล์ไม่เจอ ใช้เสียงสำรองจากเน็ต
+                        st.toast("⚠️ ไม่พบไฟล์ alet.mp3 ใช้เสียงสำรอง", icon="🔊")
+                        st.markdown('<audio autoplay><source src="https://www.soundjay.com/buttons/beep-01a.mp3" type="audio/mpeg"></audio>', unsafe_allow_html=True)
+                        
                     st.toast("🚨 มีเหตุแจ้งใหม่!", icon="🔥")
                 
                 st.session_state.last_row_count = current_row_count
@@ -974,14 +986,14 @@ def monitor_center_module():
             new_label = '<span class="badge-new">NEW</span>' if is_new_alert else ""
             st.markdown(f"""
                 <div style="text-align:center; margin-bottom:20px;">
-                    <h2 style="color:#1e293b; margin:0; display:inline-block; font-weight:800;">🚨 War Room Monitoring</h2>
+                    <h2 style="color:#1e293b; margin:0; display:inline-block; font-weight:800;">🚨 War Room: ระบบเฝ้าระวังเหตุอัตโนมัติ</h2>
                     {new_label}
                 </div>
             """, unsafe_allow_html=True)
 
-            # --- 📌 ส่วนแสดงผล 3 กล่องบน (Minimal Style) ---
+            # --- 📌 ส่วนแสดงผล 3 กล่องบน (ใช้ st.columns เพื่อความชัวร์ ไม่ให้โค้ดหลุด) ---
             if not df_new_all.empty:
-                st.markdown('<div style="color:#64748b; font-weight:600; margin-bottom:10px; font-size:0.9em;">🔥 แจ้งเหตุล่าสุด (Latest Incidents)</div>', unsafe_allow_html=True)
+                st.markdown('<div style="color:#64748b; font-weight:600; margin-bottom:10px; font-size:0.9em;">🔥 แจ้งเหตุล่าสุด (3 รายการ):</div>', unsafe_allow_html=True)
                 
                 top_3 = df_new_all.head(3)
                 cols = st.columns(3) 
@@ -1000,7 +1012,7 @@ def monitor_center_module():
                         
                         t_show = row['Timestamp'].split(' ')[1] if ' ' in row['Timestamp'] else row['Timestamp']
 
-                        # HTML การ์ดแบบ Minimal
+                        # HTML การ์ดแบบ Minimal (พื้นขาว)
                         st.markdown(f"""
                         <div class="alert-card-minimal {pulse_cls}">
                             <div style="display:flex; justify-content:space-between; margin-bottom:8px; border-bottom:1px solid #f1f5f9; padding-bottom:8px;">
