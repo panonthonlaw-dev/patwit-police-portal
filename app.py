@@ -1204,11 +1204,9 @@ def main():
                     st.rerun()
             # --------------------------------
             
-            # --- เริ่มวางทับตรงนี้ (แทนที่ของเดิม) ---
+            # --- เริ่มต้นส่วนที่แก้ไข ---
             st.markdown("---")
-            
-            # เพื่อเพิ่มปุ่ม map
-            c1, c2, c3, c4 = st.columns(4) # เปลี่ยนเป็น 4 ช่อง
+            c1, c2, c3, c4 = st.columns(4) 
             
             with c1:
                 with st.container(border=True):
@@ -1229,19 +1227,22 @@ def main():
                         st.query_params["dept"] = "tra"
                         st.rerun()
 
-            with c3: # ✅ ส่วนที่เพิ่มมาใหม่
+            with c3:
                 with st.container(border=True):
                     st.subheader("🖥️ War Room")
                     if st.button("เปิดจอเฝ้าระวังเหตุ", use_container_width=True, type='primary', key="btn_to_monitor"):
                         st.session_state.current_dept = "monitor_view"
                         st.query_params["dept"] = "monitor_view"
                         st.rerun()
-            with c4:
-            with st.container(border=True):
-                st.subheader("📍 แผนที่จุดเสี่ยง")
-                if st.button("ดูแผนที่วิเคราะห์", key="btn_to_hazard", use_container_width=True, type="primary"):
-                    st.session_state.current_dept = "hazard_map" # ตั้งชื่อสถานะใหม่
-                    st.rerun()
+
+            with c4: # ✅ แก้ไขการย่อหน้าตรงนี้
+                with st.container(border=True):
+                    st.subheader("📍 แผนที่จุดเสี่ยง")
+                    if st.button("ดูแผนที่วิเคราะห์", use_container_width=True, type="primary", key="btn_to_hazard"):
+                        st.session_state.current_dept = "hazard_map" 
+                        st.query_params["dept"] = "hazard_map"
+                        st.rerun()
+            # --- จบส่วนที่แก้ไข ---
             # ปุ่มออกจากระบบ (วางไว้ข้างล่างสุดของบล็อกนี้)
             st.write("")
             # ✅ แก้ key="main_logout" เป็น key="main_logout_fixed"
