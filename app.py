@@ -911,7 +911,7 @@ def monitor_center_module():
             
             /* Marquee */
             .marquee-viewport { height: 650px; overflow: hidden; position: relative; background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; }
-            .marquee-content { display: flex; flex-direction: column; animation: scroll_up 50s linear infinite; }
+            .marquee-content { display: flex; flex-direction: column; animation: scroll_up 60s linear infinite; }
             @keyframes scroll_up { 0% { transform: translateY(0); } 100% { transform: translateY(-50%); } }
             
             .incident-card { padding: 15px; border-radius: 10px; margin: 10px; background: white; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
