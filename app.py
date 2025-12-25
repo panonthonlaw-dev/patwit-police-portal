@@ -1052,7 +1052,7 @@ def monitor_center_module():
             # --- 3 คอลัมน์ด้านล่าง ---
             c1, c2, c3 = st.columns(3)
             with c1:
-                st.markdown('<div class="header-badge" style="background:#ef4444;">🔥 รอดำเนินการ (Live)</div>', unsafe_allow_html=True)
+                st.markdown('<div class="header-badge" style="background:#ef4444;">รอดำเนินการ</div>', unsafe_allow_html=True)
                 if df_new_all.empty: st.info("✅ เหตุการณ์ปกติ")
                 else:
                     cards_html = ""
@@ -1069,13 +1069,13 @@ def monitor_center_module():
                     st.markdown(f'<div class="marquee-viewport"><div class="marquee-content">{cards_html}{cards_html}</div></div>', unsafe_allow_html=True)
 
             with c2:
-                st.markdown('<div class="header-badge" style="background:#3b82f6;">🔵 กำลังดำเนินการ</div>', unsafe_allow_html=True)
+                st.markdown('<div class="header-badge" style="background:#3b82f6;">กำลังดำเนินการ</div>', unsafe_allow_html=True)
                 df_prog = df_raw[df_raw['Status'].str.contains("อยู่ระหว่าง", na=False)].iloc[::-1].head(10)
                 for _, row in df_prog.iterrows():
                     st.markdown(f'<div class="incident-card card-progress"><b>📝 {row["Report_ID"]}</b><br>📍 {row["Location"]}<br><small style="color:#64748b;">ผู้สอบสวน: {row["Teacher_Investigator"]}</small></div>', unsafe_allow_html=True)
 
             with c3:
-                st.markdown('<div class="header-badge" style="background:#22c55e;">✅ ล่าสุด (10 รายการ)</div>', unsafe_allow_html=True)
+                st.markdown('<div class="header-badge" style="background:#22c55e;">✅ ดำเนินการเรียบร้อย</div>', unsafe_allow_html=True)
                 df_done = df_raw[df_raw['Status'].str.contains("เรียบร้อย", na=False)].iloc[::-1].head(10)
                 for _, row in df_done.iterrows():
                     st.markdown(f'<div class="incident-card card-done"><b>✅ {row["Report_ID"]}</b><br>📍 {row["Location"]}<br><small style="color:#64748b;">{row["Incident_Type"]}</small></div>', unsafe_allow_html=True)
