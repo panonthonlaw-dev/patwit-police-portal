@@ -886,17 +886,18 @@ def monitor_center_module():
     
     is_new_alert = False 
 
-    # --- 2. CSS: Minimal Style (พื้นขาว สบายตา) ---
+    # --- 2. CSS: ปรับการกระพริบให้หยุดหลัง 5 วินาที ---
     st.markdown("""
         <style>
-            /* Pulse Effect */
+            /* Pulse Effect: เล่น 1 วินาที x 5 รอบ = 5 วินาที แล้วหยุด */
             @keyframes pulse_soft {
                 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); border-color: #ef4444; }
                 50% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); border-color: #ef4444; }
                 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); border-color: #ef4444; }
             }
             .new-incident-active { 
-                animation: pulse_soft 2s infinite !important; 
+                /* animation: ชื่อ duration timing-function delay iteration-count direction; */
+                animation: pulse_soft 1s ease-in-out 5 !important; 
                 border-left: 6px solid #dc2626 !important;
                 background-color: #fff1f2 !important; 
             }
@@ -905,21 +906,11 @@ def monitor_center_module():
             .alert-card-minimal {
                 background-color: white; color: #1e293b; padding: 15px;
                 border-radius: 12px; border: 1px solid #e2e8f0;
-                border-left: 6px solid #ef4444;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+                border-left: 6px solid #ef4444; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
                 height: 100%; min-height: 110px; transition: transform 0.2s;
             }
-            .alert-card-minimal:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-
-            /* Badge NEW */
-            .badge-new { 
-                background: #ef4444; color: white; padding: 2px 8px; 
-                border-radius: 20px; font-size: 0.6em; font-weight: 600;
-                animation: blinker 1s linear infinite; margin-left: 10px; vertical-align: middle;
-            }
-            @keyframes blinker { 50% { opacity: 0.5; } }
-
-            /* Layout */
+            
+            /* Marquee */
             .marquee-viewport { height: 650px; overflow: hidden; position: relative; background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; }
             .marquee-content { display: flex; flex-direction: column; animation: scroll_up 50s linear infinite; }
             @keyframes scroll_up { 0% { transform: translateY(0); } 100% { transform: translateY(-50%); } }
@@ -944,57 +935,63 @@ def monitor_center_module():
         st.caption(f"🔄 Last Update: {now_th.strftime('%H:%M:%S')}")
 
         if not df_raw.empty:
-            # --- 🔥 ตรวจจับเหตุใหม่ + เล่นเสียง WAV 5 รอบ ---
             current_row_count = len(df_raw)
             if current_row_count > st.session_state.last_row_count:
                 if st.session_state.last_row_count > 0:
                     is_new_alert = True
                     
-                    # 1. ระบุชื่อไฟล์เป็น .wav
+                    # --- 🔊 จัดการเสียง (วน 5 รอบ) ---
                     sound_file = "alet.wav"
-                    
                     if os.path.exists(sound_file):
-                        try:
-                            with open(sound_file, "rb") as f:
-                                audio_bytes = f.read()
-                            b64_audio = base64.b64encode(audio_bytes).decode()
-                            
-                            # 2. แก้ไข type เป็น audio/wav และใส่ Logic วน 5 รอบ
-                            audio_html = f"""
-                                <audio autoplay onloadeddata="this.volume=1.0;" onended="var i=parseInt(this.getAttribute('loop-count')||0); if(i<4){{this.setAttribute('loop-count', i+1); this.currentTime=0; this.play();}}">
-                                    <source src="data:audio/wav;base64,{b64_audio}" type="audio/wav">
-                                </audio>
-                            """
-                            st.markdown(audio_html, unsafe_allow_html=True)
-                            st.toast("🚨 พบเหตุใหม่! (เล่นเสียง alet.wav 5 รอบ)", icon="🔊")
-                        except Exception as e:
-                            st.error(f"Audio Error: {e}")
+                        with open(sound_file, "rb") as f:
+                            audio_bytes = f.read()
+                        b64_audio = base64.b64encode(audio_bytes).decode()
+                        
+                        # Script JavaScript สำหรับวนลูป 5 รอบ
+                        audio_html = f"""
+                            <audio id="alertAudio" autoplay style="display:none;">
+                                <source src="data:audio/wav;base64,{b64_audio}" type="audio/wav">
+                            </audio>
+                            <script>
+                                var audio = document.getElementById("alertAudio");
+                                audio.volume = 1.0;
+                                var count = 0;
+                                audio.onended = function() {{
+                                    if(count < 4) {{ // เล่นซ้ำอีก 4 ครั้ง (รวมเป็น 5)
+                                        count++;
+                                        this.currentTime = 0;
+                                        this.play();
+                                    }}
+                                }};
+                            </script>
+                        """
+                        st.markdown(audio_html, unsafe_allow_html=True)
+                        st.toast("🚨 พบเหตุใหม่! (กำลังแจ้งเตือน)", icon="🔊")
                     else:
-                        st.toast("⚠️ ไม่พบไฟล์ alet.wav ในโฟลเดอร์", icon="❌")
-                
+                        st.error(f"❌ ไม่พบไฟล์ {sound_file}")
+
                 st.session_state.last_row_count = current_row_count
             
             df_new_all = df_raw[df_raw['Status'].str.contains("รอดำเนินการ", na=False)].iloc[::-1]
 
-            # หัวข้อ
-            new_label = '<span class="badge-new">NEW</span>' if is_new_alert else ""
+            # --- หัวข้อ (เอาคำว่า NEW ออกแล้ว) ---
             st.markdown(f"""
                 <div style="text-align:center; margin-bottom:20px;">
                     <h2 style="color:#1e293b; margin:0; display:inline-block; font-weight:800;">🚨 War Room: ระบบเฝ้าระวังเหตุอัตโนมัติ</h2>
-                    {new_label}
                 </div>
             """, unsafe_allow_html=True)
-
-            # --- 📌 แสดงผล 3 กล่องบน (Minimal) ---
+            
+            # --- 📌 แสดงผล 3 กล่องบน ---
             if not df_new_all.empty:
                 st.markdown('<div style="color:#64748b; font-weight:600; margin-bottom:10px; font-size:0.9em;">🔥 แจ้งเหตุล่าสุด (3 รายการ):</div>', unsafe_allow_html=True)
-                
                 top_3 = df_new_all.head(3)
                 cols = st.columns(3) 
 
                 for i, ((idx, row), col) in enumerate(zip(top_3.iterrows(), cols)):
                     with col:
+                        # ใส่ class กระพริบเฉพาะช่องแรก ถ้ามีเหตุใหม่ (จะหยุดเองใน 5 วิ ตาม CSS)
                         pulse_cls = "new-incident-active" if (i == 0 and is_new_alert) else ""
+                        
                         itype = str(row['Incident_Type'])
                         icon = "⚠️"
                         if "อาวุธ" in itype: icon = "🔪"
