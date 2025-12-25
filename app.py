@@ -748,18 +748,14 @@ def traffic_module():
 
 st.markdown("---")
         
-        # ✅ ใช้ตัวแปร UPGRADE_PASSWORD แทนการพิมพ์รหัสตรงๆ
-        # ระบบจะเช็คว่า User ที่ล็อกอินเข้ามา คือคนที่มีรหัสตรงกับใน Secrets หรือไม่
+        # ✅ ย่อหน้าเท่ากับ st.markdown (ระดับที่ 2)
         if st.session_state.current_user_pwd == UPGRADE_PASSWORD:
             with st.expander("⚙️ ระบบจัดการเลื่อนชั้นเรียน (Super Admin Only)"):
                 st.warning("⚠️ คำเตือน: ระบบจะเป็นการแก้ไขถาวร ไม่สามารถย้อนกลับได้ กรุณาระมัดระวัง")
-                
-                # ลบ default value ที่อาจจะเผลอใส่รหัสไว้
                 up_pwd = st.text_input("รหัสยืนยันการเลื่อนชั้น", type="password", key="prom_pwd")
                 
                 if st.button("ยืนยันเลื่อนชั้น", use_container_width=True):
                     if up_pwd == UPGRADE_PASSWORD:
-                        # ... (โค้ดเลื่อนชั้นภายในเหมือนเดิม) ...
                         s = connect_gsheet_universal(); d = s.get_all_values(); h = d[0]; r = d[1:]; nr = []
                         for row in r:
                             ol = str(row[3]); nl = ol
