@@ -1102,7 +1102,7 @@ def monitor_center_module():
                 st.markdown('<div class="header-badge" style="background:#3b82f6;">กำลังดำเนินการ</div>', unsafe_allow_html=True)
                 df_prog = df_raw[df_raw['Status'].str.contains("อยู่ระหว่าง", na=False)].iloc[::-1].head(10)
                 for _, row in df_prog.iterrows():
-                    st.markdown(f'<div class="incident-card card-progress"><b>📝 {row["Report_ID"]}</b><br>📍 {row["Location"]}<br><small style="color:#64748b;">ผู้สอบสวน: {row["Student_Police_Investigator"]}</small></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="incident-card card-progress"><b>📝 {row["Report_ID"]}</b><br>📍 {row["Location"]}<br><small style="color:#64748b;">ผู้เข้าเหตุ: {row["Student_Police_Investigator"]}</small></div>', unsafe_allow_html=True)
 
             with c3:
                 st.markdown('<div class="header-badge" style="background:#22c55e;">ดำเนินการเรียบร้อย</div>', unsafe_allow_html=True)
