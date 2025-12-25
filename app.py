@@ -14,56 +14,84 @@ import folium
 from streamlit_folium import st_folium
 from folium.plugins import HeatMap, MarkerCluster
 #--------------------
-def hazard_map_module():
-    st.subheader("📍 Intelligence Map: วิเคราะห์จุดเสี่ยงเชิงพื้นที่")
+def hazard_analytics_module():
+    # เพิ่มปุ่มกลับหน้าหลักที่มุมขวาบน
+    col_t, col_b = st.columns([8, 2])
+    with col_b:
+        if st.button("🏠 กลับเมนูหลัก", use_container_width=True):
+            st.session_state.current_dept = None
+            st.rerun()
+    st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📍 Intelligence Map & Risk Analytics</h2>", unsafe_allow_html=True)
     
+    # --- ส่วนที่ 1: ดึงข้อมูลและประมวลผล ---
     try:
-        # 1. ดึงชื่อ Sheet และอ่านข้อมูล
+        # 1. ดึงข้อมูล
         target_sheet = get_target_sheet_name()
-        df = conn.read(worksheet=target_sheet, ttl=0)
+        df_inv = conn.read(worksheet=target_sheet, ttl=0)
         
-        # 2. ✅ ตรวจสอบเบื้องต้นว่าใน DataFrame มีคอลัมน์ชื่อ lat และ lon หรือไม่
-        # (ป้องกันกรณี Google Sheets ยังไม่ซิงค์ หรือพิมพ์ชื่อหัวตารางผิด)
-        if 'lat' not in df.columns or 'lon' not in df.columns:
-            st.error("⚠️ ไม่สามารถโหลดพิกัดได้: ไม่พบคอลัมน์ 'lat' และ 'lon' ในไฟล์ Google Sheet")
-            st.info("💡 วิธีแก้: ตรวจสอบช่อง R1 ต้องพิมพ์ว่า lat และ S1 ต้องพิมพ์ว่า lon (ตัวพิมพ์เล็กทั้งหมด)")
-            return
-
-        # 3. ✅ แปลงค่าพิกัดให้เป็นตัวเลข (Numeric) 
-        # เพราะข้อมูลจาก Sheet มักจะเป็น String ซึ่ง Folium จะรันไม่ออก
-        df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
-        df['lon'] = pd.to_numeric(df['lon'], errors='coerce')
-
-        # 4. กรองเฉพาะแถวที่มีพิกัดถูกต้อง (ไม่ใช่ค่าว่าง)
-        df_map = df.dropna(subset=['lat', 'lon'])
+        # 2. ✅ บังคับตรวจสอบคอลัมน์ lat/lon (เรียกใช้ฟังก์ชันช่วย)
+        df_inv = safe_ensure_columns_for_view(df_inv)
         
+        # 3. ล้างช่องว่างที่หัวตาราง (ป้องกัน 'lat ' หรือ ' lon')
+        df_inv.columns = df_inv.columns.str.strip()
+        
+        # 4. แปลงข้อมูลพิกัดเป็นตัวเลข
+        df_inv['lat'] = pd.to_numeric(df_inv['lat'], errors='coerce')
+        df_inv['lon'] = pd.to_numeric(df_inv['lon'], errors='coerce')
+        
+        # 5. กรองเฉพาะแถวที่มีพิกัดจริง
+        df_map = df_inv.dropna(subset=['lat', 'lon'])
+
         if df_map.empty:
-            st.warning("📍 พบคอลัมน์แล้ว แต่ยังไม่มีข้อมูลพิกัดในระบบ (กรุณาทดสอบแจ้งเหตุและดึง GPS)")
+            st.warning("📍 ระบบตรวจสอบคอลัมน์เรียบร้อยแล้ว แต่ยังไม่พบ 'ตัวเลขพิกัด' ในฐานข้อมูล (กรุณาแจ้งเหตุและกดปุ่ม GPS ก่อน)")
             return
 
-        # 5. สร้างแผนที่ Google Maps (พิกัด รร. เป็นจุดกลาง)
-        m = folium.Map(location=[16.2941, 103.9782], zoom_start=15, 
-                       tiles='https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', 
-                       attr='Google')
+        # --- ส่วนที่ 2: สร้างแผนที่ ---
+        m1, m2 = st.columns([3, 1])
+        
+        with m2:
+            st.markdown("### 🔍 ตัวกรองวิเคราะห์")
+            map_type = st.radio("รูปแบบการแสดงผล", ["แผนที่ความร้อน (Heatmap)", "หมุดพิกัด (Markers)"])
+            # กรองประเภทเหตุ (กัน Error ถ้าคอลัมน์ว่าง)
+            all_types = df_map['Incident_Type'].unique().tolist()
+            incident_filter = st.multiselect("ประเภทเหตุ", options=all_types, default=all_types)
+            
+        with m1:
+            # พิกัดกลางโรงเรียน
+            school_coords = [16.2941, 103.9782]
+            m = folium.Map(location=school_coords, zoom_start=15, tiles='https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', attr='Google Satellite')
 
-        # 6. แสดง Heatmap (ความหนาแน่น)
-        from folium.plugins import HeatMap
-        heat_data = [[row['lat'], row['lon']] for index, row in df_map.iterrows()]
-        HeatMap(heat_data).add_to(m)
+            # กรองตามตัวเลือก
+            current_df = df_map[df_map['Incident_Type'].isin(incident_filter)]
+            
+            if map_type == "แผนที่ความร้อน (Heatmap)":
+                heat_data = [[row['lat'], row['lon']] for index, row in current_df.iterrows()]
+                HeatMap(heat_data, radius=15, blur=10, gradient={0.4: 'blue', 0.65: 'lime', 1: 'red'}).add_to(m)
+            else:
+                marker_cluster = MarkerCluster().add_to(m)
+                for idx, row in current_df.iterrows():
+                    folium.Marker(
+                        [row['lat'], row['lon']],
+                        popup=f"ID: {row['Report_ID']}<br>ประเภท: {row['Incident_Type']}<br>สถานที่: {row['Location']}",
+                        icon=folium.Icon(color='red', icon='exclamation-sign')
+                    ).add_to(marker_cluster)
 
-        # 7. ปักหมุดเคสล่าสุด 10 รายการ
-        for idx, row in df_map.tail(10).iterrows():
-            folium.Marker(
-                [row['lat'], row['lon']],
-                popup=f"ID: {row['Report_ID']} <br> เหตุ: {row['Incident_Type']}",
-                icon=folium.Icon(color='red', icon='info-sign')
-            ).add_to(m)
+            st_folium(m, width="100%", height=550)
 
-        # 8. แสดงผลแผนที่ในหน้าเว็บ
-        st_folium(m, width="100%", height=600)
+        # --- ส่วนที่ 3: สถิติประกอบการวิเคราะห์ ---
+        st.markdown("---")
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown("📊 **ความหนาแน่นของเหตุรายสถานที่**")
+            st.bar_chart(current_df['Location'].value_counts())
+        with c2:
+            st.markdown("🕒 **ช่วงเวลาที่เกิดเหตุบ่อย**")
+            # วิเคราะห์ชั่วโมง
+            current_df['hour'] = pd.to_datetime(current_df['Timestamp'], errors='coerce').dt.hour
+            st.line_chart(current_df['hour'].value_counts().sort_index())
 
     except Exception as e:
-        st.error(f"❌ เกิดข้อผิดพลาดในการประมวลผลแผนที่: {e}")
+        st.error(f"❌ เกิดข้อผิดพลาดในการโหลดพิกัด: {e}")
 #--------------------
 # PDF & Chart Libraries
 try:
