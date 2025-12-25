@@ -17,32 +17,53 @@ from folium.plugins import HeatMap, MarkerCluster
 def hazard_map_module():
     st.subheader("📍 Intelligence Map: วิเคราะห์จุดเสี่ยงเชิงพื้นที่")
     
-    # 1. ดึงข้อมูลจากฐานข้อมูล (สมมติว่าเป็น df_raw จากงานสอบสวน)
-    # เราต้องมีคอลัมน์ 'lat' และ 'lon'
-    target_sheet = get_target_sheet_name()
-    df = conn.read(worksheet=target_sheet, ttl=0)
-    
-    # 2. กรองข้อมูลที่มีพิกัดเท่านั้น
-    df_map = df.dropna(subset=['lat', 'lon'])
-    
-    # 3. สร้างแผนที่ Google Maps
-    m = folium.Map(location=[16.2941, 103.9782], zoom_start=15, 
-                   tiles='https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', 
-                   attr='Google')
+    try:
+        # 1. ดึงข้อมูลและตรวจสอบโครงสร้าง
+        target_sheet = get_target_sheet_name()
+        df = conn.read(worksheet=target_sheet, ttl=0)
+        
+        # ตรวจสอบเบื้องต้นว่ามีคอลัมน์ lat/lon หรือไม่
+        if 'lat' not in df.columns or 'lon' not in df.columns:
+            st.error("⚠️ ไม่พบคอลัมน์ 'lat' และ 'lon' ใน Google Sheets (ตรวจสอบช่อง R1 และ S1)")
+            st.info("💡 คำแนะนำ: พิมพ์ 'lat' ในช่อง R1 และ 'lon' ในช่อง S1 ของ Sheet แล้วแจ้งเหตุใหม่")
+            return
 
-    # 4. แสดง Heatmap (ความหนาแน่นของเหตุ)
-    heat_data = [[row['lat'], row['lon']] for index, row in df_map.iterrows()]
-    HeatMap(heat_data).add_to(m)
+        # 2. แปลงข้อมูลพิกัดเป็นตัวเลข (ป้องกันกรณีข้อมูลใน Sheet เป็น String หรือค่าว่าง)
+        df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
+        df['lon'] = pd.to_numeric(df['lon'], errors='coerce')
+        
+        # กรองเฉพาะแถวที่มีพิกัดถูกต้องเท่านั้น
+        df_map = df.dropna(subset=['lat', 'lon'])
+        
+        if df_map.empty:
+            st.warning("📍 ยังไม่พบข้อมูลพิกัดในระบบ (ต้องกดปุ่ม GPS ในหน้าแจ้งเหตุก่อนส่งข้อมูล)")
+            return
 
-    # 5. ปักหมุดเคสล่าสุด
-    for idx, row in df_map.tail(10).iterrows():
-        folium.Marker(
-            [row['lat'], row['lon']],
-            popup=f"ID: {row['Report_ID']} | {row['Incident_Type']}",
-            icon=folium.Icon(color='red', icon='info-sign')
-        ).add_to(m)
+        # 3. สร้างแผนที่ (จุดศูนย์กลางอยู่ที่โรงเรียน)
+        m = folium.Map(location=[16.2941, 103.9782], zoom_start=15, 
+                       tiles='https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', 
+                       attr='Google')
 
-    st_folium(m, width="100%", height=600)
+        # 4. แสดง Heatmap (ความหนาแน่นของเหตุ)
+        heat_data = [[row['lat'], row['lon']] for index, row in df_map.iterrows()]
+        from folium.plugins import HeatMap
+        HeatMap(heat_data).add_to(m)
+
+        # 5. ปักหมุดเคสล่าสุด (10 เคสล่าสุด)
+        for idx, row in df_map.tail(10).iterrows():
+            # กำหนดสีหมุดตามความรุนแรงหรือสถานะได้ (ในที่นี้ใช้สีแดง)
+            folium.Marker(
+                [row['lat'], row['lon']],
+                popup=f"ID: {row['Report_ID']} <br> เหตุ: {row['Incident_Type']} <br> สถานที่: {row['Location']}",
+                tooltip=f"คลิกดูรายละเอียด {row['Report_ID']}",
+                icon=folium.Icon(color='red', icon='fire', prefix='fa') # ใช้ Font Awesome
+            ).add_to(m)
+
+        # 6. แสดงผลใน Streamlit
+        st_folium(m, width="100%", height=600)
+
+    except Exception as e:
+        st.error(f"❌ เกิดข้อผิดพลาดในการโหลดแผนที่: {e}")
 #--------------------
 # PDF & Chart Libraries
 try:
