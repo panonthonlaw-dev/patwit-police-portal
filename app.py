@@ -464,6 +464,39 @@ def investigation_module():
 # ==========================================
 # 3. MODULE: TRAFFIC (ต้นฉบับ 100% - บังคับค้นหา)
 # ==========================================
+# --- 📍 ฟังก์ชันแผนที่จุดเสี่ยง (เพิ่มใหม่) ---
+def traffic_hazard_map_module():
+    st.subheader("📍 แผนที่วิเคราะห์จุดเสี่ยงอุบัติเหตุ (รัศมี 10 กม.)")
+    st.caption("เส้นสีแสดงระดับความถี่: แดง (วิกฤต), ส้ม (ปานกลาง), เหลือง (เฝ้าระวัง)")
+    
+    # พิกัดโรงเรียน (เซ็ตค่าเริ่มต้น)
+    school_lat, school_lon = 16.2941, 103.9782 
+
+    # สร้างแผนที่
+    m = folium.Map(
+        location=[school_lat, school_lon], 
+        zoom_start=14, 
+        tiles='https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', 
+        attr='Google'
+    )
+
+    # วาดวงกลมรัศมี 10 กม.
+    folium.Circle(
+        radius=10000,
+        location=[school_lat, school_lon],
+        color="royalblue",
+        fill=True,
+        fill_opacity=0.1,
+        weight=1
+    ).add_to(m)
+
+    # ตัวอย่างเส้นทาง (สามารถแก้พิกัดได้ภายหลัง)
+    folium.PolyLine([[16.2950, 103.9770], [16.2930, 103.9810]], color="red", weight=8, popup="จุดวิกฤต").add_to(m)
+    folium.PolyLine([[16.2910, 103.9750], [16.2900, 103.9740]], color="yellow", weight=5, popup="จุดเฝ้าระวัง").add_to(m)
+
+    # แสดงผล
+    st_folium(m, width=800, height=500)
+# ----------------------------------------
 def traffic_module():
     user = st.session_state.user_info
     st.session_state.officer_name = user.get('name', 'N/A')
@@ -616,15 +649,27 @@ def traffic_module():
             c4.markdown(f"<div class='metric-card'><div class='metric-label'>หมวกกันน็อค</div><div class='metric-value'>{has_hel}</div><div style='color:#16a34a; font-size:1.1rem; font-weight:bold; margin-top:-5px;'>{p_hel}%</div></div>", unsafe_allow_html=True)
             st.write("") 
         # -------------------------------------------------------------------------
-        c1, c2 = st.columns(2)
-        if c1.button("🔄 ดึงข้อมูลล่าสุด"): 
-            st.session_state.df_tra = None 
-            st.session_state.search_results_df = None
-            load_tra_data()
-            st.rerun()
-        if c2.button("📊 รายงานสถิติ"): 
+# --- 📍 แก้ไข: เพิ่มปุ่มที่ 3 สำหรับแผนที่ ---
+        c1, c2, c3 = st.columns(3) # เปลี่ยนเป็น 3 คอลัมน์
+        
+        if c1.button("🔄 ดึงข้อมูลล่าสุด", use_container_width=True): 
+            st.session_state.df_tra = None; st.session_state.search_results_df = None; load_tra_data(); st.rerun()
+        
+        if c2.button("📊 รายงานสถิติ", use_container_width=True): 
             if st.session_state.df_tra is None: load_tra_data()
             st.session_state.traffic_page = 'dash'; st.rerun()
+            
+        # ปุ่มใหม่: เปิดแผนที่
+        if c3.button("📍 แผนที่จุดเสี่ยง", use_container_width=True):
+            st.session_state['show_map'] = not st.session_state.get('show_map', False) # กดเพื่อเปิด/ปิด
+
+        # --- ส่วนแสดงแผนที่ (จะโผล่มาเมื่อกดปุ่ม) ---
+        if st.session_state.get('show_map'):
+            st.markdown("---")
+            traffic_hazard_map_module() # เรียกฟังก์ชันจากขั้นตอนที่ 1
+            if st.button("❌ ปิดแผนที่", use_container_width=True):
+                st.session_state['show_map'] = False; st.rerun()
+        # ----------------------------------------
         
         st.write("")
         c_search, c_btn_search, c_btn_clear = st.columns([3, 1, 1])
