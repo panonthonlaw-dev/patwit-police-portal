@@ -1038,7 +1038,7 @@ def monitor_center_module():
             # --- หัวข้อ ---
             st.markdown(f"""
                 <div style="text-align:center; margin-bottom:15px; margin-top:-20px;">
-                    <h2 style="color:#1e293b; margin:0; display:inline-block; font-weight:800;">🚨 War Room: ระบบเฝ้าระวังเหตุอัตโนมัติ</h2>
+                    <h2 style="color:#1e293b; margin:0; display:inline-block; font-weight:800;">🚨 War Room: ระบบเฝ้าระวังเหตุอัจริยะสถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</h2>
                 </div>
             """, unsafe_allow_html=True)
             
