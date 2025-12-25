@@ -24,6 +24,7 @@ def hazard_analytics_module():
     st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📍 Intelligence Map & Risk Analytics</h2>", unsafe_allow_html=True)
     
     try:
+        st.write(f"ขณะนี้ระบบกำลังอ่านข้อมูลจากชีตชื่อ: {get_target_sheet_name()}")
         # 1. ดึงข้อมูล (ห้ามใช้ Cache โดยใช้ ttl=0)
         target_sheet = get_target_sheet_name()
         df_inv = conn.read(worksheet=target_sheet, ttl=0)
