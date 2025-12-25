@@ -936,12 +936,29 @@ def monitor_center_module():
         if not df_raw.empty:
             current_row_count = len(df_raw)
             
-            # --- ตรวจจับเหตุใหม่ (ตัดระบบเสียงออกแล้ว) ---
+            # --- ตรวจจับเหตุใหม่ ---
             if current_row_count > st.session_state.last_row_count:
                 if st.session_state.last_row_count > 0:
                     is_new_alert = True
-                    # เหลือแค่แจ้งเตือนเงียบๆ มุมขวาล่าง
-                    st.toast("🚨 พบเหตุแจ้งใหม่!", icon="🔥")
+                    
+                    # --- 🔊 เพิ่มระบบเสียงกลับเข้ามา (Hidden AutoPlay) ---
+                    sound_file = "alet.wav"
+                    if os.path.exists(sound_file):
+                        with open(sound_file, "rb") as f:
+                            audio_bytes = f.read()
+                        b64_audio = base64.b64encode(audio_bytes).decode()
+                        
+                        # ซ่อน Player ไว้ (display:none) แต่สั่ง autoplay
+                        audio_html = f"""
+                            <audio autoplay style="display:none;">
+                                <source src="data:audio/wav;base64,{b64_audio}" type="audio/wav">
+                            </audio>
+                        """
+                        st.markdown(audio_html, unsafe_allow_html=True)
+                        st.toast("🚨 พบเหตุแจ้งใหม่!", icon="🔊")
+                    else:
+                        st.error(f"❌ ไม่พบไฟล์ {sound_file}")
+                    # ---------------------------------------------------
 
                 st.session_state.last_row_count = current_row_count
             
