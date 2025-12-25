@@ -407,13 +407,13 @@ def investigation_module():
                     st.write(f"**ผู้แจ้ง:** {row['Reporter']} | **สถานที่:** {row['Location']}"); st.info(f"**รายละเอียด:** {row['Details']}")
                     if clean_val(row['Image_Data']): st.image(base64.b64decode(row['Image_Data']), width=500, caption="หลักฐานจากผู้แจ้ง")
                 cur_sta = clean_val(row['Status'])
-                is_lock = (cur_sta == "ดำเนินการเรียบร้อย" and st.session_state.unlock_password != "Patwit1510")
+                is_lock = (cur_sta == "ดำเนินการเรียบร้อย" and st.session_state.unlock_password != "UPGRADE_PASSWORD")
                 if user.get('role') != 'admin': is_lock = True
                 
                 if is_lock and cur_sta == "ดำเนินการเรียบร้อย" and user.get('role') == 'admin':
                     pwd = st.text_input("รหัสปลดล็อค", type="password")
                     if st.button("ยืนยันปลดล็อค"):
-                        if pwd == "Patwit1510": st.session_state.unlock_password = "Patwit1510"; st.rerun()
+                        if pwd == UPGRADE_PASSWORD: st.session_state.unlock_password = "UPGRADE_PASSWORD"; st.rerun()
 
                 # --- หาบรรทัดนี้ใน investigation_module ---
                 with st.form("full_inv_form"):
@@ -752,7 +752,7 @@ def traffic_module():
         # --- 👇 วางโค้ดส่วนเลื่อนชั้นตรงนี้ 👇 ---
         st.markdown("---")
         
-        # แสดงเฉพาะคนที่ล็อกอินด้วยรหัส Super Admin (Patwit1510)
+        # แสดงเฉพาะคนที่ล็อกอินด้วยรหัส Super Admin 
         if st.session_state.get("current_user_pwd") == UPGRADE_PASSWORD:
             with st.expander("⚙️ ระบบจัดการเลื่อนชั้นเรียน (Super Admin Only)"):
                 st.warning("⚠️ คำเตือน: ระบบจะเป็นการแก้ไขถาวร ไม่สามารถย้อนกลับได้ กรุณาระมัดระวัง")
