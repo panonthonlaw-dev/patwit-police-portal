@@ -1,3 +1,19 @@
+import html  # <--- ใส่ไว้บนสุดของไฟล์
+
+# ... ในลูป ...
+# แปลงข้อความให้ปลอดภัยก่อน
+safe_report_id = html.escape(str(row['Report_ID']))
+safe_location = html.escape(str(row['Location']))
+safe_type = html.escape(str(row['Incident_Type']))
+
+# แล้วค่อยเอาตัวแปร safe_... ไปใส่ใน HTML
+st.markdown(f"""
+    ...
+    <b>🆔 {safe_report_id}</b>
+    ...
+    📍 {safe_location}
+    ...
+""", unsafe_allow_html=True)
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
