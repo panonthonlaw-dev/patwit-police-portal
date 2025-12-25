@@ -975,7 +975,7 @@ def monitor_center_module():
                         st.markdown(f"""
                         <div class="incident-card card-new">
                             <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                                <span class="case-id-badge" style="color:#b91c1c;">📝 {row['Report_ID']}</span>
+                                <span class="case-id-badge" style="color:#FF0000;">📝 {row['Report_ID']}</span>
                                 <span style="font-size:0.8em; color:#7f1d1d;">{row['Timestamp'].split(' ')[1] if ' ' in row['Timestamp'] else row['Timestamp']}</span>
                             </div>
                             <div style="font-size:1.2em; font-weight:bold; color:#b91c1c;">📍 {row['Location']}</div>
