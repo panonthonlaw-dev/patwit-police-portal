@@ -7,7 +7,43 @@ import html  # <--- ✅ สำคัญมาก ต้องมีบรรท�
 from PIL import Image
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+import folium
+from streamlit_folium import st_folium
+from folium.plugins import HeatMap
+import folium
+from streamlit_folium import st_folium
+from folium.plugins import HeatMap, MarkerCluster
+#--------------------
+def hazard_map_module():
+    st.subheader("📍 Intelligence Map: วิเคราะห์จุดเสี่ยงเชิงพื้นที่")
+    
+    # 1. ดึงข้อมูลจากฐานข้อมูล (สมมติว่าเป็น df_raw จากงานสอบสวน)
+    # เราต้องมีคอลัมน์ 'lat' และ 'lon'
+    target_sheet = get_target_sheet_name()
+    df = conn.read(worksheet=target_sheet, ttl=0)
+    
+    # 2. กรองข้อมูลที่มีพิกัดเท่านั้น
+    df_map = df.dropna(subset=['lat', 'lon'])
+    
+    # 3. สร้างแผนที่ Google Maps
+    m = folium.Map(location=[16.2941, 103.9782], zoom_start=15, 
+                   tiles='https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', 
+                   attr='Google')
 
+    # 4. แสดง Heatmap (ความหนาแน่นของเหตุ)
+    heat_data = [[row['lat'], row['lon']] for index, row in df_map.iterrows()]
+    HeatMap(heat_data).add_to(m)
+
+    # 5. ปักหมุดเคสล่าสุด
+    for idx, row in df_map.tail(10).iterrows():
+        folium.Marker(
+            [row['lat'], row['lon']],
+            popup=f"ID: {row['Report_ID']} | {row['Incident_Type']}",
+            icon=folium.Icon(color='red', icon='info-sign')
+        ).add_to(m)
+
+    st_folium(m, width="100%", height=600)
+#--------------------
 # PDF & Chart Libraries
 try:
     from weasyprint import HTML, CSS
@@ -1171,8 +1207,8 @@ def main():
             # --- เริ่มวางทับตรงนี้ (แทนที่ของเดิม) ---
             st.markdown("---")
             
-            # เปลี่ยนเลข 2 เป็น 3 เพื่อเพิ่มปุ่ม War Room
-            c1, c2, c3 = st.columns(3)
+            # เพื่อเพิ่มปุ่ม map
+            c1, c2, c3, c4 = st.columns(4) # เปลี่ยนเป็น 4 ช่อง
             
             with c1:
                 with st.container(border=True):
@@ -1200,7 +1236,12 @@ def main():
                         st.session_state.current_dept = "monitor_view"
                         st.query_params["dept"] = "monitor_view"
                         st.rerun()
-            
+            with c4:
+            with st.container(border=True):
+                st.subheader("📍 แผนที่จุดเสี่ยง")
+                if st.button("ดูแผนที่วิเคราะห์", key="btn_to_hazard", use_container_width=True, type="primary"):
+                    st.session_state.current_dept = "hazard_map" # ตั้งชื่อสถานะใหม่
+                    st.rerun()
             # ปุ่มออกจากระบบ (วางไว้ข้างล่างสุดของบล็อกนี้)
             st.write("")
             # ✅ แก้ key="main_logout" เป็น key="main_logout_fixed"
@@ -1217,4 +1258,73 @@ def main():
                 traffic_module()
             elif st.session_state.current_dept == "monitor_view": # เพิ่มบรรทัดนี้
                 monitor_center_module()
+            elif st.session_state.current_dept == "hazard_map":
+                hazard_analytics_module() # เรียกใช้ฟังก์ชันที่คุณเพิ่งวางไว้เหนือบรรทัดสุดท้าย
+#---------------------------------------------------
+def hazard_analytics_module():
+    # เพิ่มปุ่มกลับหน้าหลักที่มุมขวาบน
+    col_t, col_b = st.columns([8, 2])
+    with col_b:
+        if st.button("🏠 กลับเมนูหลัก", use_container_width=True):
+            st.session_state.current_dept = None
+            st.rerun()
+    st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📍 Intelligence Map & Risk Analytics</h2>", unsafe_allow_html=True)
+    
+    # --- ส่วนที่ 1: ดึงข้อมูลและประมวลผล ---
+    try:
+        # ดึงข้อมูลจากงานสอบสวน (จุดที่มีเหตุการณ์)
+        df_inv = conn.read(worksheet=get_target_sheet_name(), ttl=0)
+        # ดึงข้อมูลจากงานจราจร (จุดที่เกิดอุบัติเหตุ/ทำผิดวินัย)
+        # df_tra = connect_gsheet().get_all_records() # กรณีใช้ gspread
+        
+        # กรองเฉพาะแถวที่มีพิกัด lat/lon และไม่เป็นค่าว่าง
+        df_inv['lat'] = pd.to_numeric(df_inv['lat'], errors='coerce')
+        df_inv['lon'] = pd.to_numeric(df_inv['lon'], errors='coerce')
+        df_map = df_inv.dropna(subset=['lat', 'lon'])
+
+        # --- ส่วนที่ 2: สร้างแผนที่ ---
+        m1, m2 = st.columns([3, 1])
+        
+        with m2:
+            st.markdown("### 🔍 ตัวกรองวิเคราะห์")
+            map_type = st.radio("รูปแบบการแสดงผล", ["แผนที่ความร้อน (Heatmap)", "หมุดพิกัด (Markers)"])
+            incident_filter = st.multiselect("ประเภทเหตุ", options=df_map['Incident_Type'].unique(), default=df_map['Incident_Type'].unique())
+            
+        with m1:
+            # พิกัดกลางโรงเรียน
+            school_coords = [16.2941, 103.9782]
+            m = folium.Map(location=school_coords, zoom_start=15, tiles='https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', attr='Google Satellite')
+
+            # แสดงผลตามเงื่อนไขที่เลือก
+            current_df = df_map[df_map['Incident_Type'].isin(incident_filter)]
+            
+            if map_type == "แผนที่ความร้อน (Heatmap)":
+                heat_data = [[row['lat'], row['lon']] for index, row in current_df.iterrows()]
+                HeatMap(heat_data, radius=15, blur=10, gradient={0.4: 'blue', 0.65: 'lime', 1: 'red'}).add_to(m)
+            else:
+                marker_cluster = MarkerCluster().add_to(m)
+                for idx, row in current_df.iterrows():
+                    folium.Marker(
+                        [row['lat'], row['lon']],
+                        popup=f"ID: {row['Report_ID']}<br>ประเภท: {row['Incident_Type']}",
+                        icon=folium.Icon(color='red', icon='exclamation-sign')
+                    ).add_to(marker_cluster)
+
+            st_folium(m, width="100%", height=550)
+
+        # --- ส่วนที่ 3: สถิติประกอบการวิเคราะห์ ---
+        st.markdown("---")
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown("📊 **ความหนาแน่นของเหตุรายสถานที่**")
+            st.bar_chart(current_df['Location'].value_counts())
+        with c2:
+            st.markdown("🕒 **ช่วงเวลาที่เกิดเหตุบ่อย**")
+            # ดึงเฉพาะชั่วโมงจาก Timestamp มาวิเคราะห์
+            current_df['hour'] = pd.to_datetime(current_df['Timestamp']).dt.hour
+            st.line_chart(current_df['hour'].value_counts().sort_index())
+
+    except Exception as e:
+        st.error("⚠️ ไม่สามารถโหลดพิกัดได้: กรุณาตรวจสอบว่าใน Google Sheet มีคอลัมน์ 'lat' และ 'lon' แล้ว")
+#----------------------------
 if __name__ == "__main__": main()
