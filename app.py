@@ -934,7 +934,7 @@ def monitor_center_module():
             .marquee-content { 
                 display: flex; 
                 flex-direction: column; 
-                animation: scroll_up 50s linear infinite; 
+                animation: scroll_up 150s linear infinite; 
             }
             
             @keyframes scroll_up { 0% { transform: translateY(0); } 100% { transform: translateY(-50%); } }
