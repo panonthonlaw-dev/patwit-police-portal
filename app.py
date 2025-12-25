@@ -904,7 +904,7 @@ def monitor_center_module():
             /* การ์ดแบบ Minimal (พื้นขาว) */
             .alert-card-minimal {
                 background-color: white; color: #1e293b; padding: 15px;
-                border-radius: 12px; border: 1px solid #e2e8f0;
+                border-radius: 7px; border: 1px solid #e2e8f0;
                 border-left: 6px solid #ef4444; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
                 height: 100%; min-height: 110px; transition: transform 0.2s;
             }
