@@ -337,7 +337,7 @@ def investigation_module():
                     cc1, cc2, cc3, cc4 = st.columns([2.5, 2, 3, 1.5])
                     with cc1: st.button(f"📝 {row['Report_ID']}", key=f"p_{i}", use_container_width=True, on_click=lambda r=row['Report_ID']: st.session_state.update({'selected_case_id': r, 'view_mode': 'detail', 'unlock_password': ""}))
                     cc2.write(row['Timestamp']); cc3.write(row['Incident_Type'])
-                    cc4.markdown(f"<span style='color:orange;font-weight:bold'>⏳ {row['Status']}</span>", unsafe_allow_html=True); st.divider()
+                    cc4.markdown(f"<span style='color:#DC2626;font-weight:bold'>⏳ {row['Status']}</span>", unsafe_allow_html=True); st.divider()
                 
                 if tot_p > 1:
                     cp1, cp2, cp3 = st.columns([1, 2, 1])
