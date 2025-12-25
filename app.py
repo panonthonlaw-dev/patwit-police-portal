@@ -240,7 +240,7 @@ def investigation_module():
 
     # สร้างตัวเลือกปี: เอาปีหน้า (เผื่อไว้) + ปีปัจจุบัน + ย้อนหลัง 3 ปี
     # เช่น ถ้าปีการศึกษาปัจจุบันคือ 2568 -> จะได้ [2569, 2568, 2567, 2566, 2565]
-    start_year = current_ac_year + 1  # เริ่มต้นที่ปีหน้า (2569)
+    start_year = current_ac_year + 3  # เริ่มต้นที่ปีหน้า (2569)
     year_options = [str(start_year - i) for i in range(5)] # สร้างรายการ 5 ปี
 
     c_year_filter, _ = st.columns([2, 8])
