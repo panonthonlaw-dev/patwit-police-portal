@@ -1008,7 +1008,7 @@ def monitor_center_module():
 
             # === [COL 2: กำลังดำเนินการ (ฟ้า)] ===
             with c2:
-                st.markdown('<div class="header-badge" style="background:#2563eb;"> กำลังดำเนินการ</div>', unsafe_allow_html=True)
+                st.markdown('<div class="header-badge" style="background:#2563eb;">  กำลังดำเนินการ</div>', unsafe_allow_html=True)
                 if df_prog.empty: st.caption("- ว่าง -")
                 else:
                     for _, row in df_prog.iterrows():
