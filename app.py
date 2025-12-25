@@ -1332,6 +1332,6 @@ def hazard_analytics_module():
             st.line_chart(current_df['hour'].value_counts().sort_index())
 
     except Exception as e:
-        st.error("⚠️ ไม่สามารถโหลดพิกัดได้: กรุณาตรวจสอบว่าใน Google Sheet มีคอลัมน์ 'lat' และ 'lon' แล้ว")
+        
 #----------------------------
 if __name__ == "__main__": main()
