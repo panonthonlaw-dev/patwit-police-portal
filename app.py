@@ -879,28 +879,24 @@ def traffic_module():
             st.caption(f"ออกรายงาน ณ วันที่: {get_now_th().strftime('%d/%m/%Y %H:%M')}")
 
 def monitor_center_module():
-    # --- 1. เตรียม State สำหรับจำจำนวนแถวเดิม (Logic ตรวจจับเหตุใหม่) ---
+    # --- 1. เตรียม State สำหรับจำจำนวนแถวเดิม ---
     if "last_row_count" not in st.session_state:
         st.session_state.last_row_count = 0
     
-    # ตัวแปรสำหรับคุมสถานะว่า "รอบนี้มีของใหม่หรือไม่"
     is_new_alert = False 
 
-    # --- 2. CSS รวมทุกเอฟเฟกต์ (Pulse, Marquee, Alert Box) ---
+    # --- 2. CSS ---
     st.markdown("""
         <style>
-            /* เอฟเฟกต์กะพริบ (Pulse) สำหรับรายการใหม่ */
+            /* Pulse Effect */
             @keyframes pulse_red {
                 0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); border: 2px solid #dc2626; transform: scale(1); }
                 50% { box-shadow: 0 0 0 15px rgba(220, 38, 38, 0); border: 2px solid #dc2626; transform: scale(1.02); }
                 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); border: 2px solid #dc2626; transform: scale(1); }
             }
-            .new-pulse { 
-                animation: pulse_red 2s infinite !important; 
-                z-index: 10;
-            }
+            .new-pulse { animation: pulse_red 2s infinite !important; z-index: 10; }
 
-            /* ป้าย NEW กะพริบ */
+            /* New Badge */
             .badge-new { 
                 background: #facc15; color: black; padding: 4px 10px; 
                 border-radius: 6px; font-size: 0.6em; font-weight: 800;
@@ -909,7 +905,7 @@ def monitor_center_module():
             }
             @keyframes blinker { 50% { opacity: 0; } }
 
-            /* กล่องแดงแจ้งเหตุ 3 รายการล่าสุด */
+            /* Critical Alert Zone (กล่องแดง) */
             .critical-alert-zone {
                 background-color: #7f1d1d; 
                 border: 3px solid #f87171;
@@ -927,13 +923,13 @@ def monitor_center_module():
                 color: white;
             }
 
-            /* Marquee (ตัวเลื่อน) */
+            /* Marquee */
             .marquee-viewport { height: 650px; overflow: hidden; position: relative; background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; }
             .marquee-content { display: flex; flex-direction: column; animation: scroll_up 50s linear infinite; }
             @keyframes scroll_up { 0% { transform: translateY(0); } 100% { transform: translateY(-50%); } }
             .marquee-viewport:hover .marquee-content { animation-play-state: paused; }
             
-            /* การ์ดทั่วไป */
+            /* Cards */
             .incident-card { padding: 15px; border-radius: 10px; margin: 10px; background: white; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
             .card-new { border-left: 8px solid #dc2626 !important; }
             .card-progress { border-left: 6px solid #3b82f6 !important; background-color: #eff6ff !important; margin-bottom:12px; }
@@ -942,42 +938,29 @@ def monitor_center_module():
         </style>
     """, unsafe_allow_html=True)
 
-    # ปุ่มย้อนกลับ
     if st.button("⬅️ กลับหน้าเลือกแผนก", use_container_width=True):
         st.session_state.current_dept = None
         st.rerun()
 
     try:
-        # 3. ดึงข้อมูลสด (ttl=0 สำคัญมาก ห้ามเปลี่ยน)
         conn = st.connection("gsheets", type=GSheetsConnection)
         now_th = get_now_th()
         cur_year = (now_th.year + 543) if now_th.month >= 5 else (now_th.year + 542)
         df_raw = conn.read(worksheet=f"Investigation_{cur_year}", ttl=0).fillna("")
-        
-        # แสดงเวลาอัปเดตมุมขวาล่าง
         st.caption(f"🔄 Last Update: {now_th.strftime('%H:%M:%S')}")
 
         if not df_raw.empty:
-            # --- 4. Logic ตรวจจับเหตุใหม่ (New Incident Detection) ---
+            # --- Logic ตรวจจับเหตุใหม่ ---
             current_row_count = len(df_raw)
-            
-            # ถ้าจำนวนแถวปัจจุบัน มากกว่า ที่จำไว้
             if current_row_count > st.session_state.last_row_count:
-                # ถ้าไม่ใช่การเปิดโปรแกรมครั้งแรก (ค่าเก่าต้อง > 0) ให้แจ้งเตือน
                 if st.session_state.last_row_count > 0:
                     is_new_alert = True
-                    # เล่นเสียง Beep
                     st.markdown('<audio autoplay><source src="https://www.soundjay.com/buttons/beep-01a.mp3" type="audio/mpeg"></audio>', unsafe_allow_html=True)
-                
-                # อัปเดตค่าจำไว้ใช้รอบหน้า
                 st.session_state.last_row_count = current_row_count
             
-            # --------------------------------------------------------
-
-            # กรองเหตุ "รอดำเนินการ" และเรียงจากใหม่สุด
             df_new_all = df_raw[df_raw['Status'].str.contains("รอดำเนินการ", na=False)].iloc[::-1]
 
-            # --- 5. แสดงหัวข้อ พร้อมป้าย NEW (ถ้ามีเหตุใหม่) ---
+            # --- หัวข้อ ---
             new_label = '<span class="badge-new">NEW ALERT</span>' if is_new_alert else ""
             st.markdown(f"""
                 <div style="text-align:center; padding:10px; margin-bottom:10px;">
@@ -986,14 +969,15 @@ def monitor_center_module():
                 </div>
             """, unsafe_allow_html=True)
 
-            # --- 6. กล่องแดง แจ้งเหตุ 3 เคสล่าสุด (Critical Alert Zone) ---
+            # --- ✅ จุดแก้ไขสำคัญ: กล่องแดง แจ้งเหตุ 3 เคสล่าสุด ---
             if not df_new_all.empty:
                 top_3 = df_new_all.head(3)
                 
-                # รวม HTML เป็นก้อนเดียวเพื่อป้องกัน Error
+                # 1. เปิดแท็ก div หลัก
                 full_alert_html = '<div class="critical-alert-zone">'
+                
+                # 2. วนลูปสร้าง HTML ของแต่ละการ์ด แล้วต่อเข้าไปในตัวแปรเดิม
                 for _, row in top_3.iterrows():
-                    # ไอคอนตามประเภทเหตุ
                     itype = str(row['Incident_Type'])
                     icon = "⚠️"
                     if "อาวุธ" in itype: icon = "🔪"
@@ -1002,6 +986,7 @@ def monitor_center_module():
                     
                     time_only = row['Timestamp'].split(' ')[1] if ' ' in row['Timestamp'] else row['Timestamp']
                     
+                    # ต่อ String HTML (ห้ามใช้ st.write ในนี้เด็ดขาด)
                     full_alert_html += f"""
                     <div class="alert-card-item">
                         <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -1012,22 +997,22 @@ def monitor_center_module():
                         <div style="font-size:1.1em; color:white; font-weight:bold;">{icon} {itype}</div>
                     </div>
                     """
+                
+                # 3. ปิดแท็ก div หลัก
                 full_alert_html += '</div>'
+                
+                # 4. สั่ง render HTML ทีเดียวจบ
                 st.markdown(full_alert_html, unsafe_allow_html=True)
             # -------------------------------------------------------------
 
-            # --- 7. แสดงผล 3 คอลัมน์ (Auto-Scroll, Progress, Done) ---
             c1, c2, c3 = st.columns(3)
-            
             with c1:
                 st.markdown('<div class="header-badge" style="background:#dc2626;">🔥 รอดำเนินการ (Auto-Scroll)</div>', unsafe_allow_html=True)
                 if df_new_all.empty: st.info("✅ สถานะปกติ")
                 else:
                     cards_html = ""
-                    # Loop สร้างการ์ด (ใส่ Pulse ให้ใบแรกถ้ามีเหตุใหม่)
                     for i, (_, row) in enumerate(df_new_all.iterrows()):
                         pulse_class = "new-pulse" if (i == 0 and is_new_alert) else ""
-                        
                         cards_html += f"""
                         <div class="incident-card card-new {pulse_class}">
                             <div style="display:flex; justify-content:space-between;">
@@ -1037,7 +1022,6 @@ def monitor_center_module():
                             <div style="font-size:1.2em; font-weight:bold; margin-top:5px;">📍 {row['Location']}</div>
                             <div>{row['Incident_Type']}</div>
                         </div>"""
-                    # แสดงผล Marquee (เนื้อหาซ้ำ 2 ชุดเพื่อให้เลื่อนต่อเนื่อง)
                     st.markdown(f'<div class="marquee-viewport"><div class="marquee-content">{cards_html}{cards_html}</div></div>', unsafe_allow_html=True)
 
             with c2:
@@ -1052,7 +1036,6 @@ def monitor_center_module():
                 for _, row in df_done.iterrows():
                     st.markdown(f'<div class="incident-card card-done"><b>✅ {row["Report_ID"]}</b><br>📍 {row["Location"]}<br><small>{row["Incident_Type"]}</small></div>', unsafe_allow_html=True)
 
-        # 8. ตั้งเวลา Refresh (10 วินาที)
         time.sleep(10)
         st.rerun()
         
