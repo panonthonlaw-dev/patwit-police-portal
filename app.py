@@ -1044,7 +1044,7 @@ def monitor_center_module():
         
     except Exception as e:
         st.error(f"⚠️ Connection Error: {e}")
-        time.sleep(10)
+        time.sleep(5)
         st.rerun()
 # ==========================================
 # 4. MAIN ENTRY (แก้ไขย่อหน้าให้ถูกต้อง)
