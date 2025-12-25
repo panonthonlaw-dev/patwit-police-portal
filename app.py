@@ -310,7 +310,12 @@ def investigation_module():
         df_display = df_raw.copy().fillna("")
         
         # ตรวจสอบและสร้างคอลัมน์ที่ขาดหายไป (ป้องกัน Error กรณีขึ้นปีใหม่แล้วหัวตารางไม่ครบ)
-        required_cols = ['Report_ID', 'Timestamp', 'Reporter', 'Incident_Type', 'Location', 'Details', 'Status', 'Image_Data', 'Audit_Log', 'Victim', 'Accused', 'Witness', 'Teacher_Investigator', 'Student_Police_Investigator', 'Statement', 'Evidence_Image']
+        required_cols = ['Report_ID', 'Timestamp', 'Reporter', 'Incident_Type', 
+        'Location', 'Details', 'Status', 'Image_Data', 
+        'Audit_Log', 'Victim', 'Accused', 'Witness', 
+        'Teacher_Investigator', 'Student_Police_Investigator', 
+        'Statement', 'Evidence_Image', 
+        'lat', 'lon']
         for c in required_cols:
             if c not in df_display.columns: df_display[c] = ""
             
