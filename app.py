@@ -940,7 +940,7 @@ def monitor_center_module():
                 background: #fff; border-radius: 12px; border: 1px solid #e2e8f0;
                 pointer-events: auto !important; z-index: 1; cursor: pointer; 
             }
-            .marquee-content { display: flex; flex-direction: column; animation: scroll_up 50s linear infinite; }
+            .marquee-content { display: flex; flex-direction: column; animation: scroll_up 150s linear infinite; }
             @keyframes scroll_up { 0% { transform: translateY(0); } 100% { transform: translateY(-50%); } }
             
             /* หยุดเลื่อนเมื่อ Hover */
