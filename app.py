@@ -886,17 +886,32 @@ def monitor_center_module():
     
     is_new_alert = False 
 
-    # --- 2. CSS ---
+    # --- 2. CSS & JavaScript (Full Screen) ---
     st.markdown("""
+        <script>
+            function toggleFullScreen() {
+                var doc = window.document;
+                var docEl = doc.documentElement;
+
+                var requestFullScreen = docEl.requestFullscreen || docEl.mozRequestFullScreen || docEl.webkitRequestFullScreen || docEl.msRequestFullscreen;
+                var cancelFullScreen = doc.exitFullscreen || doc.mozCancelFullScreen || doc.webkitExitFullscreen || doc.msExitFullscreen;
+
+                if(!doc.fullscreenElement && !doc.mozFullScreenElement && !doc.webkitFullscreenElement && !doc.msFullscreenElement) {
+                    requestFullScreen.call(docEl);
+                }
+                else {
+                    cancelFullScreen.call(doc);
+                }
+            }
+        </script>
         <style>
-            /* ✅ Pulse Effect: กระพริบต่อเนื่องไม่หยุด (infinite) */
+            /* Pulse Effect */
             @keyframes pulse_soft {
                 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); border-color: #ef4444; }
                 50% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); border-color: #ef4444; }
                 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); border-color: #ef4444; }
             }
             .new-incident-active { 
-                /* animation: ชื่อ duration timing-function iteration-count; */
                 animation: pulse_soft 1.5s ease-in-out infinite !important; 
                 border-left: 6px solid #dc2626 !important;
                 background-color: #fff1f2 !important; 
@@ -906,7 +921,7 @@ def monitor_center_module():
             .alert-card-minimal {
                 background-color: white; 
                 color: #1e293b; 
-                padding: 10px; /* กระชับ */
+                padding: 10px; 
                 border-radius: 10px; 
                 border: 1px solid #e2e8f0;
                 border-left: 5px solid #ef4444; 
@@ -916,7 +931,7 @@ def monitor_center_module():
                 transition: transform 0.2s;
             }
             
-            /* --- Marquee (ส่วนควบคุมการเลื่อน) --- */
+            /* Marquee */
             .marquee-viewport { 
                 height: 650px; 
                 overflow: hidden; 
@@ -924,29 +939,38 @@ def monitor_center_module():
                 background: #fff; 
                 border-radius: 12px; 
                 border: 1px solid #e2e8f0;
-                
-                /* บังคับให้รับเมาส์ */
                 pointer-events: auto !important; 
                 z-index: 1;
                 cursor: pointer; 
             }
-            
             .marquee-content { 
                 display: flex; 
                 flex-direction: column; 
-                animation: scroll_up 150s linear infinite; 
+                animation: scroll_up 50s linear infinite; 
             }
-            
             @keyframes scroll_up { 0% { transform: translateY(0); } 100% { transform: translateY(-50%); } }
             
-            /* หยุดเลื่อนเมื่อเอาเมาส์วาง (รองรับทุก Browser) */
-            .marquee-viewport:hover .marquee-content,
-            .marquee-content:hover { 
+            /* หยุดเลื่อนเมื่อ Hover */
+            .marquee-viewport:hover .marquee-content, .marquee-content:hover { 
                 animation-play-state: paused !important;
-                -webkit-animation-play-state: paused !important;
-                -moz-animation-play-state: paused !important;
-                -o-animation-play-state: paused !important;
             }
+
+            /* ปุ่ม Full Screen สวยๆ */
+            .fs-button {
+                display: inline-block;
+                padding: 8px 16px;
+                background-color: #1e293b;
+                color: white;
+                border-radius: 8px;
+                border: none;
+                cursor: pointer;
+                font-size: 0.9em;
+                font-weight: bold;
+                transition: background 0.3s;
+                text-decoration: none;
+                margin-bottom: 10px;
+            }
+            .fs-button:hover { background-color: #334155; }
             
             .incident-card { padding: 15px; border-radius: 10px; margin: 10px; background: white; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
             .card-new { border-left: 8px solid #dc2626 !important; }
@@ -976,7 +1000,7 @@ def monitor_center_module():
                 if st.session_state.last_row_count > 0:
                     is_new_alert = True
                     
-                    # เล่นเสียง alet.wav 1 ครั้ง (Hidden Player)
+                    # Hidden Audio Player
                     sound_file = "alet.wav"
                     if os.path.exists(sound_file):
                         with open(sound_file, "rb") as f:
@@ -990,21 +1014,23 @@ def monitor_center_module():
                         """
                         st.markdown(audio_html, unsafe_allow_html=True)
                         st.toast("🚨 พบเหตุแจ้งใหม่!", icon="🔊")
-                    else:
-                        st.error(f"❌ ไม่พบไฟล์ {sound_file}")
 
                 st.session_state.last_row_count = current_row_count
             
             df_new_all = df_raw[df_raw['Status'].str.contains("รอดำเนินการ", na=False)].iloc[::-1]
 
-            # --- หัวข้อ (เอา NEW ออกแล้ว) ---
+            # --- หัวข้อ + ปุ่ม Full Screen ---
+            # ใช้ HTML สร้างปุ่มกดเพื่อเรียกฟังก์ชัน JS toggleFullScreen()
             st.markdown(f"""
-                <div style="text-align:center; margin-bottom:15px;">
+                <div style="text-align:center; margin-bottom:15px; position:relative;">
                     <h2 style="color:#1e293b; margin:0; display:inline-block; font-weight:800;">🚨 War Room: ระบบเฝ้าระวังเหตุอัตโนมัติ</h2>
+                    <div style="margin-top:10px;">
+                        <button onclick="toggleFullScreen()" class="fs-button">🖥️ เปิด/ปิด เต็มจอ (Full Screen)</button>
+                    </div>
                 </div>
             """, unsafe_allow_html=True)
             
-            # --- 📌 แสดงผล 3 กล่องบน (Minimal & Compact & Infinite Blink) ---
+            # --- 📌 แสดงผล 3 กล่องบน ---
             if not df_new_all.empty:
                 st.markdown('<div style="color:#64748b; font-weight:600; margin-bottom:5px; font-size:0.9em;">🔥 แจ้งเหตุล่าสุด (3 รายการ):</div>', unsafe_allow_html=True)
                 top_3 = df_new_all.head(3)
@@ -1012,7 +1038,7 @@ def monitor_center_module():
 
                 for i, ((idx, row), col) in enumerate(zip(top_3.iterrows(), cols)):
                     with col:
-                        # ใส่ class กระพริบถ้าเป็นเหตุใหม่ (วนตลอดจนกว่าจะรีเฟรชแล้ว state หาย)
+                        # กระพริบ Infinite
                         pulse_cls = "new-incident-active" if (i == 0 and is_new_alert) else ""
                         
                         itype = str(row['Incident_Type'])
