@@ -879,18 +879,14 @@ def traffic_module():
             st.write("")
             st.info("💡 **หมายเหตุ:** ข้อมูลเปอร์เซ็นต์คำนวณจากจำนวนรถที่ลงทะเบียนในแต่ละระดับชั้นนั้นๆ")
             st.caption(f"ออกรายงาน ณ วันที่: {get_now_th().strftime('%d/%m/%Y %H:%M')}")
-#------------------------------------------#
-war room
-#--------------------------------------#
-
 def monitor_center_module():
-    # --- 1. เตรียม State ---
+    # --- 1. เตรียม State สำหรับจำจำนวนแถวเดิม ---
     if "last_row_count" not in st.session_state:
         st.session_state.last_row_count = 0
     
     is_new_alert = False 
 
-    # --- 2. CSS: Minimal Style (พื้นขาว สบายตา) ---
+    # --- 2. CSS: Minimal Style (พื้นขาว สบายตา ขอบแดง) ---
     st.markdown("""
         <style>
             /* Pulse Effect แบบนุ่มนวล (Soft Glow) */
@@ -935,54 +931,70 @@ def monitor_center_module():
             .marquee-viewport { height: 650px; overflow: hidden; position: relative; background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; }
             .marquee-content { display: flex; flex-direction: column; animation: scroll_up 50s linear infinite; }
             @keyframes scroll_up { 0% { transform: translateY(0); } 100% { transform: translateY(-50%); } }
+            .marquee-viewport:hover .marquee-content { animation-play-state: paused; }
             
             .incident-card { padding: 15px; border-radius: 10px; margin: 10px; background: white; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
             .card-new { border-left: 8px solid #dc2626 !important; }
             .card-progress { border-left: 6px solid #3b82f6 !important; background-color: #eff6ff !important; margin-bottom:12px; }
             .card-done { border-left: 6px solid #22c55e !important; background-color: #f0fdf4 !important; margin-bottom:12px; }
+            .header-badge { padding: 12px; border-radius: 8px; text-align: center; font-weight: bold; margin-bottom: 10px; color: white; font-size: 1.1em; }
         </style>
     """, unsafe_allow_html=True)
 
+    # ปุ่มย้อนกลับ
     if st.button("⬅️ กลับหน้าเลือกแผนก", use_container_width=True):
         st.session_state.current_dept = None
         st.rerun()
 
     try:
+        # เชื่อมต่อ Google Sheets (ttl=0 บังคับโหลดใหม่เสมอ)
         conn = st.connection("gsheets", type=GSheetsConnection)
         now_th = get_now_th()
         cur_year = (now_th.year + 543) if now_th.month >= 5 else (now_th.year + 542)
         df_raw = conn.read(worksheet=f"Investigation_{cur_year}", ttl=0).fillna("")
+        
+        # แสดงเวลาอัปเดตมุมขวา
         st.caption(f"🔄 Last Update: {now_th.strftime('%H:%M:%S')}")
 
         if not df_raw.empty:
-            # --- 🔥 ส่วนตรวจจับเหตุใหม่ & ไฟล์เสียง Local ---
+            # --- 🔥 ส่วนตรวจจับเหตุใหม่ & ไฟล์เสียง Local (alet.mp3) ---
             current_row_count = len(df_raw)
             if current_row_count > st.session_state.last_row_count:
                 if st.session_state.last_row_count > 0:
                     is_new_alert = True
                     
-                    # 🔊 เล่นไฟล์เสียงจากเครื่อง (alet.mp3)
-                    audio_path = os.path.join(BASE_DIR, "alet.wav") # หรือเปลี่ยนนามสกุลถ้าเป็น .wav
+                    # ค้นหาไฟล์เสียง alet.mp3 ในโฟลเดอร์ปัจจุบัน
+                    sound_file = "alet.mp3"
                     
-                    if os.path.exists(audio_path):
-                        # แปลงไฟล์เสียงเป็น Base64 เพื่อฝังใน HTML
-                        with open(audio_path, "rb") as f:
-                            audio_bytes = f.read()
-                        b64_audio = base64.b64encode(audio_bytes).decode()
-                        audio_html = f'<audio autoplay><source src="data:audio/mp3;base64,{b64_audio}" type="audio/mp3"></audio>'
-                        st.markdown(audio_html, unsafe_allow_html=True)
+                    if os.path.exists(sound_file):
+                        try:
+                            # อ่านไฟล์และแปลงเป็น Base64
+                            with open(sound_file, "rb") as f:
+                                audio_bytes = f.read()
+                            b64_audio = base64.b64encode(audio_bytes).decode()
+                            
+                            # ฝัง Player แบบ Autoplay (ซ่อนตัว)
+                            audio_html = f"""
+                                <audio autoplay>
+                                    <source src="data:audio/mp3;base64,{b64_audio}" type="audio/mp3">
+                                </audio>
+                            """
+                            st.markdown(audio_html, unsafe_allow_html=True)
+                            st.toast("🚨 เล่นเสียงแจ้งเตือน alet.mp3", icon="🔊")
+                        except Exception as e:
+                            st.error(f"Error playing audio: {e}")
                     else:
-                        # ถ้าหาไฟล์ไม่เจอ ใช้เสียงสำรองจากเน็ต
-                        st.toast("⚠️ ไม่พบไฟล์ alet.mp3 ใช้เสียงสำรอง", icon="🔊")
+                        # ถ้าหาไฟล์ไม่เจอ ให้แจ้งเตือนและใช้เสียงสำรอง
+                        st.toast("⚠️ หาไฟล์ alet.mp3 ไม่เจอ ใช้เสียงมาตรฐานแทน", icon="❌")
                         st.markdown('<audio autoplay><source src="https://www.soundjay.com/buttons/beep-01a.mp3" type="audio/mpeg"></audio>', unsafe_allow_html=True)
-                        
-                    st.toast("🚨 มีเหตุแจ้งใหม่!", icon="🔥")
                 
+                # อัปเดตจำนวนแถวล่าสุด
                 st.session_state.last_row_count = current_row_count
             
+            # กรองข้อมูล
             df_new_all = df_raw[df_raw['Status'].str.contains("รอดำเนินการ", na=False)].iloc[::-1]
 
-            # หัวข้อ
+            # หัวข้อหน้าจอ
             new_label = '<span class="badge-new">NEW</span>' if is_new_alert else ""
             st.markdown(f"""
                 <div style="text-align:center; margin-bottom:20px;">
@@ -991,16 +1003,16 @@ def monitor_center_module():
                 </div>
             """, unsafe_allow_html=True)
 
-            # --- 📌 ส่วนแสดงผล 3 กล่องบน (ใช้ st.columns เพื่อความชัวร์ ไม่ให้โค้ดหลุด) ---
+            # --- 📌 ส่วนแสดงผล 3 กล่องบน (Minimal Style) ---
             if not df_new_all.empty:
                 st.markdown('<div style="color:#64748b; font-weight:600; margin-bottom:10px; font-size:0.9em;">🔥 แจ้งเหตุล่าสุด (3 รายการ):</div>', unsafe_allow_html=True)
                 
                 top_3 = df_new_all.head(3)
-                cols = st.columns(3) 
+                cols = st.columns(3) # ใช้ Columns แบ่ง 3 ช่อง
 
                 for i, ((idx, row), col) in enumerate(zip(top_3.iterrows(), cols)):
                     with col:
-                        # Class กระพริบ
+                        # ถ้าเป็นเหตุใหม่ (ใบแรก) ให้ใส่ class กระพริบ
                         pulse_cls = "new-incident-active" if (i == 0 and is_new_alert) else ""
                         
                         itype = str(row['Incident_Type'])
@@ -1012,7 +1024,7 @@ def monitor_center_module():
                         
                         t_show = row['Timestamp'].split(' ')[1] if ' ' in row['Timestamp'] else row['Timestamp']
 
-                        # HTML การ์ดแบบ Minimal (พื้นขาว)
+                        # HTML การ์ด
                         st.markdown(f"""
                         <div class="alert-card-minimal {pulse_cls}">
                             <div style="display:flex; justify-content:space-between; margin-bottom:8px; border-bottom:1px solid #f1f5f9; padding-bottom:8px;">
@@ -1030,7 +1042,7 @@ def monitor_center_module():
 
             st.divider()
 
-            # --- 3 คอลัมน์ด้านล่าง ---
+            # --- 3 คอลัมน์ด้านล่าง (Marquee / กำลังดำเนินการ / เรียบร้อย) ---
             c1, c2, c3 = st.columns(3)
             with c1:
                 st.markdown('<div class="header-badge" style="background:#ef4444;">🔥 รอดำเนินการ (Live)</div>', unsafe_allow_html=True)
@@ -1061,6 +1073,7 @@ def monitor_center_module():
                 for _, row in df_done.iterrows():
                     st.markdown(f'<div class="incident-card card-done"><b>✅ {row["Report_ID"]}</b><br>📍 {row["Location"]}<br><small style="color:#64748b;">{row["Incident_Type"]}</small></div>', unsafe_allow_html=True)
 
+        # ตั้งเวลา Refresh (10 วินาที)
         time.sleep(10)
         st.rerun()
         
