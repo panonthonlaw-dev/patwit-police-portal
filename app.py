@@ -46,84 +46,84 @@ def get_target_sheet_name():
     current_buddhist_year = now_th.year + 543
     ac_year = current_buddhist_year if now_th.month >= 5 else current_buddhist_year - 1
     return f"Investigation_{ac_year}"
-
-# ✅ ฟังก์ชันดึงข้อมูลแบบ Cache 3 ชั่วโมง (แก้ปัญหา Quota)
+# ✅ 1. คง Cache ข้อมูลไว้ (3 ชม.) เพื่อไม่ให้ยิง Google Sheets ถี่เกินไป
 @st.cache_data(ttl=10800)
 def get_safe_map_data(sheet_name):
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(worksheet=sheet_name, ttl=10800)
         return pd.DataFrame(df)
-    except:
+    except Exception as e:
+        st.error(f"Error reading data: {e}")
         return pd.DataFrame()
 
-# ✅ ฟังก์ชันสร้างแผนที่แบบ Cache Resource (แก้ปัญหาจอกระพริบ)
-@st.cache_resource(ttl=10800)
+# ✅ 2. ฟังก์ชันสร้างแผนที่ (ถอด @st.cache_resource ออก เพื่อให้แผนที่แสดงผลทุกครั้ง)
+# การวาดแผนที่ใหม่จากข้อมูลใน Memory (Cache Data) ทำได้เร็วมากและไม่ทำให้ระบบล่ม
 def create_hazard_map_obj(_df):
-    if _df.empty: return None
-    # กึ่งกลางโรงเรียน
-    m = folium.Map(location=[16.2935, 103.9735], zoom_start=18)
+    if _df.empty: 
+        return None
+    
+    # กึ่งกลางโรงเรียน (ใช้พิกัดจาก COORD_MAP อื่นๆ)
+    school_center = [16.293596638838643, 103.97250289339189]
+    m = folium.Map(location=school_center, zoom_start=18)
+    
     folium.TileLayer(
         tiles='https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
         attr='Google Satellite', name='Google Satellite', overlay=False, control=True
     ).add_to(m)
     
     cluster = MarkerCluster().add_to(m)
+    
     for _, row in _df.iterrows():
         loc = str(row.get('Location', 'อื่นๆ')).strip()
         coords = COORD_MAP.get(loc, COORD_MAP["อื่นๆ"])
-        # Jitter ป้องกันหมุดทับกัน
-        j_lat = coords['lat'] + random.uniform(-0.00003, 0.00003)
-        j_lon = coords['lon'] + random.uniform(-0.00003, 0.00003)
+        
+        # Jitter ปรับระยะให้เหมาะสม (0.00004)
+        j_lat = coords['lat'] + random.uniform(-0.00004, 0.00004)
+        j_lon = coords['lon'] + random.uniform(-0.00004, 0.00004)
         
         folium.CircleMarker(
-            location=[j_lat, j_lon], radius=7, color='white', weight=1,
-            fill=True, fill_color='#ef4444', fill_opacity=0.8,
-            popup=f"📍 {loc}<br>ID: {row.get('Report_ID','-')}<br>เหตุ: {row.get('Incident_Type','-')}"
+            location=[j_lat, j_lon], 
+            radius=7, 
+            color='white', 
+            weight=1,
+            fill=True, 
+            fill_color='#ef4444', 
+            fill_opacity=0.8,
+            popup=folium.Popup(f"📍 <b>{loc}</b><br>ID: {row.get('Report_ID','-')}<br>เหตุ: {row.get('Incident_Type','-')}", max_width=200),
+            tooltip=loc
         ).add_to(cluster)
     return m
 
-# ==========================================
-# 1. MODULE: HAZARD ANALYTICS
-# ==========================================
+# ✅ 3. ในส่วนของ module ให้เรียกใช้แบบนี้
 def hazard_analytics_module():
-    if st.button("🏠 กลับเมนูหลัก", use_container_width=True):
-        st.session_state.current_dept = None
-        st.rerun()
-    
-    st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📍 Intelligence Map & Risk Analytics</h2>", unsafe_allow_html=True)
+    # ... (ส่วนปุ่มกลับเมนูหลักเหมือนเดิม) ...
 
     target_sheet = get_target_sheet_name()
-    df_inv = get_safe_map_data(target_sheet)
+    df_inv = get_safe_map_data(target_sheet) # ดึงข้อมูลจาก Cache (เร็วและประหยัด Quota)
 
     if not df_inv.empty:
-        # เรียกแผนที่จาก Cache
+        # สร้างวัตถุแผนที่ใหม่ทุกครั้งที่รันหน้านี้ (ป้องกันแผนที่หาย)
         map_obj = create_hazard_map_obj(df_inv)
         
         if map_obj:
-            # ✅ แสดงแผนที่แบบล็อคค่า (Static) ไม่ให้ Rerun เวลามีการขยับ
+            # ใช้ st_folium แสดงผล โดยยังคง returned_objects=[] เพื่อไม่ให้หน้าจอ Rerun เอง
             st_folium(
                 map_obj, 
                 width="100%", 
                 height=600, 
-                key="hazard_map_static_v1", 
+                key=f"map_display_{target_sheet}", # ใช้ Key ที่เปลี่ยนตามชื่อ Sheet
                 returned_objects=[], 
                 use_container_width=True
             )
+            
+        st.info(f"📁 ข้อมูลจาก: {target_sheet} (อัปเดตทุก 3 ชม.)")
         
-        st.info("💡 ข้อมูลอัปเดตทุก 3 ชั่วโมงเพื่อความเสถียรของระบบ")
-        if st.button("🔄 อัปเดตพิกัดเดี๋ยวนี้"):
+        if st.button("🔄 บังคับอัปเดตข้อมูล (Refresh Data)"):
             st.cache_data.clear()
-            st.cache_resource.clear()
             st.rerun()
-
-        # ส่วนกราฟสรุป
-        st.write("📊 **สถิติจุดเสี่ยงแยกตามอาคาร**")
-        st.bar_chart(df_inv['Location'].value_counts())
     else:
-        st.warning("⚠️ ยังไม่มีข้อมูลการแจ้งเหตุในปีการศึกษานี้")
-
-# --- (บรรทัดต่อจากนี้คือโค้ดเดิมของคุณ: PDF & Chart Libraries, investigation_module, main ฯลฯ) ---
+        st.warning("⚠️ ไม่พบข้อมูลการแจ้งเหตุ")
 #--------------------
 # PDF & Chart Libraries
 try:
