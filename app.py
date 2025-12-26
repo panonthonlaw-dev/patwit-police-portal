@@ -63,8 +63,21 @@ def create_hazard_map_obj(_df):
     if _df.empty: 
         return None
     
-    # กึ่งกลางโรงเรียน (ใช้พิกัดจาก COORD_MAP อื่นๆ)
-    school_center = [16.293596638838643, 103.97250289339189]
+    # 1. คำนวณความถี่ของแต่ละสถานที่เพื่อจัดระดับความเสี่ยง
+    location_counts = _df['Location'].value_counts()
+    
+    # กำหนดเกณฑ์ (Threshold) - คุณสามารถปรับตัวเลขได้ตามความเหมาะสม
+    # ตัวอย่าง: > 5 ครั้ง = เสี่ยงมาก, 3-5 ครั้ง = ปานกลาง, < 3 ครั้ง = เสี่ยงน้อย
+    def get_risk_color(count):
+        if count >= 5:
+            return '#ef4444'  # แดง (เสี่ยงมาก)
+        elif count >= 3:
+            return '#facc15'  # เหลือง (ปานกลาง)
+        else:
+            return '#22c55e'  # เขียว (เสี่ยงน้อย)
+
+    # พิกัดกึ่งกลางโรงเรียน
+    school_center = [16.29359, 103.97250]
     m = folium.Map(location=school_center, zoom_start=18)
     
     folium.TileLayer(
@@ -75,24 +88,32 @@ def create_hazard_map_obj(_df):
     cluster = MarkerCluster().add_to(m)
     
     for _, row in _df.iterrows():
-        loc = str(row.get('Location', 'อื่นๆ')).strip()
-        coords = COORD_MAP.get(loc, COORD_MAP["อื่นๆ"])
+        loc_name = str(row.get('Location', '')).strip()
         
-        # Jitter ปรับระยะให้เหมาะสม (0.00004)
+        # ❌ เงื่อนไข: ซ่อนสถานที่ "อื่นๆ" หรือค่าว่าง
+        if loc_name == "อื่นๆ" or loc_name == "" or loc_name not in COORD_MAP:
+            continue
+            
+        coords = COORD_MAP.get(loc_name)
+        count = location_counts.get(loc_name, 0)
+        marker_color = get_risk_color(count) # เรียกใช้ฟังก์ชันแบ่งสี
+        
+        # Jitter ปรับระยะเล็กน้อย
         j_lat = coords['lat'] + random.uniform(-0.00004, 0.00004)
         j_lon = coords['lon'] + random.uniform(-0.00004, 0.00004)
         
         folium.CircleMarker(
             location=[j_lat, j_lon], 
-            radius=7, 
+            radius=8, 
             color='white', 
-            weight=1,
+            weight=1.5,
             fill=True, 
-            fill_color='#ef4444', 
-            fill_opacity=0.8,
-            popup=folium.Popup(f"📍 <b>{loc}</b><br>ID: {row.get('Report_ID','-')}<br>เหตุ: {row.get('Incident_Type','-')}", max_width=200),
-            tooltip=loc
+            fill_color=marker_color, 
+            fill_opacity=0.9,
+            popup=folium.Popup(f"📍 <b>{loc_name}</b><br>จำนวนเหตุ: {count} ครั้ง<br>ID: {row.get('Report_ID','-')}", max_width=200),
+            tooltip=f"{loc_name} (ระดับความเสี่ยง: {'สูง' if count >= 5 else 'กลาง' if count >= 3 else 'ต่ำ'})"
         ).add_to(cluster)
+        
     return m
 
 # ✅ 3. ในส่วนของ module ให้เรียกใช้แบบนี้
