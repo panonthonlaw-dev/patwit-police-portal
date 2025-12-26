@@ -81,13 +81,15 @@ def create_hazard_map_obj(_df):
         count = risk_counts.get(loc_name, 0)
         if count == 0: continue # ถ้าไม่มีเหตุในอาคารนี้ ไม่ต้องปักหมุด
         
-        # ✅ เลือกสีทึบตามเกณฑ์: สูง(3+) = แดง, กลาง(2) = เหลือง, ต่ำ(1) = เขียว
+        # ✅ แก้ไขการแบ่งระดับสีตามช่วงที่ต้องการ
         if count >= 15:
-            marker_color = '#dc2626' # แดงทึบ
-        elif count >= 10:
-            marker_color = '#facc15' # เหลืองทึบ
+            marker_color = '#dc2626' # แดง (เสี่ยงสูงมาก: ตั้งแต่ 15 ครั้งขึ้นไป)
+        elif 5 <= count <= 14:
+            marker_color = '#facc15' # เหลือง (ปานกลาง: 5 ถึง 14 ครั้ง)
+        elif 1 <= count <= 4:
+            marker_color = '#22c55e' # เขียว (เสี่ยงต่ำ: 1 ถึง 4 ครั้ง)
         else:
-            marker_color = '#22c55e' # เขียวทึบ
+            continue # ถ้าเป็น 0 หรือไม่มีข้อมูลให้ข้ามไป (ไม่ต้องปักหมุด)
 
         # ✅ วาดจุดพิกัดแบบ CircleMarker (ขนาดเล็ก สีทึบ 100%)
         folium.CircleMarker(
