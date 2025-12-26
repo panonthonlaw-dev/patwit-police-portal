@@ -66,7 +66,7 @@ def create_hazard_map_obj(_df):
     risk_counts = _df['Location'].value_counts().to_dict()
     
     # 2. ตั้งค่าแผนที่กึ่งกลางโรงเรียน
-    m = folium.Map(location=[16.29359, 103.97250], zoom_start=18)
+    m = folium.Map(location=[16.293355029277148, 103.97368013832894], zoom_start=18)
     
     # ใช้แผนที่ดาวเทียม Google
     folium.TileLayer(
@@ -82,9 +82,9 @@ def create_hazard_map_obj(_df):
         if count == 0: continue # ถ้าไม่มีเหตุในอาคารนี้ ไม่ต้องปักหมุด
         
         # ✅ เลือกสีทึบตามเกณฑ์: สูง(3+) = แดง, กลาง(2) = เหลือง, ต่ำ(1) = เขียว
-        if count >= 3:
+        if count >= 15:
             marker_color = '#dc2626' # แดงทึบ
-        elif count == 2:
+        elif count >== 10:
             marker_color = '#facc15' # เหลืองทึบ
         else:
             marker_color = '#22c55e' # เขียวทึบ
