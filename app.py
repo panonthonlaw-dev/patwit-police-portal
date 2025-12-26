@@ -111,7 +111,7 @@ def hazard_analytics_module():
             st_folium(
                 map_obj, 
                 width="100%", 
-                height=450, 
+                height=500, 
                 key=f"map_display_{target_sheet}", # ใช้ Key ที่เปลี่ยนตามชื่อ Sheet
                 returned_objects=[], 
                 use_container_width=True
