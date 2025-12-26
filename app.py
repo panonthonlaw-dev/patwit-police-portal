@@ -37,6 +37,50 @@ COORD_MAP = {
     "อื่นๆ": {"lat": 16.293596638838643, "lon": 103.97250289339189} # พิกัดกลางโรงเรียน
 }
 # --- วางฟังก์ชันนี้ไว้ส่วนบนๆ ของโค้ด (เช่น หลัง import) ---
+# ✅ 1. ย้ายฟังก์ชันดึงข้อมูลมาไว้นอกโมดูล และใช้ Cache แบบเข้มงวด (3 ชม.)
+@st.cache_data(ttl=10800, show_spinner="กำลังดึงพิกัดจาก Google Sheets...")
+def get_safe_hazard_data(sheet_name):
+    try:
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        df = conn.read(worksheet=sheet_name, ttl=10800)
+        return pd.DataFrame(df)
+    except Exception:
+        return pd.DataFrame()
+
+# ✅ 2. ย้ายการสร้างแผนที่มาไว้ใน Cache เพื่อไม่ให้ CPU ทำงานหนักตอนเลื่อนแผนที่
+@st.cache_resource(ttl=10800)
+def generate_hazard_map(_df):
+    if _df.empty:
+        return None
+    
+    # จุดกึ่งกลางโรงเรียน
+    m_obj = folium.Map(location=[16.29359, 103.97250], zoom_start=18)
+    
+    folium.TileLayer(
+        tiles='https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+        attr='Google Satellite', name='Google Satellite', overlay=False, control=True
+    ).add_to(m_obj)
+    
+    marker_cluster = MarkerCluster().add_to(m_obj)
+    
+    for _, row in _df.iterrows():
+        loc_name = str(row.get('Location', 'อื่นๆ')).strip()
+        coords = COORD_MAP.get(loc_name, COORD_MAP["อื่นๆ"])
+        
+        # Jitter เพื่อลดภาระการซ้อนทับ
+        j_lat = coords['lat'] + random.uniform(-0.00004, 0.00004)
+        j_lon = coords['lon'] + random.uniform(-0.00004, 0.00004)
+        
+        folium.CircleMarker(
+            location=[j_lat, j_lon],
+            radius=7, color='white', weight=1, fill=True,
+            fill_color='#ef4444', fill_opacity=0.8,
+            popup=f"<b>{loc_name}</b><br>เหตุ: {row.get('Incident_Type','-')}",
+            tooltip=loc_name
+        ).add_to(marker_cluster)
+    
+    return m_obj
+
 def hazard_analytics_module():
     if st.button("🏠 กลับเมนูหลัก", use_container_width=True):
         st.session_state.current_dept = None
@@ -44,79 +88,43 @@ def hazard_analytics_module():
     
     st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📍 Intelligence Map & Risk Analytics</h2>", unsafe_allow_html=True)
 
-    # ✅ 1. ใช้ st.cache_data เพื่อดึงข้อมูลเพียงครั้งเดียวต่อ 3 ชั่วโมง
-    @st.cache_data(ttl=10800)
-    def get_map_data(sheet_name):
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        df = conn.read(worksheet=sheet_name, ttl=10800)
-        return pd.DataFrame(df)
+    # ดึงชื่อ Sheet ตามปีการศึกษาปัจจุบัน
+    target_sheet = get_target_sheet_name()
+    
+    # ดึงข้อมูล (จะดึงจาก Google แค่ครั้งเดียวใน 3 ชม. ต่อให้หน้าเว็บจะรีเฟรชกี่ครั้งก็ตาม)
+    df_inv = get_safe_hazard_data(target_sheet)
 
-    try:
-        target_sheet = get_target_sheet_name()
-        df_inv = get_map_data(target_sheet)
+    if not df_inv.empty:
+        # สร้าง/ดึงแผนที่จาก Memory
+        m = generate_hazard_map(df_inv)
 
-        if not df_inv.empty:
-            # ✅ 2. ใช้ st.cache_resource เพื่อสร้างแผนที่ Folium เก็บไว้ใน Memory
-            # วิธีนี้จะทำให้แผนที่ "นิ่งสนิท" แม้หน้าเว็บจะ Rerun ถี่แค่ไหนก็ตาม
-            @st.cache_resource(ttl=10800)
-            def create_static_map(_df):
-                # ใช้พิกัดโรงเรียนสตรีศึกษาเป็นจุดกลาง
-                m_obj = folium.Map(location=[16.29359, 103.97250], zoom_start=18)
-                folium.TileLayer(
-                    tiles='https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
-                    attr='Google Satellite', name='Google Satellite', overlay=False, control=True
-                ).add_to(m_obj)
-                
-                marker_cluster = MarkerCluster().add_to(m_obj)
-                
-                for _, row in _df.iterrows():
-                    loc_clean = str(row['Location']).strip()
-                    coords = COORD_MAP.get(loc_clean, COORD_MAP["อื่นๆ"])
-                    
-                    # ใส่ Jitter เล็กน้อย
-                    j_lat = coords['lat'] + random.uniform(-0.00004, 0.00004)
-                    j_lon = coords['lon'] + random.uniform(-0.00004, 0.00004)
-                    
-                    folium.CircleMarker(
-                        location=[j_lat, j_lon],
-                        radius=7, color='white', weight=1, fill=True,
-                        fill_color='#ef4444', fill_opacity=0.8,
-                        popup=f"<b>{loc_clean}</b><br>ID: {row.get('Report_ID','-')}",
-                        tooltip=loc_clean
-                    ).add_to(marker_cluster)
-                return m_obj
-
-            # เรียกใช้แผนที่จาก Cache
-            m = create_static_map(df_inv)
-
-            # ✅ 3. แสดงผลแผนที่แบบ Static
+        if m:
+            # ✅ บรรทัดหยุดโลก: ปิดการส่งค่ากลับทั้งหมด (returned_objects=[]) 
+            # และใส่ Key เพื่อล็อค Component ให้ไม่เกิดการเขียนทับซ้ำๆ
             st_folium(
                 m, 
                 width="100%", 
                 height=600, 
-                key="hazard_map_final", 
-                returned_objects=[],
+                key="hazard_map_final_lock", # ล็อค ID ของแผนที่
+                returned_objects=[],        # ไม่รับค่าตอบกลับจากแผนที่ (ป้องกัน Rerun)
                 use_container_width=True
             )
-            
-            st.info(f"💡 ข้อมูลแผนที่ถูกล็อคไว้เพื่อความเสถียร (อัปเดตทุก 3 ชม.)")
-            
-            # 🔄 ปุ่มล้าง Cache กรณีต้องการบังคับโหลดใหม่
-            if st.button("🔄 บังคับอัปเดตแผนที่ใหม่ (Force Refresh)"):
-                st.cache_data.clear()
-                st.cache_resource.clear()
-                st.rerun()
+        
+        st.success(f"✅ ข้อมูลนิ่งแล้ว (อัปเดตถัดไปใน 3 ชม. หรือเมื่อกดปุ่มรีเฟรช)")
+        
+        # แยกปุ่มรีเฟรชออกมาให้ชัดเจน
+        if st.button("🔄 อัปเดตข้อมูลพิกัดใหม่เดี๋ยวนี้"):
+            st.cache_data.clear()
+            st.cache_resource.clear()
+            st.rerun()
 
-            # ส่วนกราฟสถิติ (ไม่ใส่ Cache เพื่อให้โชว์ตามข้อมูลล่าสุด)
-            risk_summary = df_inv['Location'].value_counts().reset_index()
-            risk_summary.columns = ['สถานที่', 'จำนวนเหตุการณ์']
-            st.bar_chart(risk_summary.set_index('สถานที่'))
-            
-        else:
-            st.warning("ยังไม่มีข้อมูลแจ้งเหตุ")
-            
-    except Exception as e:
-        st.error(f"❌ ระบบขัดข้อง: {e}")
+        # กราฟสรุป (ใช้ข้อมูลจาก Cache ไม่เปลือง Quota)
+        st.write("### 📊 สถิติจุดเสี่ยง")
+        risk_summary = df_inv['Location'].value_counts().reset_index()
+        risk_summary.columns = ['สถานที่', 'จำนวนเหตุการณ์']
+        st.bar_chart(risk_summary.set_index('สถานที่'))
+    else:
+        st.warning("⚠️ ไม่พบข้อมูลในฐานข้อมูล Google Sheets")
 #--------------------
 # PDF & Chart Libraries
 try:
