@@ -74,9 +74,9 @@ def create_hazard_map_obj(_df):
     # 3. ฟังก์ชันกำหนดสี (ปรับเกณฑ์ให้เห็นความต่างได้ง่ายที่สุด)
     def get_risk_color(count):
         count = int(count) # บังคับเป็นตัวเลข
-        if count >= 3:
+        if count >= 15:
             return '#dc2626'  # แดง (เสี่ยงสูง: 3 ครั้งขึ้นไป)
-        elif count == 2:
+        elif count >== 10:
             return '#facc15'  # เหลือง (ปานกลาง: 2 ครั้ง)
         else:
             return '#22c55e'  # เขียว (เสี่ยงต่ำ: 1 ครั้ง)
