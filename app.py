@@ -63,21 +63,21 @@ def hazard_analytics_module():
 
         st.info(f"📁 ดึงข้อมูลจาก: {target_sheet} (วิเคราะห์ตามจุดอาคาร)")
 
-        df_raw = conn.read(worksheet=target_sheet, ttl=21600)
+        # ✅ ปรับ TTL เป็น 10800 วินาที (3 ชั่วโมง)
+        df_raw = conn.read(worksheet=target_sheet, ttl=10800)
         df_inv = pd.DataFrame(df_raw)
 
         if not df_inv.empty:
-            # ✅ แก้ไขหลัก: สร้างคอลัมน์ Lat/Lon ใหม่โดยอ้างอิงจากชื่อสถานที่ (Location)
+            # แปลงสถานที่ให้เป็นพิกัดตาม COORD_MAP
             def get_coord(loc_name, coord_type):
-                # ถ้าชื่อสถานที่ตรงกับใน COORD_MAP ให้ใช้ค่านั้น ถ้าไม่เจอให้ใช้พิกัด "อื่นๆ"
                 res = COORD_MAP.get(str(loc_name).strip(), COORD_MAP["อื่นๆ"])
                 return res[coord_type]
 
             df_inv['fixed_lat'] = df_inv['Location'].apply(lambda x: get_coord(x, 'lat'))
             df_inv['fixed_lon'] = df_inv['Location'].apply(lambda x: get_coord(x, 'lon'))
 
-            # ส่วนการแสดงผลแผนที่
-            school_center = [16.2941, 103.9782] # พิกัดกลางโรงเรียน
+            # ตั้งค่าแผนที่กึ่งกลางโรงเรียน (ปรับพิกัดให้ตรงจุดอื่นๆ ที่คุณให้มา)
+            school_center = [16.29359, 103.97250] 
             m = folium.Map(location=school_center, zoom_start=18)
 
             folium.TileLayer(
@@ -85,15 +85,12 @@ def hazard_analytics_module():
                 attr='Google Satellite', name='Google Satellite', overlay=False, control=True
             ).add_to(m)
 
-            # ใช้ MarkerCluster เพื่อให้ดูง่ายถ้าเหตุเกิดในอาคารเดียวกันซ้ำๆ
             marker_cluster = MarkerCluster().add_to(m)
 
             for index, row in df_inv.iterrows():
-                # สุ่มตำแหน่งเล็กน้อย (Jitter) เพื่อไม่ให้จุดทับกันสนิทจนมองไม่เห็นความหนาแน่น
-                jitter_lat = row['fixed_lat'] + random.uniform(-0.00005, 0.00005)
-                jitter_lon = row['fixed_lon'] + random.uniform(-0.00005, 0.00005)
-                
-                color = '#ef4444' # แดง
+                # Jitter เล็กน้อยเพื่อให้เห็นจุดที่ซ้อนกัน
+                jitter_lat = row['fixed_lat'] + random.uniform(-0.00004, 0.00004)
+                jitter_lon = row['fixed_lon'] + random.uniform(-0.00004, 0.00004)
                 
                 folium.CircleMarker(
                     location=[jitter_lat, jitter_lon],
@@ -101,15 +98,30 @@ def hazard_analytics_module():
                     color='white',
                     weight=1,
                     fill=True,
-                    fill_color=color,
+                    fill_color='#ef4444',
                     fill_opacity=0.8,
                     popup=folium.Popup(f"<b>{row['Location']}</b><br>ID: {row['Report_ID']}<br>เหตุ: {row['Incident_Type']}", max_width=200),
                     tooltip=f"{row['Location']}: {row['Incident_Type']}"
                 ).add_to(marker_cluster)
 
-            st_folium(m, width="100%", height=600)
+            # ✅ แก้ไขจุดสำคัญ: ใส่ key และปิด returned_objects เพื่อหยุดการรีเฟรชหน้าจอเมื่อเลื่อนแผนที่
+            st_folium(
+                m, 
+                width="100%", 
+                height=600, 
+                key="hazard_map_static", 
+                returned_objects=[],
+                use_container_width=True
+            )
             
-            # เพิ่มตารางสรุปจุดเสี่ยง
+            st.info(f"💡 ข้อมูลอัปเดตทุก 3 ชั่วโมง (ดึงล่าสุด: {now_th.strftime('%H:%M')})")
+            
+            # 🔄 ปุ่ม Manual Refresh
+            if st.button("🔄 อัปเดตข้อมูลทันที"):
+                st.cache_data.clear()
+                st.rerun()
+
+            # ส่วนสถิติจุดเสี่ยง
             st.write("### 📊 สถิติจุดเสี่ยง (ตามจำนวนครั้งที่เกิดเหตุ)")
             risk_summary = df_inv['Location'].value_counts().reset_index()
             risk_summary.columns = ['สถานที่', 'จำนวนเหตุการณ์']
