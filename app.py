@@ -107,61 +107,51 @@ def create_hazard_map_obj(_df):
 
 # ✅ 3. ในส่วนของ module ให้เรียกใช้แบบนี้
 def hazard_analytics_module():
-    # --- ส่วนที่ 1: ปุ่มควบคุม (แสดงผลแน่นอน ไม่ว่าข้อมูลจะโหลดได้หรือไม่) ---
-    col_nav1, col_nav2 = st.columns([8, 2])
-    with col_nav2:
-        if st.button("🏠 กลับเมนูหลัก", use_container_width=True, key="back_to_main_hazard"):
+    # --- ส่วนที่ 1: แถบเครื่องมือ (ย้อนกลับ และ รีเฟรช) ---
+    c_nav1, c_nav2, c_nav3 = st.columns([6, 2, 2])
+    with c_nav2:
+        if st.button("🔄 รีเฟรช", use_container_width=True):
+            st.cache_data.clear()
+            st.rerun()
+    with c_nav3:
+        if st.button("🏠 เมนูหลัก", use_container_width=True):
             st.session_state.current_dept = None
             st.rerun()
-            
-    st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📍 Intelligence Map & Risk Analytics</h2>", unsafe_allow_html=True)
 
-    # แสดงคำอธิบายสี (Legend) ไว้ด้านบนแผนที่เพื่อให้ดูง่าย
+    # --- ส่วนที่ 2: แถบระบุระดับความเสี่ยง (วงกลมเล็ก สีทึบ) ---
     st.markdown("""
-    <div style="background-color: #ffffff; padding: 10px; border-radius: 10px; border: 1px solid #dee2e6; margin-bottom: 15px; text-align: center;">
-        <b style="color: #1e3a8a;">📊 เกณฑ์วิเคราะห์ความเสี่ยงรายอาคาร</b><br>
-        <span style="color:#dc2626;">● สูง (3 ครั้ง+)</span> &nbsp;&nbsp;
-        <span style="color:#facc15;">● กลาง (2 ครั้ง)</span> &nbsp;&nbsp;
-        <span style="color:#22c55e;">● ต่ำ (1 ครั้ง)</span>
+    <div style="text-align: center; margin-bottom: 15px;">
+        <span style="font-size: 14px; font-weight: bold; color: #1e3a8a; margin-right: 15px;">📊 ระดับความเสี่ยง:</span>
+        <span style="display: inline-flex; align-items: center; margin-right: 10px; font-size: 13px;">
+            <div style="width: 10px; height: 10px; background-color: #dc2626; border-radius: 50%; margin-right: 5px;"></div> สูง (3+)
+        </span>
+        <span style="display: inline-flex; align-items: center; margin-right: 10px; font-size: 13px;">
+            <div style="width: 10px; height: 10px; background-color: #facc15; border-radius: 50%; margin-right: 5px;"></div> กลาง (2)
+        </span>
+        <span style="display: inline-flex; align-items: center; font-size: 13px;">
+            <div style="width: 10px; height: 10px; background-color: #22c55e; border-radius: 50%; margin-right: 5px;"></div> ต่ำ (1)
+        </span>
     </div>
     """, unsafe_allow_html=True)
 
-    # --- ส่วนที่ 2: การดึงข้อมูลและแสดงผลแผนที่ ---
+    # --- ส่วนที่ 3: แผนที่และการดึงข้อมูล ---
     try:
-        # ดึงข้อมูลจาก Cache 3 ชั่วโมงเพื่อป้องกันระบบล่ม
         target_sheet = get_target_sheet_name()
-        df_inv = get_safe_map_data(target_sheet) 
+        df_inv = get_safe_map_data(target_sheet)
 
         if not df_inv.empty:
-            # สร้างแผนที่แบบกำหนดสีเอง (นำ MarkerCluster ออกเพื่อให้สีเปลี่ยนตามเกณฑ์)
-            m = create_hazard_map_obj(df_inv)
-            
-            if m:
-                # ปรับความสูงลงเหลือ 450 และหยุดการ Rerun (returned_objects=[])
+            map_obj = create_hazard_map_obj(df_inv)
+            if map_obj:
                 st_folium(
-                    m, 
-                    width="100%", 
-                    height=450, 
-                    key=f"static_map_{target_sheet}", 
-                    returned_objects=[], 
+                    map_obj,
+                    width="100%",
+                    height=450,
+                    key=f"hazard_map_{target_sheet}",
+                    returned_objects=[],
                     use_container_width=True
                 )
-            
-            # ปุ่มรีเฟรชข้อมูล (Manual Refresh)
-            if st.button("🔄 อัปเดตข้อมูลล่าสุด", use_container_width=True):
-                st.cache_data.clear()
-                st.rerun()
-
-            # กราฟสรุปด้านล่าง
-            st.write("### 📊 สถิติจุดเสี่ยงรายสถานที่")
-            risk_summary = df_inv['Location'].value_counts().reset_index()
-            risk_summary.columns = ['สถานที่', 'จำนวนเหตุการณ์']
-            # กรอง "อื่นๆ" ออกจากกราฟด้วย
-            risk_summary = risk_summary[risk_summary['สถานที่'] != "อื่นๆ"]
-            st.bar_chart(risk_summary.set_index('สถานที่'))
         else:
-            st.warning("⚠️ ยังไม่มีข้อมูลแจ้งเหตุในปีการศึกษานี้")
-
+            st.warning("⚠️ ยังไม่มีข้อมูลการแจ้งเหตุ")
     except Exception as e:
         st.error(f"❌ ระบบขัดข้อง: {e}")
         # แม้ระบบขัดข้อง ปุ่ม "กลับเมนูหลัก" ด้านบนก็จะยังคงอยู่ให้กดได้ครับ
