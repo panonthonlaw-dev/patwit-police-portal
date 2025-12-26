@@ -84,7 +84,7 @@ def create_hazard_map_obj(_df):
         # ✅ เลือกสีทึบตามเกณฑ์: สูง(3+) = แดง, กลาง(2) = เหลือง, ต่ำ(1) = เขียว
         if count >= 15:
             marker_color = '#dc2626' # แดงทึบ
-        elif count >== 10:
+        elif count >= 10:
             marker_color = '#facc15' # เหลืองทึบ
         else:
             marker_color = '#22c55e' # เขียวทึบ
