@@ -69,9 +69,9 @@ def create_hazard_map_obj(_df):
     # กำหนดเกณฑ์ (Threshold) - คุณสามารถปรับตัวเลขได้ตามความเหมาะสม
     # ตัวอย่าง: > 5 ครั้ง = เสี่ยงมาก, 3-5 ครั้ง = ปานกลาง, < 3 ครั้ง = เสี่ยงน้อย
     def get_risk_color(count):
-        if count >= 5:
+        if count >= 15:
             return '#ef4444'  # แดง (เสี่ยงมาก)
-        elif count >= 3:
+        elif count >= 14:
             return '#facc15'  # เหลือง (ปานกลาง)
         else:
             return '#22c55e'  # เขียว (เสี่ยงน้อย)
@@ -118,6 +118,14 @@ def create_hazard_map_obj(_df):
 
 # ✅ 3. ในส่วนของ module ให้เรียกใช้แบบนี้
 def hazard_analytics_module():
+    # แสดง Legend คำอธิบายสีเพื่อให้ผู้ใช้เข้าใจระดับความเสี่ยง
+    st.markdown("""
+    <div style="display: flex; justify-content: center; gap: 20px; margin-bottom: 10px;">
+        <span style="color:#dc2626;">● <b>เสี่ยงสูง</b> (3 ครั้งขึ้นไป)</span>
+        <span style="color:#facc15;">● <b>ปานกลาง</b> (2 ครั้ง)</span>
+        <span style="color:#22c55e;">● <b>เสี่ยงต่ำ</b> (1 ครั้ง)</span>
+    </div>
+    """, unsafe_allow_html=True)
     # ... (ส่วนปุ่มกลับเมนูหลักเหมือนเดิม) ...
 
     target_sheet = get_target_sheet_name()
