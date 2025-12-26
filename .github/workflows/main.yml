@@ -1,0 +1,27 @@
+name: Wake Up Streamlit App
+on:
+  schedule:
+    # ตั้งเวลาให้ปลุกทุกๆ 6 ชั่วโมง (เวลาเป็น UTC ดังนั้น 0,6,12,18 คือเวลาไทย 07:00, 13:00, 19:00, 01:00)
+    - cron: '0 */6 * * *'
+  workflow_dispatch: # ช่วยให้คุณกดสั่ง Reboot เองได้ด้วยมือ
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update last_wake_up.txt
+        run: |
+          echo "Last Wake Up: $(date)" > last_wake_up.txt
+
+      - name: Commit and Push changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action Bot"
+          git add last_wake_up.txt
+          git commit -m "Keep-alive: Wake up Streamlit"
+          git push
