@@ -63,7 +63,7 @@ def hazard_analytics_module():
 
         st.info(f"📁 ดึงข้อมูลจาก: {target_sheet} (วิเคราะห์ตามจุดอาคาร)")
 
-        df_raw = conn.read(worksheet=target_sheet, ttl=0)
+        df_raw = conn.read(worksheet=target_sheet, ttl=300)
         df_inv = pd.DataFrame(df_raw)
 
         if not df_inv.empty:
