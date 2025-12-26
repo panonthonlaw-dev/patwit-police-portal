@@ -155,7 +155,7 @@ def hazard_analytics_module():
                 st_folium(
                     map_obj,
                     width="100%",
-                    height=450,
+                    height=600,
                     key=f"hazard_map_v3_{target_sheet}",
                     returned_objects=[],
                     use_container_width=True
