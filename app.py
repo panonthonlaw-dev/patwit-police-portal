@@ -77,7 +77,7 @@ def create_hazard_map_obj(_df):
             return '#22c55e'  # เขียว (เสี่ยงน้อย)
 
     # พิกัดกึ่งกลางโรงเรียน
-    school_center = [16.29359, 103.97250]
+    school_center = [16.293355029277148, 103.97368013832894]
     m = folium.Map(location=school_center, zoom_start=18)
     
     folium.TileLayer(
