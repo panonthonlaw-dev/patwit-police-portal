@@ -110,11 +110,11 @@ def hazard_analytics_module():
             # ใช้ st_folium แสดงผล โดยยังคง returned_objects=[] เพื่อไม่ให้หน้าจอ Rerun เอง
             st_folium(
                 map_obj, 
-                width="700", 
-                height=450, 
+                width="600", 
+                height=500, 
                 key=f"map_display_{target_sheet}", # ใช้ Key ที่เปลี่ยนตามชื่อ Sheet
                 returned_objects=[], 
-                use_container_width=True
+                
             )
             
         st.info(f"📁 ข้อมูลจาก: {target_sheet} (อัปเดตทุก 3 ชม.)")
