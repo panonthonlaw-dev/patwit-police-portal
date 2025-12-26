@@ -107,34 +107,43 @@ def create_hazard_map_obj(_df):
     return m
 # ✅ 3. ในส่วนของ module ให้เรียกใช้แบบนี้
 def hazard_analytics_module():
-    # --- ส่วนที่ 1: แถบเครื่องมือ (ย้อนกลับ และ รีเฟรช) ---
-    c_nav1, c_nav2, c_nav3 = st.columns([6, 2, 2])
-    with c_nav2:
-        if st.button("🔄 รีเฟรช", use_container_width=True):
+    # --- 1. ส่วนหัวเว็บ (Header) ให้เหมือนส่วนอื่นๆ ของระบบ ---
+    # ตรวจสอบว่าคุณมีฟังก์ชันแสดง Header กลาง เช่น display_header() หรือไม่ 
+    # หากไม่มี ให้ใช้การ markdown แสดงชื่อระบบที่นี่
+    st.markdown(f"<h1 style='text-align: center; color: #1E3A8A;'>🚨 ระบบจัดการข้อมูลความปลอดภัย</h1>", unsafe_allow_html=True)
+    st.markdown(f"<p style='text-align: center; font-weight: bold;'>ฝ่ายปกครอง | ปีการศึกษา {get_target_sheet_name().split('_')[1]}</p>", unsafe_allow_html=True)
+    st.divider()
+
+    # --- 2. แถบเครื่องมือและปุ่มควบคุม (กู้คืนปุ่มที่หายไป) ---
+    col_btn1, col_btn2, col_btn3 = st.columns([6, 2, 2])
+    with col_btn2:
+        if st.button("🔄 รีเฟรชข้อมูล", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
-    with c_nav3:
-        if st.button("🏠 เมนูหลัก", use_container_width=True):
+    with col_btn3:
+        if st.button("🏠 กลับเมนูหลัก", use_container_width=True):
             st.session_state.current_dept = None
             st.rerun()
 
-    # --- ส่วนที่ 2: แถบระบุระดับความเสี่ยง (วงกลมเล็ก สีทึบ) ---
+    st.markdown("<h3 style='text-align: center; color: #1E3A8A;'>📍 แผนที่จุดเสี่ยงและวิเคราะห์ความเสี่ยงรายอาคาร</h3>", unsafe_allow_html=True)
+
+    # --- 3. แถบระบุระดับความเสี่ยง (ขนาดเล็ก สีทึบ) ---
     st.markdown("""
-    <div style="text-align: center; margin-bottom: 15px;">
-        <span style="font-size: 14px; font-weight: bold; color: #1e3a8a; margin-right: 15px;">📊 ระดับความเสี่ยง:</span>
+    <div style="text-align: center; margin-bottom: 15px; background-color: #f8f9fa; padding: 10px; border-radius: 10px;">
+        <span style="font-size: 14px; font-weight: bold; margin-right: 15px;">📊 ระดับความเสี่ยง:</span>
         <span style="display: inline-flex; align-items: center; margin-right: 10px; font-size: 13px;">
-            <div style="width: 10px; height: 10px; background-color: #dc2626; border-radius: 50%; margin-right: 5px;"></div> สูง (3+)
+            <div style="width: 12px; height: 12px; background-color: #dc2626; border-radius: 50%; margin-right: 5px;"></div> สูง (15+)
         </span>
         <span style="display: inline-flex; align-items: center; margin-right: 10px; font-size: 13px;">
-            <div style="width: 10px; height: 10px; background-color: #facc15; border-radius: 50%; margin-right: 5px;"></div> กลาง (2)
+            <div style="width: 12px; height: 12px; background-color: #facc15; border-radius: 50%; margin-right: 5px;"></div> กลาง (5-14)
         </span>
         <span style="display: inline-flex; align-items: center; font-size: 13px;">
-            <div style="width: 10px; height: 10px; background-color: #22c55e; border-radius: 50%; margin-right: 5px;"></div> ต่ำ (1)
+            <div style="width: 12px; height: 12px; background-color: #22c55e; border-radius: 50%; margin-right: 5px;"></div> ต่ำ (1-4)
         </span>
     </div>
     """, unsafe_allow_html=True)
 
-    # --- ส่วนที่ 3: แผนที่และการดึงข้อมูล ---
+    # --- 4. การแสดงผลแผนที่ ---
     try:
         target_sheet = get_target_sheet_name()
         df_inv = get_safe_map_data(target_sheet)
@@ -142,18 +151,24 @@ def hazard_analytics_module():
         if not df_inv.empty:
             map_obj = create_hazard_map_obj(df_inv)
             if map_obj:
+                # ปรับขนาดแผนที่ให้พอดี (เล็กลงเล็กน้อย 450px)
                 st_folium(
                     map_obj,
                     width="100%",
                     height=450,
-                    key=f"hazard_map_{target_sheet}",
+                    key=f"hazard_map_v3_{target_sheet}",
                     returned_objects=[],
                     use_container_width=True
                 )
+            
+            # แสดงกราฟสถิติประกอบ
+            st.write("### 📊 สถิติจุดเสี่ยงรายอาคาร")
+            st.bar_chart(df_inv['Location'].value_counts())
+            
         else:
-            st.warning("⚠️ ยังไม่มีข้อมูลการแจ้งเหตุ")
+            st.warning("⚠️ ไม่พบข้อมูลการแจ้งเหตุในฐานข้อมูล")
     except Exception as e:
-        st.error(f"❌ ระบบขัดข้อง: {e}")
+        st.error(f"❌ เกิดข้อผิดพลาดในการโหลดแผนที่: {e}")
         # แม้ระบบขัดข้อง ปุ่ม "กลับเมนูหลัก" ด้านบนก็จะยังคงอยู่ให้กดได้ครับ
 #--------------------
 # PDF & Chart Libraries
