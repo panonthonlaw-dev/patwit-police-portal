@@ -37,89 +37,32 @@ COORD_MAP = {
     "อื่นๆ": {"lat": 16.293596638838643, "lon": 103.97250289339189} # พิกัดกลางโรงเรียน
 }
 # --- วางฟังก์ชันนี้ไว้ส่วนบนๆ ของโค้ด (เช่น หลัง import) ---
-def get_target_sheet_name():
-    now_th = datetime.now(pytz.timezone('Asia/Bangkok'))
-    current_buddhist_year = now_th.year + 543
-    # ตัดรอบปีการศึกษาที่เดือน 5 (พฤษภาคม)
-    if now_th.month >= 5:
-        ac_year = current_buddhist_year
-    else:
-        ac_year = current_buddhist_year - 1
-    return f"Investigation_{ac_year}"
-#--------------------
 def hazard_analytics_module():
-    if st.button("🏠 กลับเมนูหลัก", use_container_width=True):
-        st.session_state.current_dept = None
-        st.rerun()
-    
-    st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📍 Intelligence Map & Risk Analytics</h2>", unsafe_allow_html=True)
+    # ... (ส่วนหัวฟังก์ชันเหมือนเดิม) ...
 
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
-        now_th = datetime.now(pytz.timezone('Asia/Bangkok'))
-        current_buddhist_year = now_th.year + 543
-        ac_year = current_buddhist_year if now_th.month >= 5 else current_buddhist_year - 1
-        target_sheet = f"Investigation_{ac_year}"
+        target_sheet = get_target_sheet_name()
 
-        st.info(f"📁 ดึงข้อมูลจาก: {target_sheet} (วิเคราะห์ตามจุดอาคาร)")
-
-        df_raw = conn.read(worksheet=target_sheet, ttl=300)
+        # ✅ ปรับ TTL เป็น 21600 วินาที (6 ชั่วโมง)
+        df_raw = conn.read(worksheet=target_sheet, ttl=21600)
         df_inv = pd.DataFrame(df_raw)
 
         if not df_inv.empty:
-            # ✅ แก้ไขหลัก: สร้างคอลัมน์ Lat/Lon ใหม่โดยอ้างอิงจากชื่อสถานที่ (Location)
-            def get_coord(loc_name, coord_type):
-                # ถ้าชื่อสถานที่ตรงกับใน COORD_MAP ให้ใช้ค่านั้น ถ้าไม่เจอให้ใช้พิกัด "อื่นๆ"
-                res = COORD_MAP.get(str(loc_name).strip(), COORD_MAP["อื่นๆ"])
-                return res[coord_type]
-
-            df_inv['fixed_lat'] = df_inv['Location'].apply(lambda x: get_coord(x, 'lat'))
-            df_inv['fixed_lon'] = df_inv['Location'].apply(lambda x: get_coord(x, 'lon'))
-
-            # ส่วนการแสดงผลแผนที่
-            school_center = [16.2941, 103.9782] # พิกัดกลางโรงเรียน
-            m = folium.Map(location=school_center, zoom_start=18)
-
-            folium.TileLayer(
-                tiles='https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
-                attr='Google Satellite', name='Google Satellite', overlay=False, control=True
-            ).add_to(m)
-
-            # ใช้ MarkerCluster เพื่อให้ดูง่ายถ้าเหตุเกิดในอาคารเดียวกันซ้ำๆ
-            marker_cluster = MarkerCluster().add_to(m)
-
-            for index, row in df_inv.iterrows():
-                # สุ่มตำแหน่งเล็กน้อย (Jitter) เพื่อไม่ให้จุดทับกันสนิทจนมองไม่เห็นความหนาแน่น
-                jitter_lat = row['fixed_lat'] + random.uniform(-0.00005, 0.00005)
-                jitter_lon = row['fixed_lon'] + random.uniform(-0.00005, 0.00005)
-                
-                color = '#ef4444' # แดง
-                
-                folium.CircleMarker(
-                    location=[jitter_lat, jitter_lon],
-                    radius=7,
-                    color='white',
-                    weight=1,
-                    fill=True,
-                    fill_color=color,
-                    fill_opacity=0.8,
-                    popup=folium.Popup(f"<b>{row['Location']}</b><br>ID: {row['Report_ID']}<br>เหตุ: {row['Incident_Type']}", max_width=200),
-                    tooltip=f"{row['Location']}: {row['Incident_Type']}"
-                ).add_to(marker_cluster)
-
-            st_folium(m, width="100%", height=600)
+            # ... (ส่วนการวาดแผนที่ COORD_MAP เหมือนเดิม) ...
             
-            # เพิ่มตารางสรุปจุดเสี่ยง
-            st.write("### 📊 สถิติจุดเสี่ยง (ตามจำนวนครั้งที่เกิดเหตุ)")
-            risk_summary = df_inv['Location'].value_counts().reset_index()
-            risk_summary.columns = ['สถานที่', 'จำนวนเหตุการณ์']
-            st.bar_chart(risk_summary.set_index('สถานที่'))
+            st_folium(m, width="100%", height=600, returned_objects=[])
             
-        else:
-            st.warning("ยังไม่มีข้อมูลแจ้งเหตุในปีการศึกษานี้")
+            # แจ้งผู้ใช้ให้ทราบว่าข้อมูลอัปเดตเป็นรอบ
+            st.info("💡 ข้อมูลนี้เป็นข้อมูลสรุป (Caching 6 Hours) เพื่อความเสถียรของระบบ")
             
+            # 🔄 เพิ่มปุ่มรีเฟรชด้วยมือ (Manual Refresh) กรณีต้องการข้อมูลล่าสุดจริงๆ
+            if st.button("🔄 อัปเดตข้อมูลเดี๋ยวนี้ (Manual Refresh)"):
+                st.cache_data.clear() # ล้าง Cache ทั้งหมด
+                st.rerun()
+
     except Exception as e:
-        st.error(f"❌ ระบบขัดข้อง: {e}")
+        # ... (ส่วนการจัดการ Error เหมือนเดิม) ...
 #--------------------
 # PDF & Chart Libraries
 try:
