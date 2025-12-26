@@ -71,7 +71,7 @@ def create_hazard_map_obj(_df):
     def get_risk_color(count):
         if count >= 15:
             return '#ef4444'  # แดง (เสี่ยงมาก)
-        elif count >= 14:
+        elif count >= 10:
             return '#facc15'  # เหลือง (ปานกลาง)
         else:
             return '#22c55e'  # เขียว (เสี่ยงน้อย)
@@ -121,8 +121,8 @@ def hazard_analytics_module():
     # แสดง Legend คำอธิบายสีเพื่อให้ผู้ใช้เข้าใจระดับความเสี่ยง
     st.markdown("""
     <div style="display: flex; justify-content: center; gap: 20px; margin-bottom: 10px;">
-        <span style="color:#dc2626;">● <b>เสี่ยงสูง</b> (3 ครั้งขึ้นไป)</span>
-        <span style="color:#facc15;">● <b>ปานกลาง</b> (2 ครั้ง)</span>
+        <span style="color:#dc2626;">● <b>เสี่ยงสูง</b> (15 ครั้งขึ้นไป)</span>
+        <span style="color:#facc15;">● <b>ปานกลาง</b> (10-14 ครั้ง)</span>
         <span style="color:#22c55e;">● <b>เสี่ยงต่ำ</b> (1 ครั้ง)</span>
     </div>
     """, unsafe_allow_html=True)
