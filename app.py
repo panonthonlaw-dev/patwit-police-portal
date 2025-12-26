@@ -3,17 +3,20 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime, timedelta
 import pytz, random, os, base64, io, qrcode, glob, math, mimetypes, json, requests, re, textwrap, time, ast
-import html  # <--- ✅ สำคัญมาก ต้องมีบรรทัดนี้ครับ ไม่งั้นจะ Error
+import html
 from PIL import Image
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import folium
 from streamlit_folium import st_folium
-from folium.plugins import HeatMap
-import folium
-from streamlit_folium import st_folium
 from folium.plugins import HeatMap, MarkerCluster
-# ตารางอ้างอิงพิกัดภายในโรงเรียน (คุณเปลี่ยนตัวเลข Lat/Lon เป็นค่าจริงที่คุณเตรียมไว้ได้เลย)
+
+# ==========================================
+# 0. GLOBAL CONFIG & DATA (ต้องอยู่บนสุด)
+# ==========================================
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# ตารางพิกัดอาคาร (ล็อคค่าคงที่)
 COORD_MAP = {
     "อาคาร 1": {"lat": 16.293080624461656, "lon": 103.97334404257019},
     "อาคาร 2": {"lat": 16.29279814390506, "lon": 103.97334845175875},
@@ -34,53 +37,55 @@ COORD_MAP = {
     "ห้องน้ำหลังอาคาร3": {"lat": 16.292126722514713, "lon": 103.97403520772245},
     "ห้องน้ำอาคารไฟฟ้า": {"lat": 16.29465819963838, "lon": 103.97237918736676},
     "ห้องน้ำหลังอาคาร5": {"lat": 16.293816914880985, "lon": 103.97437580456852},
-    "อื่นๆ": {"lat": 16.293596638838643, "lon": 103.97250289339189} # พิกัดกลางโรงเรียน
+    "อื่นๆ": {"lat": 16.293596638838643, "lon": 103.97250289339189}
 }
-# --- วางฟังก์ชันนี้ไว้ส่วนบนๆ ของโค้ด (เช่น หลัง import) ---
-# ✅ 1. ย้ายฟังก์ชันดึงข้อมูลมาไว้นอกโมดูล และใช้ Cache แบบเข้มงวด (3 ชม.)
-@st.cache_data(ttl=10800, show_spinner="กำลังดึงพิกัดจาก Google Sheets...")
-def get_safe_hazard_data(sheet_name):
+
+# --- ฟังก์ชันคำนวณชื่อชีต (ย้ายมาไว้บนสุดเพื่อแก้ NameError) ---
+def get_target_sheet_name():
+    now_th = datetime.now(pytz.timezone('Asia/Bangkok'))
+    current_buddhist_year = now_th.year + 543
+    ac_year = current_buddhist_year if now_th.month >= 5 else current_buddhist_year - 1
+    return f"Investigation_{ac_year}"
+
+# ✅ ฟังก์ชันดึงข้อมูลแบบ Cache 3 ชั่วโมง (แก้ปัญหา Quota)
+@st.cache_data(ttl=10800)
+def get_safe_map_data(sheet_name):
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(worksheet=sheet_name, ttl=10800)
         return pd.DataFrame(df)
-    except Exception:
+    except:
         return pd.DataFrame()
 
-# ✅ 2. ย้ายการสร้างแผนที่มาไว้ใน Cache เพื่อไม่ให้ CPU ทำงานหนักตอนเลื่อนแผนที่
+# ✅ ฟังก์ชันสร้างแผนที่แบบ Cache Resource (แก้ปัญหาจอกระพริบ)
 @st.cache_resource(ttl=10800)
-def generate_hazard_map(_df):
-    if _df.empty:
-        return None
-    
-    # จุดกึ่งกลางโรงเรียน
-    m_obj = folium.Map(location=[16.29359, 103.97250], zoom_start=18)
-    
+def create_hazard_map_obj(_df):
+    if _df.empty: return None
+    # กึ่งกลางโรงเรียน
+    m = folium.Map(location=[16.2935, 103.9735], zoom_start=18)
     folium.TileLayer(
         tiles='https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
         attr='Google Satellite', name='Google Satellite', overlay=False, control=True
-    ).add_to(m_obj)
+    ).add_to(m)
     
-    marker_cluster = MarkerCluster().add_to(m_obj)
-    
+    cluster = MarkerCluster().add_to(m)
     for _, row in _df.iterrows():
-        loc_name = str(row.get('Location', 'อื่นๆ')).strip()
-        coords = COORD_MAP.get(loc_name, COORD_MAP["อื่นๆ"])
-        
-        # Jitter เพื่อลดภาระการซ้อนทับ
-        j_lat = coords['lat'] + random.uniform(-0.00004, 0.00004)
-        j_lon = coords['lon'] + random.uniform(-0.00004, 0.00004)
+        loc = str(row.get('Location', 'อื่นๆ')).strip()
+        coords = COORD_MAP.get(loc, COORD_MAP["อื่นๆ"])
+        # Jitter ป้องกันหมุดทับกัน
+        j_lat = coords['lat'] + random.uniform(-0.00003, 0.00003)
+        j_lon = coords['lon'] + random.uniform(-0.00003, 0.00003)
         
         folium.CircleMarker(
-            location=[j_lat, j_lon],
-            radius=7, color='white', weight=1, fill=True,
-            fill_color='#ef4444', fill_opacity=0.8,
-            popup=f"<b>{loc_name}</b><br>เหตุ: {row.get('Incident_Type','-')}",
-            tooltip=loc_name
-        ).add_to(marker_cluster)
-    
-    return m_obj
+            location=[j_lat, j_lon], radius=7, color='white', weight=1,
+            fill=True, fill_color='#ef4444', fill_opacity=0.8,
+            popup=f"📍 {loc}<br>ID: {row.get('Report_ID','-')}<br>เหตุ: {row.get('Incident_Type','-')}"
+        ).add_to(cluster)
+    return m
 
+# ==========================================
+# 1. MODULE: HAZARD ANALYTICS
+# ==========================================
 def hazard_analytics_module():
     if st.button("🏠 กลับเมนูหลัก", use_container_width=True):
         st.session_state.current_dept = None
@@ -88,43 +93,37 @@ def hazard_analytics_module():
     
     st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>📍 Intelligence Map & Risk Analytics</h2>", unsafe_allow_html=True)
 
-    # ดึงชื่อ Sheet ตามปีการศึกษาปัจจุบัน
     target_sheet = get_target_sheet_name()
-    
-    # ดึงข้อมูล (จะดึงจาก Google แค่ครั้งเดียวใน 3 ชม. ต่อให้หน้าเว็บจะรีเฟรชกี่ครั้งก็ตาม)
-    df_inv = get_safe_hazard_data(target_sheet)
+    df_inv = get_safe_map_data(target_sheet)
 
     if not df_inv.empty:
-        # สร้าง/ดึงแผนที่จาก Memory
-        m = generate_hazard_map(df_inv)
-
-        if m:
-            # ✅ บรรทัดหยุดโลก: ปิดการส่งค่ากลับทั้งหมด (returned_objects=[]) 
-            # และใส่ Key เพื่อล็อค Component ให้ไม่เกิดการเขียนทับซ้ำๆ
+        # เรียกแผนที่จาก Cache
+        map_obj = create_hazard_map_obj(df_inv)
+        
+        if map_obj:
+            # ✅ แสดงแผนที่แบบล็อคค่า (Static) ไม่ให้ Rerun เวลามีการขยับ
             st_folium(
-                m, 
+                map_obj, 
                 width="100%", 
                 height=600, 
-                key="hazard_map_final_lock", # ล็อค ID ของแผนที่
-                returned_objects=[],        # ไม่รับค่าตอบกลับจากแผนที่ (ป้องกัน Rerun)
+                key="hazard_map_static_v1", 
+                returned_objects=[], 
                 use_container_width=True
             )
         
-        st.success(f"✅ ข้อมูลนิ่งแล้ว (อัปเดตถัดไปใน 3 ชม. หรือเมื่อกดปุ่มรีเฟรช)")
-        
-        # แยกปุ่มรีเฟรชออกมาให้ชัดเจน
-        if st.button("🔄 อัปเดตข้อมูลพิกัดใหม่เดี๋ยวนี้"):
+        st.info("💡 ข้อมูลอัปเดตทุก 3 ชั่วโมงเพื่อความเสถียรของระบบ")
+        if st.button("🔄 อัปเดตพิกัดเดี๋ยวนี้"):
             st.cache_data.clear()
             st.cache_resource.clear()
             st.rerun()
 
-        # กราฟสรุป (ใช้ข้อมูลจาก Cache ไม่เปลือง Quota)
-        st.write("### 📊 สถิติจุดเสี่ยง")
-        risk_summary = df_inv['Location'].value_counts().reset_index()
-        risk_summary.columns = ['สถานที่', 'จำนวนเหตุการณ์']
-        st.bar_chart(risk_summary.set_index('สถานที่'))
+        # ส่วนกราฟสรุป
+        st.write("📊 **สถิติจุดเสี่ยงแยกตามอาคาร**")
+        st.bar_chart(df_inv['Location'].value_counts())
     else:
-        st.warning("⚠️ ไม่พบข้อมูลในฐานข้อมูล Google Sheets")
+        st.warning("⚠️ ยังไม่มีข้อมูลการแจ้งเหตุในปีการศึกษานี้")
+
+# --- (บรรทัดต่อจากนี้คือโค้ดเดิมของคุณ: PDF & Chart Libraries, investigation_module, main ฯลฯ) ---
 #--------------------
 # PDF & Chart Libraries
 try:
