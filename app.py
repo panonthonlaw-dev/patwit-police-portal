@@ -94,7 +94,7 @@ def create_hazard_map_obj(_df):
         # ✅ วาดจุดพิกัดแบบ CircleMarker (ขนาดเล็ก สีทึบ 100%)
         folium.CircleMarker(
             location=[coords['lat'], coords['lon']],
-            radius=6,            # ✅ ปรับขนาดจุดให้เล็กลงตามต้องการ
+            radius=10,            # ✅ ปรับขนาดจุดให้เล็กลงตามต้องการ
             color='white',       # สีขอบขาวบางๆ ให้จุดเด่นขึ้น
             weight=1,
             fill=True,
