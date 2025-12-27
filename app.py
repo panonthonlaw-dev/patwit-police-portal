@@ -1322,15 +1322,31 @@ def main():
                 if LOGO_PATH and os.path.exists(LOGO_PATH):
                     st.image(LOGO_PATH, width=120)
                 st.markdown("<h3 style='text-align:center;'>ศูนย์ปฏิบัติการกลาง<br>สถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</h3>", unsafe_allow_html=True)
-                pwd_in = st.text_input("รหัสผ่านเจ้าหน้าที่", type="password")
-                if st.button("เข้าสู่ระบบ", width='stretch', type='primary'):
+                
+                # --- ส่วนที่แก้ไข: เปลี่ยนเป็น 2 ช่องกรอกข้อมูล ---
+                input_user = st.text_input("ชื่อผู้ใช้งาน (Username)")
+                input_pass = st.text_input("รหัสผ่าน (Password)", type="password")
+                
+                if st.button("เข้าสู่ระบบ", use_container_width=True, type='primary'):
                     accs = st.secrets.get("OFFICER_ACCOUNTS", {})
-                    if pwd_in in accs:
+                    found_acc = None
+                    
+                    # วนลูปเช็ค Username และ Password ให้ตรงกัน
+                    for key in accs:
+                        if accs[key].get("user") == input_user and accs[key].get("password") == input_pass:
+                            found_acc = accs[key]
+                            # เก็บค่ารหัสผ่านไว้ใน Session เผื่อใช้เช็คเงื่อนไข Patwit1510 เดิม
+                            st.session_state.current_user_pwd = input_pass 
+                            break
+                    
+                    if found_acc:
                         st.session_state.logged_in = True
-                        st.session_state.user_info = accs[pwd_in]
-                        st.session_state.current_user_pwd = pwd_in
+                        st.session_state.user_info = found_acc
+                        st.success(f"ยินดีต้อนรับ: {found_acc['name']}")
+                        time.sleep(0.5)
                         st.rerun()
-                    else: st.error("❌ รหัสผิด")
+                    else: 
+                        st.error("❌ ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
     else:
         if st.session_state.current_dept is None:
             c_brand, c_nav = st.columns([7, 2.5])
