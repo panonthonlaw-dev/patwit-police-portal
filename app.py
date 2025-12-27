@@ -669,8 +669,12 @@ def investigation_module():
 # ==========================================
 def traffic_module():
     user = st.session_state.user_info
+    # ดึงข้อมูลจาก user_info ที่ Login มาจริง ไม่ต้องบังคับเป็น teacher
     st.session_state.officer_name = user.get('name', 'N/A')
-    st.session_state.officer_role = user.get('role', 'teacher')
+    st.session_state.officer_role = user.get('role', 'viewer') 
+    
+    # ดึงค่า role มาไว้ในตัวแปรเพื่อใช้เช็คในหน้าจราจร
+    off_role = st.session_state.officer_role
     st.session_state.current_user_pwd = st.session_state.current_user_pwd 
 
     c_brand, c_nav = st.columns([7, 2.5])
@@ -927,7 +931,7 @@ def traffic_module():
                         c_img2.image(get_img_link(v[10]), caption="หลัง")
                         c_img3.image(get_img_link(v[11]), caption="ข้าง")
                         
-                        if st.session_state.officer_role == "admin":
+                        if st.session_state.officer_role in ["admin", "super_admin"]:
                             col_act1, col_act2 = st.columns(2)
                             col_act1.download_button("📥 โหลด PDF", create_pdf_tra(v, get_img_link(v[10]), get_img_link(v[11]), get_img_link(v[14]), st.session_state.officer_name), f"{v[6]}.pdf", use_container_width=True)
                             if col_act2.button("✏️ แก้ไขข้อมูล", key=f"ed_{i}", use_container_width=True): st.session_state.edit_data = v; st.session_state.traffic_page = 'edit'; st.rerun()
