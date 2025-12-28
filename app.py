@@ -1326,7 +1326,31 @@ def monitor_center_module():
 # ==========================================
 # 4. MAIN ENTRY (แก้ไขย่อหน้าให้ถูกต้อง)
 # ==========================================
+def check_login():
+    if not st.session_state.get('logged_in'):
+        p = st.query_params
+        if p.get("auth") == "true":
+            u_pwd = p.get("u")
+            accs = st.secrets.get("OFFICER_ACCOUNTS", {})
+            if u_pwd in accs:
+                st.session_state.logged_in = True
+                st.session_state.user_info = accs[u_pwd]
+                st.session_state.current_user_pwd = u_pwd
 def main():
+    # --- [จุดที่ 1 เพิ่ม] กู้คืนสถานะจาก URL เมื่อมีการ Refresh ---
+    if not st.session_state.get('logged_in'):
+        params = st.query_params
+        if params.get("auth") == "true":
+            u_pwd = params.get("u")
+            accs = st.secrets.get("OFFICER_ACCOUNTS", {})
+            if u_pwd in accs:
+                st.session_state.logged_in = True
+                st.session_state.user_info = accs[u_pwd]
+                st.session_state.current_user_pwd = u_pwd
+                # ถ้าใน URL มีบอกว่าอยู่แผนกไหน ให้เปิดแผนกนั้นให้เลย
+                if params.get("dept"):
+                    st.session_state.current_dept = params.get("dept")
+
     if 'timeout_msg' in st.session_state and st.session_state.timeout_msg:
         st.error(st.session_state.timeout_msg)
         del st.session_state.timeout_msg
@@ -1340,7 +1364,6 @@ def main():
                     st.image(LOGO_PATH, width=120)
                 st.markdown("<h3 style='text-align:center;'>ศูนย์ปฏิบัติการกลาง<br>สถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</h3>", unsafe_allow_html=True)
                 
-                # --- ส่วนที่แก้ไข: เปลี่ยนเป็น 2 ช่องกรอกข้อมูล ---
                 input_user = st.text_input("ชื่อผู้ใช้งาน (Username)")
                 input_pass = st.text_input("รหัสผ่าน (Password)", type="password")
                 
@@ -1348,23 +1371,30 @@ def main():
                     accs = st.secrets.get("OFFICER_ACCOUNTS", {})
                     found_acc = None
                     
-                    # วนลูปเช็ค Username และ Password ให้ตรงกัน
                     for key in accs:
                         if accs[key].get("user") == input_user and accs[key].get("password") == input_pass:
                             found_acc = accs[key]
-                            # เก็บค่ารหัสผ่านไว้ใน Session เผื่อใช้เช็คเงื่อนไข Patwit1510 เดิม
                             st.session_state.current_user_pwd = input_pass 
                             break
                     
                     if found_acc:
                         st.session_state.logged_in = True
                         st.session_state.user_info = found_acc
+                        
+                        # --- [จุดที่ 2 เพิ่ม] บันทึกค่าลง URL ทันทีที่ล็อกอินสำเร็จ ---
+                        st.query_params["auth"] = "true"
+                        st.query_params["u"] = input_pass
+                        
                         st.success(f"ยินดีต้อนรับ: {found_acc['name']}")
                         time.sleep(0.5)
                         st.rerun()
                     else: 
                         st.error("❌ ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
     else:
+        # บันทึกหน้าปัจจุบันลง URL เสมอ เพื่อให้ Refresh แล้วอยู่ที่หน้าเดิม
+        if st.session_state.get("current_dept"):
+            st.query_params["dept"] = st.session_state.current_dept
+
         if st.session_state.current_dept is None:
             c_brand, c_nav = st.columns([7, 2.5])
             with c_brand:
@@ -1379,18 +1409,15 @@ def main():
                     </div>
                     """, unsafe_allow_html=True)
             
-            # --- จุดที่เคย Error (แก้ไขแล้ว) ---
             with c_nav:
                 st.write("")
                 st.write("")
-                # สังเกตการย่อหน้าใต้ if ต้องขยับเข้ามา
                 if st.button("🚪 ออกจากระบบ", key="main_logout", use_container_width=True):
-                    st.query_params.clear() 
+                    # --- [จุดที่ 3 เพิ่ม] ล้าง URL เมื่อกดออกจากระบบ ---
+                    st.query_params.clear()
                     st.session_state.clear()
                     st.rerun()
-            # --------------------------------
             
-            # --- เริ่มต้นส่วนที่แก้ไข ---
             st.markdown("---")
             c1, c2, c3, c4 = st.columns(4) 
             
@@ -1399,8 +1426,6 @@ def main():
                     st.subheader("🕵️ งานสอบสวน")
                     if st.button("เข้าใช้งานสอบสวน", use_container_width=True, type='primary', key="btn_to_inv"):
                         st.session_state.current_dept = "inv"
-                        st.session_state.view_mode = "list"
-                        st.query_params["dept"] = "inv"
                         st.rerun()
             
             with c2:
@@ -1408,9 +1433,6 @@ def main():
                     st.subheader("🚦 งานจราจร")
                     if st.button("เข้าใช้งานจราจร", use_container_width=True, type='primary', key="btn_to_tra"):
                         st.session_state.current_dept = "tra"
-                        st.session_state.traffic_page = 'teacher'
-                        st.session_state.search_results_df = None
-                        st.query_params["dept"] = "tra"
                         st.rerun()
 
             with c3:
@@ -1418,34 +1440,21 @@ def main():
                     st.subheader("🖥️ War Room")
                     if st.button("เปิดจอเฝ้าระวังเหตุ", use_container_width=True, type='primary', key="btn_to_monitor"):
                         st.session_state.current_dept = "monitor_view"
-                        st.query_params["dept"] = "monitor_view"
                         st.rerun()
 
-            with c4: # ✅ แก้ไขการย่อหน้าตรงนี้
+            with c4:
                 with st.container(border=True):
                     st.subheader("📍 แผนที่จุดเสี่ยง")
                     if st.button("ดูแผนที่วิเคราะห์", use_container_width=True, type="primary", key="btn_to_hazard"):
                         st.session_state.current_dept = "hazard_map" 
-                        st.query_params["dept"] = "hazard_map"
                         st.rerun()
-            # --- จบส่วนที่แก้ไข ---
-            # ปุ่มออกจากระบบ (วางไว้ข้างล่างสุดของบล็อกนี้)
-            st.write("")
-            # ✅ แก้ key="main_logout" เป็น key="main_logout_fixed"
-            if st.button("🚪 ออกจากระบบ", use_container_width=True, key="main_logout_fixed"):
-                st.query_params.clear()
-                st.session_state.clear()
-                st.rerun()
-            # --- จบส่วนที่วางทับ ---
         else:
-            # ต้องดูย่อหน้าให้ตรงกับ if/elif ด้านบนนะครับ
             if st.session_state.current_dept == "inv": 
                 investigation_module()
             elif st.session_state.current_dept == "tra": 
                 traffic_module()
-            elif st.session_state.current_dept == "monitor_view": # เพิ่มบรรทัดนี้
+            elif st.session_state.current_dept == "monitor_view":
                 monitor_center_module()
             elif st.session_state.current_dept == "hazard_map":
-                hazard_analytics_module() # เรียกใช้ฟังก์ชันที่คุณเพิ่งวางไว้เหนือบรรทัดสุดท้าย
-
+                hazard_analytics_module()
 if __name__ == "__main__": main()
