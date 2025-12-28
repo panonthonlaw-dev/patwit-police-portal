@@ -667,7 +667,7 @@ def investigation_module():
                 st.markdown(f"### 📝 เลขที่รับแจ้ง: {sid}")
                 with st.container(border=True):
                     st.write(f"**ผู้แจ้ง:** {row['Reporter']} | **สถานที่:** {row['Location']}"); st.info(f"**รายละเอียด:** {row['Details']}")
-                    if clean_val(row['Image_Data']): st.image(base64.b64decode(row['Image_Data']), width=500, caption="หลักฐานจากผู้แจ้ง")
+                    if clean_val(row['Image_Data']): st.image(base64.b64decode(row['Image_Data']), width=300, caption="หลักฐานจากผู้แจ้ง")
 # --- [ส่วนที่ 1: ระบบเช็คสิทธิ์แก้ไข] ---
                 cur_sta = clean_val(row['Status'])
                 user_role = st.session_state.user_info.get('role', 'viewer')
