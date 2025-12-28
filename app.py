@@ -359,8 +359,8 @@ def create_pdf_inv(row):
     qr = qrcode.make(rid); qi = io.BytesIO(); qr.save(qi, format="PNG"); qr_b64 = base64.b64encode(qi.getvalue()).decode()
     
     img_html = ""
-    if clean_val(row.get('evidence_url')):
-        img_html += f"<div style='text-align:center;margin-top:10px;'><b>พยานหลักฐาน</b><br><img src='data:image/jpeg;base64,{row.get('evidence_url')}' style='max-width:380px;max-height:220px;object-fit:contain;border:1px solid #ccc;'></div>"
+    if clean_val(row.get('Evidence_Image')):
+        img_html += f"<div style='text-align:center;margin-top:10px;'><b>พยานหลักฐาน</b><br><img src='data:image/jpeg;base64,{row.get('Evidence_Image')}' style='max-width:380px;max-height:220px;object-fit:contain;border:1px solid #ccc;'></div>"
     if clean_val(row.get('Image_Data')):
         img_html += f"<div style='text-align:center;margin-top:10px;'><b>ภาพประกอบเหตุการณ์</b><br><img src='data:image/jpeg;base64,{row.get('Image_Data')}' style='max-width:380px;max-height:220px;object-fit:contain;border:1px solid #ccc;'></div>"
 
@@ -375,10 +375,10 @@ def create_pdf_inv(row):
     </style></head><body><div class="header">{logo_html}<div style="font-size: 22pt; font-weight: bold;">สถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</div>
     <div style="font-size: 18pt;">ใบสรุปรายงานเหตุการณ์และผลการดำเนินการสอบสวน</div><img class="qr" src="data:image/png;base64,{qr_b64}"></div><hr>
     <table style="width:100%;"><tr><td width="60%"><b>เลขที่รับแจ้ง:</b> {rid}</td><td width="40%" style="text-align:right;"><b>วันที่แจ้ง:</b> {date_str}<br><b>วันที่บันทึกผล:</b> {latest_date}</td></tr></table>
-    <p><b>ผู้แจ้ง:</b> {row.get('reporter_name','-')} | <b>ประเภทเหตุ:</b> {row.get('Incident_Type','-')} | <b>สถานที่:</b> {row.get('Location','-')}</p>
+    <p><b>ผู้แจ้ง:</b> {row.get('Reporter','-')} | <b>ประเภทเหตุ:</b> {row.get('Incident_Type','-')} | <b>สถานที่:</b> {row.get('Location','-')}</p>
     <div style="margin-top:10px;"><b>รายละเอียดเหตุการณ์:</b></div><div class="box">{row.get('Details','-')}</div>
     <div><b>ผลการดำเนินการสอบสวน:</b></div><div class="box">{row.get('Statement','-')}</div>{img_html}
-    <table class="sig-table"><tr><td width="50%">ลงชื่อ..........................................................<br>( {row.get('victim_name','')} )<br>ผู้เสียหาย</td><td width="50%">ลงชื่อ..........................................................<br>( {row.get('accused_name','')} )<br>ผู้ถูกกล่าวหา</td></tr>
+    <table class="sig-table"><tr><td width="50%">ลงชื่อ..........................................................<br>( {row.get('Victim','')} )<br>ผู้เสียหาย</td><td width="50%">ลงชื่อ..........................................................<br>( {row.get('Accused','')} )<br>ผู้ถูกกล่าวหา</td></tr>
     <tr><td>ลงชื่อ..........................................................<br>( {row.get('Student_Police_Investigator','')} )<br>ตำรวจนักเรียนผู้สอบสวน</td><td>ลงชื่อ..........................................................<br>( {row.get('Witness','')} )<br>พยาน</td></tr>
     <tr><td colspan="2"><br>ลงชื่อ..........................................................<br>( {row.get('Teacher_Investigator','')} )<br>ครูผู้สอบสวน</td></tr></table></body></html>"""
     return HTML(string=html_content, base_url=BASE_DIR).write_pdf(font_config=FontConfiguration())
@@ -447,11 +447,11 @@ def investigation_module():
         df_display = df_raw.copy().fillna("")
         
         # ตรวจสอบและสร้างคอลัมน์ที่ขาดหายไป (ป้องกัน Error กรณีขึ้นปีใหม่แล้วหัวตารางไม่ครบ)
-        required_cols = ['Report_ID', 'Timestamp', 'reporter_name', 'Incident_Type', 
-        'Location', 'Details', 'status', 'Image_Data', 
-        'Audit_Log', 'victim_name', 'accused_name', 'Witness', 
+        required_cols = ['Report_ID', 'Timestamp', 'Reporter', 'Incident_Type', 
+        'Location', 'Details', 'Status', 'Image_Data', 
+        'Audit_Log', 'Victim', 'Accused', 'Witness', 
         'Teacher_Investigator', 'Student_Police_Investigator', 
-        'Statement', 'evidence_url', 
+        'Statement', 'Evidence_Image', 
         'lat', 'lon']
         for c in required_cols:
             if c not in df_display.columns: df_display[c] = ""
@@ -460,9 +460,9 @@ def investigation_module():
 # --- [ส่วนที่เพิ่ม: การ์ดสถิติสรุปภาพรวม (Metric Cards)] ---
         # 1. คำนวณตัวเลข
         total_cases = len(df_display)
-        pending = len(df_display[df_display['status'] == "รอดำเนินการ"])
-        process = len(df_display[df_display['status'] == "อยู่ระหว่างการดำเนินการ"])
-        finished = len(df_display[df_display['status'] == "ดำเนินการเรียบร้อย"])
+        pending = len(df_display[df_display['Status'] == "รอดำเนินการ"])
+        process = len(df_display[df_display['Status'] == "อยู่ระหว่างการดำเนินการ"])
+        finished = len(df_display[df_display['Status'] == "ดำเนินการเรียบร้อย"])
 
         # 2. แสดงผล 4 คอลัมน์
         m1, m2, m3, m4 = st.columns(4)
@@ -513,8 +513,8 @@ def investigation_module():
                 filtered = df_display.copy()
                 if search_q: filtered = filtered[filtered.apply(lambda r: r.astype(str).str.contains(search_q, case=False).any(), axis=1)]
                 
-                df_p = filtered[filtered['status'].isin(["รอดำเนินการ", "อยู่ระหว่างการดำเนินการ"])][::-1]
-                df_f = filtered[filtered['status'] == "ดำเนินการเรียบร้อย"][::-1]
+                df_p = filtered[filtered['Status'].isin(["รอดำเนินการ", "อยู่ระหว่างการดำเนินการ"])][::-1]
+                df_f = filtered[filtered['Status'] == "ดำเนินการเรียบร้อย"][::-1]
 
                 st.markdown("<h4 style='color:#1E3A8A; background-color:#f0f2f6; padding:10px; border-radius:5px;'>⏳ รายการที่รอการดำเนินการ</h4>", unsafe_allow_html=True)
                 start_p, end_p, cur_p, tot_p = calculate_pagination('page_pending', len(df_p), 5)
@@ -531,7 +531,7 @@ def investigation_module():
                     cc3.write(row['Incident_Type'])
                     
                     # 1. ดึงค่าสถานะมาเช็ค
-                    status_text = str(row['status']).strip()
+                    status_text = str(row['Status']).strip()
                     
                     # 2. กำหนดสีและไอคอนตามสถานะ
                     if status_text == "รอดำเนินการ":
@@ -593,10 +593,10 @@ def investigation_module():
                 idx_raw = sel.index[0]; row = sel.iloc[0]
                 st.markdown(f"### 📝 เลขที่รับแจ้ง: {sid}")
                 with st.container(border=True):
-                    st.write(f"**ผู้แจ้ง:** {row['reporter_name']} | **สถานที่:** {row['Location']}"); st.info(f"**รายละเอียด:** {row['Details']}")
+                    st.write(f"**ผู้แจ้ง:** {row['Reporter']} | **สถานที่:** {row['Location']}"); st.info(f"**รายละเอียด:** {row['Details']}")
                     if clean_val(row['Image_Data']): st.image(base64.b64decode(row['Image_Data']), width=500, caption="หลักฐานจากผู้แจ้ง")
 # --- [ส่วนที่ 1: ระบบเช็คสิทธิ์แก้ไข] ---
-                cur_sta = clean_val(row['status'])
+                cur_sta = clean_val(row['Status'])
                 user_role = st.session_state.user_info.get('role', 'viewer')
                 is_lock = True 
 
@@ -632,8 +632,8 @@ def investigation_module():
                                        disabled=is_lock)
                     st.markdown("---")
                     c1, c2 = st.columns(2)
-                    v_vic = c1.text_input("ผู้เสียหาย *", value=clean_val(row['victim_name']), disabled=is_lock)
-                    v_acc = c2.text_input("ผู้ถูกกล่าวหา *", value=clean_val(row['accused_name']), disabled=is_lock)
+                    v_vic = c1.text_input("ผู้เสียหาย *", value=clean_val(row['Victim']), disabled=is_lock)
+                    v_acc = c2.text_input("ผู้ถูกกล่าวหา *", value=clean_val(row['Accused']), disabled=is_lock)
                     v_wit = c1.text_input("พยาน", value=clean_val(row['Witness']), disabled=is_lock)
                     v_tea = c2.text_input("ครูผู้สอบสวน *", value=clean_val(row['Teacher_Investigator']), disabled=is_lock)
                     v_stu = c1.text_input("ตำรวจนักเรียนผู้สอบสวน *", value=clean_val(row['Student_Police_Investigator']), disabled=is_lock)
@@ -641,11 +641,11 @@ def investigation_module():
                     ev_img = st.file_uploader("📸 แนบรูปหลักฐานเพิ่ม", type=['jpg','png'], disabled=is_lock)
                     
                     if st.form_submit_button("💾 บันทึกข้อมูล") and not is_lock:
-                        df_raw.at[idx_raw, 'victim_name'] = v_vic; df_raw.at[idx_raw, 'accused_name'] = v_acc
+                        df_raw.at[idx_raw, 'Victim'] = v_vic; df_raw.at[idx_raw, 'Accused'] = v_acc
                         df_raw.at[idx_raw, 'Witness'] = v_wit; df_raw.at[idx_raw, 'Teacher_Investigator'] = v_tea
                         df_raw.at[idx_raw, 'Student_Police_Investigator'] = v_stu
-                        df_raw.at[idx_raw, 'Statement'] = v_stmt; df_raw.at[idx_raw, 'status'] = v_sta
-                        if ev_img: df_raw.at[idx_raw, 'evidence_url'] = process_image(ev_img)
+                        df_raw.at[idx_raw, 'Statement'] = v_stmt; df_raw.at[idx_raw, 'Status'] = v_sta
+                        if ev_img: df_raw.at[idx_raw, 'Evidence_Image'] = process_image(ev_img)
                         df_raw.at[idx_raw, 'Audit_Log'] = f"{clean_val(row['Audit_Log'])}\n[{get_now_th().strftime('%d/%m/%Y %H:%M')}] แก้ไขโดย {user['name']}"
                         conn.update(worksheet=target_sheet, data=df_raw.fillna(""))
                         st.success("บันทึกเรียบร้อย!"); time.sleep(1); st.rerun()
@@ -1239,7 +1239,7 @@ def monitor_center_module():
 
                 st.session_state.last_row_count = current_row_count
             
-            df_new_all = df_raw[df_raw['status'].str.contains("รอดำเนินการ", na=False)].iloc[::-1]
+            df_new_all = df_raw[df_raw['Status'].str.contains("รอดำเนินการ", na=False)].iloc[::-1]
 
             # --- หัวข้อ ---
             st.markdown(f"""
@@ -1306,13 +1306,13 @@ def monitor_center_module():
 
             with c2:
                 st.markdown('<div class="header-badge" style="background:#3b82f6;">กำลังดำเนินการ</div>', unsafe_allow_html=True)
-                df_prog = df_raw[df_raw['status'].str.contains("อยู่ระหว่าง", na=False)].iloc[::-1].head(10)
+                df_prog = df_raw[df_raw['Status'].str.contains("อยู่ระหว่าง", na=False)].iloc[::-1].head(10)
                 for _, row in df_prog.iterrows():
                     st.markdown(f'<div class="incident-card card-progress"><b>📝 {row["Report_ID"]}</b><br>📍 {row["Location"]}<br><small style="color:#64748b;">ผู้เข้าเหตุ: {row["Student_Police_Investigator"]}</small></div>', unsafe_allow_html=True)
 
             with c3:
                 st.markdown('<div class="header-badge" style="background:#22c55e;">ดำเนินการเรียบร้อย</div>', unsafe_allow_html=True)
-                df_done = df_raw[df_raw['status'].str.contains("เรียบร้อย", na=False)].iloc[::-1].head(10)
+                df_done = df_raw[df_raw['Status'].str.contains("เรียบร้อย", na=False)].iloc[::-1].head(10)
                 for _, row in df_done.iterrows():
                     st.markdown(f'<div class="incident-card card-done"><b>✅ {row["Report_ID"]}</b><br>📍 {row["Location"]}<br><small style="color:#64748b;">{row["Incident_Type"]}</small></div>', unsafe_allow_html=True)
 
@@ -1326,31 +1326,7 @@ def monitor_center_module():
 # ==========================================
 # 4. MAIN ENTRY (แก้ไขย่อหน้าให้ถูกต้อง)
 # ==========================================
-def check_login():
-    if not st.session_state.get('logged_in'):
-        p = st.query_params
-        if p.get("auth") == "true":
-            u_pwd = p.get("u")
-            accs = st.secrets.get("OFFICER_ACCOUNTS", {})
-            if u_pwd in accs:
-                st.session_state.logged_in = True
-                st.session_state.user_info = accs[u_pwd]
-                st.session_state.current_user_pwd = u_pwd
 def main():
-    # --- [จุดที่ 1 เพิ่ม] กู้คืนสถานะจาก URL เมื่อมีการ Refresh ---
-    if not st.session_state.get('logged_in'):
-        params = st.query_params
-        if params.get("auth") == "true":
-            u_pwd = params.get("u")
-            accs = st.secrets.get("OFFICER_ACCOUNTS", {})
-            if u_pwd in accs:
-                st.session_state.logged_in = True
-                st.session_state.user_info = accs[u_pwd]
-                st.session_state.current_user_pwd = u_pwd
-                # ถ้าใน URL มีบอกว่าอยู่แผนกไหน ให้เปิดแผนกนั้นให้เลย
-                if params.get("dept"):
-                    st.session_state.current_dept = params.get("dept")
-
     if 'timeout_msg' in st.session_state and st.session_state.timeout_msg:
         st.error(st.session_state.timeout_msg)
         del st.session_state.timeout_msg
@@ -1364,6 +1340,7 @@ def main():
                     st.image(LOGO_PATH, width=120)
                 st.markdown("<h3 style='text-align:center;'>ศูนย์ปฏิบัติการกลาง<br>สถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</h3>", unsafe_allow_html=True)
                 
+                # --- ส่วนที่แก้ไข: เปลี่ยนเป็น 2 ช่องกรอกข้อมูล ---
                 input_user = st.text_input("ชื่อผู้ใช้งาน (Username)")
                 input_pass = st.text_input("รหัสผ่าน (Password)", type="password")
                 
@@ -1371,30 +1348,23 @@ def main():
                     accs = st.secrets.get("OFFICER_ACCOUNTS", {})
                     found_acc = None
                     
+                    # วนลูปเช็ค Username และ Password ให้ตรงกัน
                     for key in accs:
                         if accs[key].get("user") == input_user and accs[key].get("password") == input_pass:
                             found_acc = accs[key]
+                            # เก็บค่ารหัสผ่านไว้ใน Session เผื่อใช้เช็คเงื่อนไข Patwit1510 เดิม
                             st.session_state.current_user_pwd = input_pass 
                             break
                     
                     if found_acc:
                         st.session_state.logged_in = True
                         st.session_state.user_info = found_acc
-                        
-                        # --- [จุดที่ 2 เพิ่ม] บันทึกค่าลง URL ทันทีที่ล็อกอินสำเร็จ ---
-                        st.query_params["auth"] = "true"
-                        st.query_params["u"] = input_pass
-                        
                         st.success(f"ยินดีต้อนรับ: {found_acc['name']}")
                         time.sleep(0.5)
                         st.rerun()
                     else: 
                         st.error("❌ ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
     else:
-        # บันทึกหน้าปัจจุบันลง URL เสมอ เพื่อให้ Refresh แล้วอยู่ที่หน้าเดิม
-        if st.session_state.get("current_dept"):
-            st.query_params["dept"] = st.session_state.current_dept
-
         if st.session_state.current_dept is None:
             c_brand, c_nav = st.columns([7, 2.5])
             with c_brand:
@@ -1409,15 +1379,18 @@ def main():
                     </div>
                     """, unsafe_allow_html=True)
             
+            # --- จุดที่เคย Error (แก้ไขแล้ว) ---
             with c_nav:
                 st.write("")
                 st.write("")
+                # สังเกตการย่อหน้าใต้ if ต้องขยับเข้ามา
                 if st.button("🚪 ออกจากระบบ", key="main_logout", use_container_width=True):
-                    # --- [จุดที่ 3 เพิ่ม] ล้าง URL เมื่อกดออกจากระบบ ---
-                    st.query_params.clear()
+                    st.query_params.clear() 
                     st.session_state.clear()
                     st.rerun()
+            # --------------------------------
             
+            # --- เริ่มต้นส่วนที่แก้ไข ---
             st.markdown("---")
             c1, c2, c3, c4 = st.columns(4) 
             
@@ -1426,6 +1399,8 @@ def main():
                     st.subheader("🕵️ งานสอบสวน")
                     if st.button("เข้าใช้งานสอบสวน", use_container_width=True, type='primary', key="btn_to_inv"):
                         st.session_state.current_dept = "inv"
+                        st.session_state.view_mode = "list"
+                        st.query_params["dept"] = "inv"
                         st.rerun()
             
             with c2:
@@ -1433,6 +1408,9 @@ def main():
                     st.subheader("🚦 งานจราจร")
                     if st.button("เข้าใช้งานจราจร", use_container_width=True, type='primary', key="btn_to_tra"):
                         st.session_state.current_dept = "tra"
+                        st.session_state.traffic_page = 'teacher'
+                        st.session_state.search_results_df = None
+                        st.query_params["dept"] = "tra"
                         st.rerun()
 
             with c3:
@@ -1440,21 +1418,34 @@ def main():
                     st.subheader("🖥️ War Room")
                     if st.button("เปิดจอเฝ้าระวังเหตุ", use_container_width=True, type='primary', key="btn_to_monitor"):
                         st.session_state.current_dept = "monitor_view"
+                        st.query_params["dept"] = "monitor_view"
                         st.rerun()
 
-            with c4:
+            with c4: # ✅ แก้ไขการย่อหน้าตรงนี้
                 with st.container(border=True):
                     st.subheader("📍 แผนที่จุดเสี่ยง")
                     if st.button("ดูแผนที่วิเคราะห์", use_container_width=True, type="primary", key="btn_to_hazard"):
                         st.session_state.current_dept = "hazard_map" 
+                        st.query_params["dept"] = "hazard_map"
                         st.rerun()
+            # --- จบส่วนที่แก้ไข ---
+            # ปุ่มออกจากระบบ (วางไว้ข้างล่างสุดของบล็อกนี้)
+            st.write("")
+            # ✅ แก้ key="main_logout" เป็น key="main_logout_fixed"
+            if st.button("🚪 ออกจากระบบ", use_container_width=True, key="main_logout_fixed"):
+                st.query_params.clear()
+                st.session_state.clear()
+                st.rerun()
+            # --- จบส่วนที่วางทับ ---
         else:
+            # ต้องดูย่อหน้าให้ตรงกับ if/elif ด้านบนนะครับ
             if st.session_state.current_dept == "inv": 
                 investigation_module()
             elif st.session_state.current_dept == "tra": 
                 traffic_module()
-            elif st.session_state.current_dept == "monitor_view":
+            elif st.session_state.current_dept == "monitor_view": # เพิ่มบรรทัดนี้
                 monitor_center_module()
             elif st.session_state.current_dept == "hazard_map":
-                hazard_analytics_module()
+                hazard_analytics_module() # เรียกใช้ฟังก์ชันที่คุณเพิ่งวางไว้เหนือบรรทัดสุดท้าย
+
 if __name__ == "__main__": main()
