@@ -1215,13 +1215,28 @@ def monitor_center_module():
         st.caption(f"🔄 Last Update: {now_th.strftime('%H:%M:%S')}")
         
         if df_raw is not None and not df_raw.empty:
-            # 2. ✅ จุดแก้สำคัญ: ล้างชื่อคอลัมน์และเปลี่ยนเป็นตัวเล็กทั้งหมด
+            # 2. ✅ ล้างชื่อคอลัมน์ให้สะอาด
             df_raw.columns = [str(c).strip().lower() for c in df_raw.columns]
+            
+            # --- 🆕 เพิ่มโค้ดส่วนนี้เพื่อคืนค่าชื่อเป็นตัวใหญ่ให้ Code ส่วนที่เหลือทำงานได้ ---
+            rename_map = {
+                'status': 'Status',
+                'incident_type': 'Incident_Type',
+                'location': 'Location',
+                'report_id': 'Report_ID',
+                'timestamp': 'Timestamp',
+                'reporter': 'Reporter'
+            }
+            df_raw = df_raw.rename(columns=rename_map)
+            # ----------------------------------------------------------------------
+            
             df_raw = df_raw.fillna("")
             
             current_row_count = len(df_raw)
-            
-            # --- ตรวจจับเหตุใหม่ ---
+            # ... (โค้ดตรวจจับเหตุใหม่) ...
+
+            # ✅ ตอนนี้บรรทัดนี้จะเรียกใช้ 'Status' (S ตัวใหญ่) ได้ตามปกติแล้ว
+            df_new_all = df_raw[df_raw['Status'].str.contains("รอดำเนินการ", na=False)].iloc[::-1]
             if current_row_count > st.session_state.last_row_count:
                 if st.session_state.last_row_count > 0:
                     is_new_alert = True
