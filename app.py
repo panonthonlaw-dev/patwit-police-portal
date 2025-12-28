@@ -397,7 +397,25 @@ def get_img_link(url):
     match = re.search(r'/d/([a-zA-Z0-9_-]+)|id=([a-zA-Z0-9_-]+)', str(url))
     file_id = match.group(1) or match.group(2) if match else None
     return f"https://drive.google.com/thumbnail?id={file_id}&sz=w800" if file_id else url
-
+def safe_decode_image(img_str):
+    if not img_str:
+        return None
+    img_str = str(img_str).strip()
+    
+    # 1. ถ้าเป็นลิงก์ ให้ส่งกลับไปตรงๆ
+    if img_str.startswith("http"):
+        return img_str
+        
+    # 2. ถ้าเป็นรหัส Base64 ให้ซ่อม Padding
+    try:
+        # เติม = ให้ครบจำนวนที่หาร 4 ลงตัว
+        missing_padding = len(img_str) % 4
+        if missing_padding:
+            img_str += '=' * (4 - missing_padding)
+        return base64.b64decode(img_str)
+    except Exception as e:
+        print(f"Decode error: {e}")
+        return None
 # ==========================================
 # 2. MODULE: INVESTIGATION (เริ่มส่วนสอบสวนต่อด้านล่าง)
 # ==========================================
@@ -441,10 +459,21 @@ def create_pdf_inv(row):
         
         img_html += "</div>"
 
-    # ✅ จัดการส่วนภาพประกอบเหตุการณ์ (Image_Data)
+    # ✅ จัดการส่วนภาพประกอบเหตุการณ์ (Image_Data) - เวอร์ชันแก้ปัญหา Padding
     image_data = clean_val(row.get('Image_Data'))
     if image_data:
-        src = image_data if image_data.startswith("http") else f"data:image/jpeg;base64,{image_data}"
+        # 1. ถ้าเป็นลิงก์ ใช้ได้เลย
+        if image_data.startswith("http"):
+            src = image_data
+        else:
+            # 2. ถ้าเป็น Base64 ให้ซ่อม Padding ก่อนส่งเข้า PDF
+            # ลบอักขระแปลกปลอมที่อาจปนมา
+            clean_b64 = image_data.strip()
+            missing_padding = len(clean_b64) % 4
+            if missing_padding:
+                clean_b64 += '=' * (4 - missing_padding)
+            src = f"data:image/jpeg;base64,{clean_b64}"
+            
         img_html += f"""
         <div style='text-align:center; margin-top:10px;'>
             <b>ภาพประกอบเหตุการณ์</b><br>
@@ -681,7 +710,10 @@ def investigation_module():
                 st.markdown(f"### 📝 เลขที่รับแจ้ง: {sid}")
                 with st.container(border=True):
                     st.write(f"**ผู้แจ้ง:** {row['Reporter']} | **สถานที่:** {row['Location']}"); st.info(f"**รายละเอียด:** {row['Details']}")
-                    if clean_val(row['Image_Data']): st.image(base64.b64decode(row['Image_Data']), width=300, caption="หลักฐานจากผู้แจ้ง")
+                    img_data = safe_decode_image(row.get('Image_Data'))
+
+                    if img_data:
+                        st.image(img_data, width=400, caption="🖼️ หลักฐานจากผู้แจ้ง (รูปภาพประกอบ)")
 # --- [ส่วนที่ 1: ระบบเช็คสิทธิ์แก้ไข] ---
                 cur_sta = clean_val(row['Status'])
                 user_role = st.session_state.user_info.get('role', 'viewer')
