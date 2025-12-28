@@ -711,6 +711,7 @@ def investigation_module():
                     v_tea = c2.text_input("ครูผู้สอบสวน *", value=clean_val(row['Teacher_Investigator']), disabled=is_lock)
                     v_stu = c1.text_input("ตำรวจนักเรียนผู้สอบสวน *", value=clean_val(row['Student_Police_Investigator']), disabled=is_lock)
                     v_stmt = st.text_area("ผลการดำเนินการสอบสวน *", value=clean_val(row['Statement']), disabled=is_lock)
+                    uploader_key = f"ev_imgs_{sid}_{st.session_state.get('reset_count', 0)}"
                     ev_imgs = st.file_uploader("📸 แนบรูปหลักฐานเพิ่ม (เลือกได้หลายรูป)", type=['jpg','png','jpeg'], accept_multiple_files=True, disabled=is_lock)
                     
                     if st.form_submit_button("💾 บันทึกข้อมูล") and not is_lock:
@@ -738,6 +739,7 @@ def investigation_module():
                                 else:
                                     # ถ้าไม่มีรูปเก่า ให้ใส่รูปใหม่ลงไปเลย
                                     df_raw.at[idx_raw, 'Evidence_Image'] = new_evidence_links
+                        st.session_state.reset_count = st.session_state.get('reset_count', 0) + 1
 
                         # 3. บันทึกประวัติ (Audit Log)
                         df_raw.at[idx_raw, 'Audit_Log'] = f"{clean_val(row['Audit_Log'])}\n[{get_now_th().strftime('%d/%m/%Y %H:%M')}] แก้ไขโดย {user['name']}"
