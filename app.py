@@ -1326,7 +1326,31 @@ def monitor_center_module():
 # ==========================================
 # 4. MAIN ENTRY (แก้ไขย่อหน้าให้ถูกต้อง)
 # ==========================================
+# ✅ เพิ่มฟังก์ชันนี้เพื่อดึงสถานะจาก URL
+def sync_login_state():
+    if not st.session_state.get('logged_in'):
+        params = st.query_params
+        if params.get("auth") == "true":
+            u_key = params.get("u")
+            accs = st.secrets.get("OFFICER_ACCOUNTS", {})
+            if u_key in accs:
+                st.session_state.logged_in = True
+                st.session_state.user_info = accs[u_key]
+                st.session_state.current_user_pwd = u_key
+                if params.get("dept"):
+                    st.session_state.current_dept = params.get("dept")
+
+    # ถ้าล็อกอินแล้ว ให้เขียนค่าลง URL เสมอ
+    if st.session_state.get('logged_in'):
+        st.query_params["auth"] = "true"
+        st.query_params["u"] = st.session_state.get("current_user_pwd", "")
+        if st.session_state.get("current_dept"):
+            st.query_params["dept"] = st.session_state.current_dept
+    else:
+        st.query_params.clear()
 def main():
+    sync_login_state()  # ✅ เพิ่มบรรทัดนี้ไว้บนสุด
+    
     if 'timeout_msg' in st.session_state and st.session_state.timeout_msg:
         st.error(st.session_state.timeout_msg)
         del st.session_state.timeout_msg
@@ -1352,13 +1376,19 @@ def main():
                     for key in accs:
                         if accs[key].get("user") == input_user and accs[key].get("password") == input_pass:
                             found_acc = accs[key]
-                            # เก็บค่ารหัสผ่านไว้ใน Session เผื่อใช้เช็คเงื่อนไข Patwit1510 เดิม
-                            st.session_state.current_user_pwd = input_pass 
+                            # ✅ แก้จุดนี้: ให้เก็บ "key" (ซึ่งเป็นรหัสผ่านจาก secrets) 
+                            # แทนการเก็บจาก input_pass โดยตรง เพื่อให้ฟังก์ชัน sync_login_state ทำงานได้
+                            st.session_state.current_user_pwd = key 
                             break
                     
                     if found_acc:
                         st.session_state.logged_in = True
                         st.session_state.user_info = found_acc
+                        
+                        # ✅ เพิ่ม: เขียนลง URL ทันทีหลังจากล็อกอินสำเร็จ
+                        st.query_params["auth"] = "true"
+                        st.query_params["u"] = st.session_state.current_user_pwd
+                        
                         st.success(f"ยินดีต้อนรับ: {found_acc['name']}")
                         time.sleep(0.5)
                         st.rerun()
