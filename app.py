@@ -343,7 +343,34 @@ def calculate_pagination(key, total_items, limit=5):
     start_idx = (st.session_state[key] - 1) * limit
     end_idx = start_idx + limit
     return start_idx, end_idx, st.session_state[key], total_pages
+def upload_to_drive(file_obj, filename):
+        file_content = file_obj.getvalue()
+        base64_str = base64.b64encode(file_content).decode('utf-8')
+        payload = {"folder_id": DRIVE_FOLDER_ID, "filename": filename, "file": base64_str, "mimeType": file_obj.type}
+        try:
+            res = requests.post(GAS_APP_URL, json=payload).json()
+            return res.get("link") if res.get("status") == "success" else None
+        except: return None
+            # ✅ ฟังก์ชันสำหรับอัปโหลดหลายรูป (วางต่อจาก upload_to_drive)
+    def upload_multiple_images(file_objs, base_filename):
+        if not file_objs:
+            return ""
+        links = []
+        # วนลูปอัปโหลดทีละรูป
+        for i, file_obj in enumerate(file_objs):
+            # ตั้งชื่อไฟล์ไม่ให้ซ้ำกัน เช่น Case_123_Evid_1.jpg
+            filename = f"{base_filename}_Evid_{i+1}.jpg"
+            link = upload_to_drive(file_obj, filename)
+            if link:
+                links.append(link)
+    
+    # รวมลิงก์ทั้งหมดคั่นด้วยคอมม่า (,)
+    return ",".join(links)
 
+    def get_img_link(url):
+        match = re.search(r'/d/([a-zA-Z0-9_-]+)|id=([a-zA-Z0-9_-]+)', str(url))
+        file_id = match.group(1) or match.group(2) if match else None
+        return f"https://drive.google.com/thumbnail?id={file_id}&sz=w800" if file_id else url
 # ==========================================
 # 2. MODULE: INVESTIGATION
 # ==========================================
