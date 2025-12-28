@@ -332,9 +332,23 @@ def clean_val(val): return str(val).strip() if not pd.isna(val) else ""
 def process_image(img_file):
     if not img_file: return ""
     try:
-        img = Image.open(img_file).convert('RGB'); img.thumbnail((800, 800))
-        buf = io.BytesIO(); img.save(buf, format="JPEG", quality=65); return base64.b64encode(buf.getvalue()).decode()
-    except: return ""
+        # เปิดรูปภาพ
+        img = Image.open(img_file).convert('RGB')
+        
+        # ✅ 1. เพิ่มความละเอียดจาก 800 เป็น 1600 (เหมาะสำหรับพิมพ์เอกสาร)
+        # 1600px จะให้รายละเอียดที่คมชัดมากแม้จะขยายภาพใน PDF
+        img.thumbnail((1600, 1600))
+        
+        buf = io.BytesIO()
+        
+        # ✅ 2. เพิ่มคุณภาพการบันทึกจาก 65 เป็น 90
+        # ค่า 90 คือระดับที่ตาแยกไม่ออกกับภาพต้นฉบับ แต่ไฟล์ยังไม่ใหญ่จนเกินไป
+        img.save(buf, format="JPEG", quality=90, optimize=True)
+        
+        return base64.b64encode(buf.getvalue()).decode()
+    except Exception as e:
+        print(f"Error processing image: {e}")
+        return ""
 
 def calculate_pagination(key, total_items, limit=5):
     if key not in st.session_state: st.session_state[key] = 1
