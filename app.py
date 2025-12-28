@@ -668,17 +668,42 @@ def investigation_module():
                     v_tea = c2.text_input("ครูผู้สอบสวน *", value=clean_val(row['Teacher_Investigator']), disabled=is_lock)
                     v_stu = c1.text_input("ตำรวจนักเรียนผู้สอบสวน *", value=clean_val(row['Student_Police_Investigator']), disabled=is_lock)
                     v_stmt = st.text_area("ผลการดำเนินการสอบสวน *", value=clean_val(row['Statement']), disabled=is_lock)
-                    ev_img = st.file_uploader("📸 แนบรูปหลักฐานเพิ่ม", type=['jpg','png'], disabled=is_lock)
+                    ev_imgs = st.file_uploader("📸 แนบรูปหลักฐานเพิ่ม (เลือกได้หลายรูป)", type=['jpg','png','jpeg'], accept_multiple_files=True, disabled=is_lock)
                     
                     if st.form_submit_button("💾 บันทึกข้อมูล") and not is_lock:
-                        df_raw.at[idx_raw, 'Victim'] = v_vic; df_raw.at[idx_raw, 'Accused'] = v_acc
-                        df_raw.at[idx_raw, 'Witness'] = v_wit; df_raw.at[idx_raw, 'Teacher_Investigator'] = v_tea
+                        # 1. อัปเดตข้อมูลตัวอักษรลง DataFrame
+                        df_raw.at[idx_raw, 'Victim'] = v_vic
+                        df_raw.at[idx_raw, 'Accused'] = v_acc
+                        df_raw.at[idx_raw, 'Witness'] = v_wit
+                        df_raw.at[idx_raw, 'Teacher_Investigator'] = v_tea
                         df_raw.at[idx_raw, 'Student_Police_Investigator'] = v_stu
-                        df_raw.at[idx_raw, 'Statement'] = v_stmt; df_raw.at[idx_raw, 'Status'] = v_sta
-                        if ev_img: df_raw.at[idx_raw, 'Evidence_Image'] = process_image(ev_img)
+                        df_raw.at[idx_raw, 'Statement'] = v_stmt
+                        df_raw.at[idx_raw, 'Status'] = v_sta
+
+                        # 2. ✅ ส่วนจัดการรูปภาพพยานหลักฐาน (หลายรูป)
+                        if ev_imgs:
+                            with st.spinner("⏳ กำลังอัปโหลดพยานหลักฐานหลายรายการ..."):
+                                # เรียกฟังก์ชันอัปโหลดหลายรูป (จะได้ลิงก์คั่นด้วยคอมม่า)
+                                new_evidence_links = upload_multiple_images(ev_imgs, f"Report_{sid}")
+                                
+                                # ตรวจสอบค่าเดิมในช่อง Evidence_Image
+                                old_val = clean_val(row['Evidence_Image'])
+                                
+                                if old_val and old_val != "nan":
+                                    # ถ้ามีรูปเก่า ให้ "ต่อท้าย" ด้วยรูปใหม่
+                                    df_raw.at[idx_raw, 'Evidence_Image'] = f"{old_val},{new_evidence_links}"
+                                else:
+                                    # ถ้าไม่มีรูปเก่า ให้ใส่รูปใหม่ลงไปเลย
+                                    df_raw.at[idx_raw, 'Evidence_Image'] = new_evidence_links
+
+                        # 3. บันทึกประวัติ (Audit Log)
                         df_raw.at[idx_raw, 'Audit_Log'] = f"{clean_val(row['Audit_Log'])}\n[{get_now_th().strftime('%d/%m/%Y %H:%M')}] แก้ไขโดย {user['name']}"
+                        
+                        # 4. ส่งข้อมูลทั้งหมดกลับไปที่ Google Sheets
                         conn.update(worksheet=target_sheet, data=df_raw.fillna(""))
-                        st.success("บันทึกเรียบร้อย!"); time.sleep(1); st.rerun()
+                        st.success("💾 บันทึกข้อมูลและพยานหลักฐานสำเร็จ!")
+                        time.sleep(1)
+                        st.rerun()
 
                 # --- [ส่วนที่ 3: ประวัติและดาวน์โหลด PDF] ---
                 if clean_val(row['Audit_Log']):
