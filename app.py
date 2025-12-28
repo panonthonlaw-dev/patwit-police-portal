@@ -978,7 +978,7 @@ def monitor_center_module():
         st.session_state.last_row_count = 0
     is_new_alert = False 
 
-    # --- 2. CSS & JavaScript (คงเดิม) ---
+    # --- 2. CSS & JavaScript (ยกมาจากชุดที่สอง 100%) ---
     st.markdown("""
         <script>
             function toggleFullScreen() {
@@ -992,95 +992,157 @@ def monitor_center_module():
             }
         </script>
         <style>
-            @keyframes pulse_soft { 0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); } 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); } }
-            .new-incident-active { animation: pulse_soft 2s infinite; border: 2px solid #dc2626 !important; }
-            .alert-card-minimal { background:white; padding:10px; border-radius:8px; border-left:5px solid #dc2626; box-shadow:0 2px 4px rgba(0,0,0,0.1); margin-bottom:10px; }
-            .incident-card { background:white; padding:10px; border-radius:8px; border:1px solid #ddd; margin-bottom:8px; }
-            .card-new { border-left:5px solid #dc2626; }
-            .card-progress { border-left:5px solid #2563eb; }
-            .card-done { border-left:5px solid #16a34a; }
-            .marquee-viewport { height: 600px; overflow: hidden; position: relative; background: #f8f9fa; border-radius: 10px; padding: 10px; }
+            /* Pulse Effect: กระพริบต่อเนื่อง */
+            @keyframes pulse_soft { 
+                0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); } 
+                70% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); } 
+                100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); } 
+            }
+            .new-incident-active { 
+                animation: pulse_soft 2s infinite; 
+                border: 2px solid #dc2626 !important; 
+            }
+            /* ปุ่ม Full Screen สไตล์ชุดที่สอง */
+            .fs-button {
+                display: flex; align-items: center; justify-content: center;
+                width: 100%; height: 42px;
+                background-color: #1e293b; color: white;
+                border-radius: 8px; border: none; cursor: pointer;
+                font-weight: bold; font-size: 0.9em;
+                transition: background 0.2s;
+            }
+            .fs-button:hover { background-color: #334155; }
+
+            /* การ์ดแบบ Minimal (Compact) */
+            .alert-card-minimal { 
+                background:white; padding:10px; border-radius:10px; 
+                border: 1px solid #e2e8f0; border-left:5px solid #dc2626; 
+                box-shadow:0 2px 6px rgba(0,0,0,0.05); margin-bottom:10px; 
+            }
+            
+            /* Marquee แบบชุดที่สอง */
+            .marquee-viewport { 
+                height: 600px; overflow: hidden; position: relative; 
+                background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; 
+            }
             .marquee-content { display: flex; flex-direction: column; animation: scroll_up 60s linear infinite; }
             @keyframes scroll_up { 0% { transform: translateY(0); } 100% { transform: translateY(-100%); } }
             .marquee-content:hover { animation-play-state: paused; }
+
+            .incident-card { 
+                padding: 15px; border-radius: 10px; margin: 10px; 
+                background: white; border: 1px solid #e2e8f0; 
+                box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); 
+            }
+            .card-new { border-left: 8px solid #dc2626 !important; }
+            .card-progress { border-left: 6px solid #3b82f6 !important; background-color: #eff6ff !important; margin-bottom:12px; }
+            .card-done { border-left: 6px solid #22c55e !important; background-color: #f0fdf4 !important; margin-bottom:12px; }
+            .header-badge { 
+                padding: 12px; border-radius: 8px; text-align: center; 
+                font-weight: bold; margin-bottom: 10px; color: white; font-size: 1.1em; 
+            }
         </style>
     """, unsafe_allow_html=True)
 
-    c_fs, c_back, _ = st.columns([0.2, 0.2, 0.6])
-    c_fs.markdown('<button onclick="toggleFullScreen()" style="width:100%;">🖥️ เต็มจอ</button>', unsafe_allow_html=True)
-    if c_back.button("⬅️ กลับ"): st.session_state.current_dept = None; st.rerun()
+    # --- 3. ส่วนปุ่มควบคุมด้านบน (Layout ชุดที่สอง) ---
+    c_fs, c_back, _ = st.columns([0.15, 0.15, 0.7])
+    with c_fs:
+        st.markdown('<button onclick="toggleFullScreen()" class="fs-button">🖥️ เต็มจอ</button>', unsafe_allow_html=True)
+    with c_back:
+        if st.button("⬅️ กลับเมนู", use_container_width=True):
+            st.session_state.current_dept = None
+            st.rerun()
 
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         now_th = get_now_th()
         cur_year = (now_th.year + 543) if now_th.month >= 5 else (now_th.year + 542)
         
-        # 1. อ่านข้อมูล
         df_raw = conn.read(worksheet=f"Investigation_{cur_year}", ttl=0)
-        st.caption(f"อัปเดต: {now_th.strftime('%H:%M:%S')}")
+        st.caption(f"🔄 Last Update: {now_th.strftime('%H:%M:%S')}")
 
         if df_raw is not None and not df_raw.empty:
-            # ✅ แค่ตัดช่องว่างหัวท้ายชื่อคอลัมน์ (เผื่อมี space) แต่ไม่เปลี่ยนตัวเล็กตัวใหญ่
             df_raw.columns = [str(c).strip() for c in df_raw.columns]
             df_raw = df_raw.fillna("")
 
-            # แจ้งเตือนเหตุใหม่
+            # ตรวจจับเหตุใหม่
             if len(df_raw) > st.session_state.last_row_count:
                 if st.session_state.last_row_count > 0:
                     is_new_alert = True
+                    # ระบบเล่นเสียง (illet)
+                    sound_file = "alet.wav"
+                    if os.path.exists(sound_file):
+                        with open(sound_file, "rb") as f:
+                            b64_audio = base64.b64encode(f.read()).decode()
+                        st.markdown(f'<audio autoplay style="display:none;"><source src="data:audio/wav;base64,{b64_audio}" type="audio/wav"></audio>', unsafe_allow_html=True)
                     st.toast("🚨 มีเหตุแจ้งเข้ามาใหม่!", icon="🔥")
                 st.session_state.last_row_count = len(df_raw)
 
-            # 2. กรองข้อมูล (ใช้ 'status' ตัวเล็ก ตามที่คุณตั้ง)
-            df_new = df_raw[df_raw['status'].str.contains("รอดำเนินการ", na=False)].iloc[::-1]
+            # กรองข้อมูล
+            df_new_all = df_raw[df_raw['status'].str.contains("รอดำเนินการ", na=False)].iloc[::-1]
+
+            st.markdown(f"""
+                <div style="text-align:center; margin-bottom:15px; margin-top:-20px;">
+                    <h2 style="color:#1e293b; margin:0; display:inline-block; font-weight:800;">🚨 War Room: ระบบเฝ้าระวังเหตุอัจริยะสถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</h2>
+                </div>
+            """, unsafe_allow_html=True)
             
-            # แสดงผล 3 การ์ดบน
-            if not df_new.empty:
-                cols = st.columns(3)
-                for i, ((_, row), col) in enumerate(zip(df_new.head(3).iterrows(), cols)):
+            # --- 📌 แสดงผล 3 กล่องบน (สไตล์ชุดที่สอง) ---
+            if not df_new_all.empty:
+                st.markdown('<div style="color:#64748b; font-weight:600; margin-bottom:5px; font-size:0.9em;">🔥 แจ้งเหตุล่าสุด (3 รายการ):</div>', unsafe_allow_html=True)
+                top_3 = df_new_all.head(3)
+                cols = st.columns(3) 
+                for i, ((idx, row), col) in enumerate(zip(top_3.iterrows(), cols)):
                     with col:
                         cls = "new-incident-active" if (i==0 and is_new_alert) else ""
-                        # ✅ ใช้ 'Timestamp' (ตัวใหญ่)
                         time_s = str(row['Timestamp']).split(' ')[1] if ' ' in str(row['Timestamp']) else str(row['Timestamp'])
-                        
                         st.markdown(f"""
                         <div class="alert-card-minimal {cls}">
-                            <div style="display:flex; justify-content:space-between; color:#dc2626; font-weight:bold;">
-                                <span>{row['Report_ID']}</span><span>{time_s}</span>
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px; border-bottom:1px solid #f1f5f9; padding-bottom:2px;">
+                                <b style="color:#ef4444; font-size:0.95em;">🆔 {row['Report_ID']}</b>
+                                <span style="font-size:0.8em; color:#94a3b8; font-weight:500;">⏱️ {time_s}</span>
                             </div>
-                            <div style="font-size:1.1em; font-weight:bold;">{row['location']}</div>
-                            <div style="color:#555;">{row['incident_type']}</div>
+                            <div style="font-weight:bold; font-size:1.05em; color:#1e293b; margin-bottom:0px; line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                                📍 {row['location']}
+                            </div>
+                            <div style="color:#475569; font-size:0.9em; display:flex; align-items:center; gap:5px; line-height:1.3;">
+                                ⚠️ {row['incident_type']}
+                            </div>
                         </div>
                         """, unsafe_allow_html=True)
-            
+
             st.divider()
             
-            # แสดงผล 3 คอลัมน์ล่าง
+            # --- 3 คอลัมน์ด้านล่าง ---
             c1, c2, c3 = st.columns(3)
             with c1:
-                st.markdown("### 🔴 รอดำเนินการ")
-                if df_new.empty: st.success("ไม่มีรายการค้าง")
+                st.markdown('<div class="header-badge" style="background:#ef4444;">รอดำเนินการ</div>', unsafe_allow_html=True)
+                if df_new_all.empty: st.info("✅ เหตุการณ์ปกติ")
                 else:
-                    html = ""
-                    for _, row in df_new.iterrows():
-                        # ✅ ใช้ชื่อตรงเป๊ะ: Report_ID, location, incident_type
-                        html += f"<div class='incident-card card-new'><b>{row['Report_ID']}</b><br>{row['location']}<br><small>{row['incident_type']}</small></div>"
-                    st.markdown(f"<div class='marquee-viewport'><div class='marquee-content'>{html}</div></div>", unsafe_allow_html=True)
+                    cards_html = ""
+                    for _, row in df_new_all.iterrows():
+                        cards_html += f"""
+                        <div class="incident-card card-new">
+                            <div style="display:flex; justify-content:space-between;">
+                                <b style="color:#dc2626;">📝 {row['Report_ID']}</b>
+                                <small style="color:#64748b;">{row['Timestamp']}</small>
+                            </div>
+                            <div style="font-size:1.1em; font-weight:bold; margin-top:5px; color:#1e293b;">📍 {row['location']}</div>
+                            <div style="color:#475569;">{row['incident_type']}</div>
+                        </div>"""
+                    st.markdown(f'<div class="marquee-viewport"><div class="marquee-content">{cards_html}{cards_html}</div></div>', unsafe_allow_html=True)
             
             with c2:
-                st.markdown("### 🔵 กำลังดำเนินการ")
-                # ✅ ใช้ status (เล็ก)
-                df_prog = df_raw[df_raw['status'].str.contains("อยู่ระหว่าง", na=False)].iloc[::-1].head(15)
+                st.markdown('<div class="header-badge" style="background:#3b82f6;">กำลังดำเนินการ</div>', unsafe_allow_html=True)
+                df_prog = df_raw[df_raw['status'].str.contains("อยู่ระหว่าง", na=False)].iloc[::-1].head(10)
                 for _, row in df_prog.iterrows():
-                    # ✅ ใช้ Student_Police_Investigator (ใหญ่)
-                    st.markdown(f"<div class='incident-card card-progress'><b>{row['Report_ID']}</b><br>{row['location']}<br><small>โดย: {row.get('Student_Police_Investigator','-')}</small></div>", unsafe_allow_html=True)
+                    st.markdown(f'<div class="incident-card card-progress"><b>📝 {row["Report_ID"]}</b><br>📍 {row["location"]}<br><small style="color:#64748b;">ผู้เข้าเหตุ: {row.get("Student_Police_Investigator","-")}</small></div>', unsafe_allow_html=True)
             
             with c3:
-                st.markdown("### 🟢 เสร็จสิ้น")
-                # ✅ ใช้ status (เล็ก)
-                df_done = df_raw[df_raw['status'].str.contains("เรียบร้อย", na=False)].iloc[::-1].head(15)
+                st.markdown('<div class="header-badge" style="background:#22c55e;">ดำเนินการเรียบร้อย</div>', unsafe_allow_html=True)
+                df_done = df_raw[df_raw['status'].str.contains("เรียบร้อย", na=False)].iloc[::-1].head(10)
                 for _, row in df_done.iterrows():
-                    st.markdown(f"<div class='incident-card card-done'><b>{row['Report_ID']}</b><br>{row['location']}</div>", unsafe_allow_html=True)
+                    st.markdown(f'<div class="incident-card card-done"><b>✅ {row["Report_ID"]}</b><br>📍 {row["location"]}<br><small style="color:#64748b;">{row["incident_type"]}</small></div>', unsafe_allow_html=True)
 
         time.sleep(10)
         st.rerun()
