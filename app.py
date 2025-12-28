@@ -398,23 +398,38 @@ def get_img_link(url):
     file_id = match.group(1) or match.group(2) if match else None
     return f"https://drive.google.com/thumbnail?id={file_id}&sz=w800" if file_id else url
 def safe_decode_image(img_str):
-    if not img_str:
+    # 1. เช็คค่าว่าง หรือค่า "0" หรือค่าที่แปลกปลอมจาก Google Sheets
+    if not img_str or str(img_str).strip() in ["0", "None", "nan", ""]:
         return None
+    
     img_str = str(img_str).strip()
     
-    # 1. ถ้าเป็นลิงก์ ให้ส่งกลับไปตรงๆ
+    # 2. ถ้าเป็นลิงก์ Google Drive (ต้องแปลงให้เป็น Direct Link เพื่อให้แอปดึงรูปได้)
+    if "drive.google.com" in img_str:
+        try:
+            # ดึง File ID ออกมา (รหัสระหว่าง /d/ และ /view)
+            if "/file/d/" in img_str:
+                file_id = img_str.split("/file/d/")[1].split("/")[0]
+                # ใช้ URL รูปแบบที่อนุญาตให้ดึงรูปไปแสดงภายนอกได้
+                return f"https://lh3.googleusercontent.com/u/0/d/{file_id}"
+            elif "id=" in img_str:
+                file_id = img_str.split("id=")[1].split("&")[0]
+                return f"https://lh3.googleusercontent.com/u/0/d/{file_id}"
+        except Exception as e:
+            print(f"URL conversion error: {e}")
+            return img_str # หากแปลงไม่ได้ ให้ลองส่งลิงก์เดิมไปก่อน
+            
+    # 3. ถ้าเป็นลิงก์ http อื่นๆ (เช่น รูปจากเว็บนอก)
     if img_str.startswith("http"):
         return img_str
         
-    # 2. ถ้าเป็นรหัส Base64 ให้ซ่อม Padding
+    # 4. ถ้าเป็นรหัส Base64 (ข้อมูลระบบเก่า) ให้ซ่อม Padding และ Decode
     try:
-        # เติม = ให้ครบจำนวนที่หาร 4 ลงตัว
         missing_padding = len(img_str) % 4
         if missing_padding:
             img_str += '=' * (4 - missing_padding)
         return base64.b64decode(img_str)
-    except Exception as e:
-        print(f"Decode error: {e}")
+    except:
         return None
 # ==========================================
 # 2. MODULE: INVESTIGATION (เริ่มส่วนสอบสวนต่อด้านล่าง)
