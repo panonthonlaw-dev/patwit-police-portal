@@ -450,45 +450,39 @@ def create_pdf_inv(row):
     
     img_html = ""
     
-    # ✅ จัดการส่วนพยานหลักฐาน (ดึงจาก Evidence_Image ช่องเดียว)
-    raw_evidence = clean_val(row.get('Evidence_Image'))
-    if raw_evidence:
-        img_html += "<div style='text-align:center; margin-top:10px;'><b>พยานหลักฐาน</b><br>"
-        
-        # 1. ตรวจสอบว่าเป็นลิงก์หลายอัน (คั่นด้วย ,) หรือไม่
-        if "," in raw_evidence:
-            links = raw_evidence.split(',')
-            for link in links:
-                link = link.strip()
-                if link.startswith("http"):
-                    img_html += f"<img src='{link}' style='max-width:240px; max-height:180px; object-fit:contain; border:1px solid #ccc; margin: 5px;'>"
-        
-        # 2. กรณีเป็นลิงก์เดียว หรือเป็นรหัส Base64 (ของเดิม)
+    # --- ฟังก์ชันภายในช่วยแปลงลิงก์ Drive เป็น Direct Link สำหรับ PDF ---
+    def get_pdf_src(val):
+        val = str(val).strip()
+        if "drive.google.com" in val:
+            file_id = ""
+            if "/file/d/" in val: file_id = val.split("/file/d/")[1].split("/")[0]
+            elif "id=" in val: file_id = val.split("id=")[1].split("&")[0]
+            return f"https://drive.google.com/uc?export=view&id={file_id}"
+        elif val.startswith("http"):
+            return val
         else:
-            if raw_evidence.startswith("http"):
-                # เป็นลิงก์เดียว
-                img_html += f"<img src='{raw_evidence}' style='max-width:380px; max-height:220px; object-fit:contain; border:1px solid #ccc;'>"
-            else:
-                # เป็น Base64 (รูปภาพที่เก็บใน Sheet โดยตรง)
-                img_html += f"<img src='data:image/jpeg;base64,{raw_evidence}' style='max-width:380px; max-height:220px; object-fit:contain; border:1px solid #ccc;'>"
-        
+            # จัดการ Base64 พร้อมซ่อม Padding
+            missing_padding = len(val) % 4
+            if missing_padding: val += '=' * (4 - missing_padding)
+            return f"data:image/jpeg;base64,{val}"
+
+    # ✅ จัดการส่วนพยานหลักฐาน (Evidence_Image)
+    raw_evidence = clean_val(row.get('Evidence_Image'))
+    if raw_evidence and raw_evidence not in ["0", "None", ""]:
+        img_html += "<div style='text-align:center; margin-top:10px;'><b>พยานหลักฐาน</b><br>"
+        if "," in raw_evidence:
+            for link in raw_evidence.split(','):
+                src = get_pdf_src(link.strip())
+                img_html += f"<img src='{src}' style='max-width:240px; max-height:180px; object-fit:contain; border:1px solid #ccc; margin: 5px;'>"
+        else:
+            src = get_pdf_src(raw_evidence)
+            img_html += f"<img src='{src}' style='max-width:380px; max-height:220px; object-fit:contain; border:1px solid #ccc;'>"
         img_html += "</div>"
 
-    # ✅ จัดการส่วนภาพประกอบเหตุการณ์ (Image_Data) - เวอร์ชันแก้ปัญหา Padding
+    # ✅ จัดการส่วนภาพประกอบเหตุการณ์ (Image_Data)
     image_data = clean_val(row.get('Image_Data'))
-    if image_data:
-        # 1. ถ้าเป็นลิงก์ ใช้ได้เลย
-        if image_data.startswith("http"):
-            src = image_data
-        else:
-            # 2. ถ้าเป็น Base64 ให้ซ่อม Padding ก่อนส่งเข้า PDF
-            # ลบอักขระแปลกปลอมที่อาจปนมา
-            clean_b64 = image_data.strip()
-            missing_padding = len(clean_b64) % 4
-            if missing_padding:
-                clean_b64 += '=' * (4 - missing_padding)
-            src = f"data:image/jpeg;base64,{clean_b64}"
-            
+    if image_data and image_data not in ["0", "None", ""]:
+        src = get_pdf_src(image_data)
         img_html += f"""
         <div style='text-align:center; margin-top:10px;'>
             <b>ภาพประกอบเหตุการณ์</b><br>
@@ -513,7 +507,6 @@ def create_pdf_inv(row):
     <tr><td>ลงชื่อ..........................................................<br>( {row.get('Student_Police_Investigator','')} )<br>ตำรวจนักเรียนผู้สอบสวน</td><td>ลงชื่อ..........................................................<br>( {row.get('Witness','')} )<br>พยาน</td></tr>
     <tr><td colspan="2"><br>ลงชื่อ..........................................................<br>( {row.get('Teacher_Investigator','')} )<br>ครูผู้สอบสวน</td></tr></table></body></html>"""
     return HTML(string=html_content, base_url=BASE_DIR).write_pdf(font_config=FontConfiguration())
-
 def investigation_module():
     user = st.session_state.user_info
     
