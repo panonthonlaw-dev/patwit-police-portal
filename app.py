@@ -359,10 +359,40 @@ def create_pdf_inv(row):
     qr = qrcode.make(rid); qi = io.BytesIO(); qr.save(qi, format="PNG"); qr_b64 = base64.b64encode(qi.getvalue()).decode()
     
     img_html = ""
-    if clean_val(row.get('Evidence_Image')):
-        img_html += f"<div style='text-align:center;margin-top:10px;'><b>พยานหลักฐาน</b><br><img src='data:image/jpeg;base64,{row.get('Evidence_Image')}' style='max-width:380px;max-height:220px;object-fit:contain;border:1px solid #ccc;'></div>"
-    if clean_val(row.get('Image_Data')):
-        img_html += f"<div style='text-align:center;margin-top:10px;'><b>ภาพประกอบเหตุการณ์</b><br><img src='data:image/jpeg;base64,{row.get('Image_Data')}' style='max-width:380px;max-height:220px;object-fit:contain;border:1px solid #ccc;'></div>"
+    
+    # ✅ จัดการส่วนพยานหลักฐาน (ดึงจาก Evidence_Image ช่องเดียว)
+    raw_evidence = clean_val(row.get('Evidence_Image'))
+    if raw_evidence:
+        img_html += "<div style='text-align:center; margin-top:10px;'><b>พยานหลักฐาน</b><br>"
+        
+        # 1. ตรวจสอบว่าเป็นลิงก์หลายอัน (คั่นด้วย ,) หรือไม่
+        if "," in raw_evidence:
+            links = raw_evidence.split(',')
+            for link in links:
+                link = link.strip()
+                if link.startswith("http"):
+                    img_html += f"<img src='{link}' style='max-width:240px; max-height:180px; object-fit:contain; border:1px solid #ccc; margin: 5px;'>"
+        
+        # 2. กรณีเป็นลิงก์เดียว หรือเป็นรหัส Base64 (ของเดิม)
+        else:
+            if raw_evidence.startswith("http"):
+                # เป็นลิงก์เดียว
+                img_html += f"<img src='{raw_evidence}' style='max-width:380px; max-height:220px; object-fit:contain; border:1px solid #ccc;'>"
+            else:
+                # เป็น Base64 (รูปภาพที่เก็บใน Sheet โดยตรง)
+                img_html += f"<img src='data:image/jpeg;base64,{raw_evidence}' style='max-width:380px; max-height:220px; object-fit:contain; border:1px solid #ccc;'>"
+        
+        img_html += "</div>"
+
+    # ✅ จัดการส่วนภาพประกอบเหตุการณ์ (Image_Data)
+    image_data = clean_val(row.get('Image_Data'))
+    if image_data:
+        src = image_data if image_data.startswith("http") else f"data:image/jpeg;base64,{image_data}"
+        img_html += f"""
+        <div style='text-align:center; margin-top:10px;'>
+            <b>ภาพประกอบเหตุการณ์</b><br>
+            <img src='{src}' style='max-width:380px; max-height:220px; object-fit:contain; border:1px solid #ccc;'>
+        </div>"""
 
     logo_html = f'<img class="logo" src="data:image/png;base64,{LOGO_BASE64}">' if LOGO_BASE64 else ""
     html_content = f"""
@@ -743,6 +773,21 @@ def traffic_module():
             res = requests.post(GAS_APP_URL, json=payload).json()
             return res.get("link") if res.get("status") == "success" else None
         except: return None
+            # ✅ ฟังก์ชันสำหรับอัปโหลดหลายรูป (วางต่อจาก upload_to_drive)
+    def upload_multiple_images(file_objs, base_filename):
+        if not file_objs:
+            return ""
+        links = []
+        # วนลูปอัปโหลดทีละรูป
+        for i, file_obj in enumerate(file_objs):
+            # ตั้งชื่อไฟล์ไม่ให้ซ้ำกัน เช่น Case_123_Evid_1.jpg
+            filename = f"{base_filename}_Evid_{i+1}.jpg"
+            link = upload_to_drive(file_obj, filename)
+            if link:
+                links.append(link)
+    
+    # รวมลิงก์ทั้งหมดคั่นด้วยคอมม่า (,)
+    return ",".join(links)
 
     def get_img_link(url):
         match = re.search(r'/d/([a-zA-Z0-9_-]+)|id=([a-zA-Z0-9_-]+)', str(url))
