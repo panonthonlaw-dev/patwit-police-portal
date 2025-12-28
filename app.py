@@ -1213,8 +1213,12 @@ def monitor_center_module():
         cur_year = (now_th.year + 543) if now_th.month >= 5 else (now_th.year + 542)
         df_raw = conn.read(worksheet=f"Investigation_{cur_year}", ttl=0).fillna("")
         st.caption(f"🔄 Last Update: {now_th.strftime('%H:%M:%S')}")
-
-        if not df_raw.empty:
+        
+        if df_raw is not None and not df_raw.empty:
+            # 2. ✅ จุดแก้สำคัญ: ล้างชื่อคอลัมน์และเปลี่ยนเป็นตัวเล็กทั้งหมด
+            df_raw.columns = [str(c).strip().lower() for c in df_raw.columns]
+            df_raw = df_raw.fillna("")
+            
             current_row_count = len(df_raw)
             
             # --- ตรวจจับเหตุใหม่ ---
@@ -1239,7 +1243,7 @@ def monitor_center_module():
 
                 st.session_state.last_row_count = current_row_count
             
-            df_new_all = df_raw[df_raw['Status'].str.contains("รอดำเนินการ", na=False)].iloc[::-1]
+            df_new_all = df_raw[df_raw['status'].str.contains("รอดำเนินการ", na=False)].iloc[::-1]
 
             # --- หัวข้อ ---
             st.markdown(f"""
