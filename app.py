@@ -210,10 +210,10 @@ import plotly.express as px
 # ==========================================
 st.set_page_config(page_title="ศูนย์ปฏิบัติการกลางฯ", page_icon="👮‍♂️", layout="wide", initial_sidebar_state="collapsed")
 
-# --- 1.1 CSS ปรับแต่ง (✅ แก้ไข: รวมโค้ดให้สมบูรณ์และลบส่วนที่ทำให้ Syntax Error ออกแล้ว) ---
+# --- 1.1 CSS ปรับแต่ง (✅ แก้ไขล่าสุด: เปิดให้ Animation ทำงานได้แล้ว) ---
 st.markdown("""
 <style>
-    /* 1. ตั้งค่าพื้นฐานและ Animation */
+    /* 1. ลบคำสั่งปิด Animation ออก เพื่อให้ War Room กะพริบได้ */
     *, *::before, *::after {
         scroll-behavior: auto !important;
     }
@@ -226,7 +226,7 @@ st.markdown("""
     [data-testid="stSidebar"] {display: none;}
     [data-testid="collapsedControl"] {display: none;}
     
-    /* 3. ปรับแต่ง Card และ Metric ให้เบาและสวยงาม */
+    /* 3. ปรับแต่ง Card ให้เบา */
     .metric-card { 
         background: white; 
         padding: 10px; 
@@ -240,38 +240,10 @@ st.markdown("""
     
     /* 4. บังคับแสดงผลภาพแบบเร็ว */
     img { opacity: 1 !important; image-rendering: -webkit-optimize-contrast; }
-
-    /* 5. บีบหน้ารายการเคสสอบสวนให้ชิดกัน (Compact View) */
-    [data-testid="stVerticalBlock"] > div:has(div[data-testid="stHorizontalBlock"]) {
-        gap: 0.1rem !important;
-        margin-bottom: -15px !important;
-    }
-
-    div.stButton > button {
-        height: 30px !important;
-        min-height: 30px !important;
-        padding: 0px 10px !important;
-        line-height: 1 !important;
-        font-size: 14px !important;
-    }
-
-    hr {
-        margin-top: 2px !important;
-        margin-bottom: 2px !important;
-        opacity: 0.15;
-    }
-
-    div[data-testid="stMarkdownContainer"] p {
-        font-size: 14px !important;
-        margin-bottom: 0px !important;
-        line-height: 1.2 !important;
-    }
 </style>
 """, unsafe_allow_html=True)
 
-# ==========================================
-# 1.2 Session & Timeout Logic (60 นาที + กัน Refresh หลุด)
-# ==========================================
+# --- 1.2 Session & Timeout Logic (60 นาที + กัน Refresh หลุด) ---
 TIMEOUT_SECONDS = 60 * 60  # ตั้งเวลา 60 นาที
 
 def check_inactivity():
