@@ -210,8 +210,67 @@ import plotly.express as px
 # ==========================================
 st.set_page_config(page_title="ศูนย์ปฏิบัติการกลางฯ", page_icon="👮‍♂️", layout="wide", initial_sidebar_state="collapsed")
 
-# --- 1.1 CSS ปรับแต่ง (✅ แก้ไขล่าสุด: เปิดให้ Animation ทำงานได้แล้ว) ---
+# --- 1.1 CSS ปรับแต่ง (✅ อัปเดต: รวมส่วนกระชับหน้ารายการเคส) ---
 st.markdown("""
+<style>
+    /* 1. ส่วนเดิมของคุณครู (Animation และพื้นฐาน) */
+    *, *::before, *::after {
+        scroll-behavior: auto !important;
+    }
+
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;} 
+    .stDeployButton {display:none;}
+    [data-testid="stSidebar"] {display: none;}
+    [data-testid="collapsedControl"] {display: none;}
+    
+    .metric-card { 
+        background: white; 
+        padding: 10px; 
+        border-radius: 8px; 
+        border: 1px solid #d1d5db; 
+        text-align: center; 
+        box-shadow: none !important; 
+    }
+    .metric-value { font-size: 2.2rem; font-weight: 800; color: #1e293b; } 
+    .metric-label { font-size: 0.9rem; color: #64748b; }
+    img { opacity: 1 !important; image-rendering: -webkit-optimize-contrast; }
+
+    /* ------------------------------------------------------- */
+    /* 2. ส่วนที่เพิ่มใหม่: บีบให้ชิดกัน (ใส่ต่อท้ายตรงนี้ได้เลย) */
+    /* ------------------------------------------------------- */
+    
+    /* บีบระยะห่างระหว่างแถวรายการเคส */
+    [data-testid="stVerticalBlock"] > div:has(div[data-testid="stHorizontalBlock"]) {
+        gap: 0.1rem !important;
+        margin-bottom: -15px !important; /* ดึงแถวถัดไปขึ้นมาให้ชิดขึ้น */
+    }
+
+    /* ปรับปุ่มเลขเคสให้เพรียวบาง */
+    div.stButton > button {
+        height: 30px !important;
+        min-height: 30px !important;
+        padding: 0px 10px !important;
+        line-height: 1 !important;
+        font-size: 14px !important;
+    }
+
+    /* จัดการเส้นคั่น (Divider) ให้จางและชิดบรรทัดที่สุด */
+    hr {
+        margin-top: 2px !important;
+        margin-bottom: 2px !important;
+        opacity: 0.15;
+    }
+
+    /* ลดขนาดตัวอักษร Timestamp และ ประเภทเหตุ */
+    div[data-testid="stMarkdownContainer"] p {
+        font-size: 14px !important;
+        margin-bottom: 0px !important;
+        line-height: 1.2 !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 <style>
     /* 1. ลบคำสั่งปิด Animation ออก เพื่อให้ War Room กะพริบได้ */
     *, *::before, *::after {
