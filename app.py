@@ -711,87 +711,94 @@ def investigation_module():
         # -------------------------------------------------------
         # ... (หลังจากนี้เป็นโค้ด if st.session_state.view_mode == "list": ของเดิม ปล่อยไว้เหมือนเดิม) ...
 
+        # ==========================================
+        # 📂 [ส่วนแสดงรายการแบบแยกคลัง Archive]
+        # ==========================================
         if st.session_state.view_mode == "list":
-            tab_list, tab_dash = st.tabs(["📋 รายการแจ้งเหตุ", "📊 แดชบอร์ดสถิติ"])
-            with tab_list:
-                c_search, c_btn_search, c_btn_clear = st.columns([3, 1, 1])
-                search_q = c_search.text_input("ค้นหา", placeholder="เลขเคส, ชื่อ, หรือเหตุการณ์...", key="search_query_main", label_visibility="collapsed")
-                c_btn_search.button("🔍 ค้นหา", use_container_width=True)
-                if c_btn_clear.button("❌ ล้าง", use_container_width=True): st.rerun()
-                filtered = df_display.copy()
-                if search_q: filtered = filtered[filtered.apply(lambda r: r.astype(str).str.contains(search_q, case=False).any(), axis=1)]
-                
-                df_p = filtered[filtered['Status'].isin(["รอดำเนินการ", "อยู่ระหว่างการดำเนินการ"])][::-1]
-                df_f = filtered[filtered['Status'] == "ดำเนินการเรียบร้อย"][::-1]
+            # 1. ส่วนค้นหา (อยู่บนสุดเพื่อให้ค้นหาได้ทั้ง Active และ Archive)
+            c_search, c_btn_search, c_btn_clear = st.columns([3, 1, 1])
+            search_q = c_search.text_input("ค้นหา", placeholder="เลขเคส, ชื่อ, หรือเหตุการณ์...", key="search_query_main", label_visibility="collapsed")
+            c_btn_search.button("🔍 ค้นหา", use_container_width=True)
+            if c_btn_clear.button("❌ ล้าง", use_container_width=True): st.rerun()
 
-                st.markdown("<h4 style='color:#1E3A8A; background-color:#f0f2f6; padding:10px; border-radius:5px;'>⏳ รายการที่รอการดำเนินการ</h4>", unsafe_allow_html=True)
-                start_p, end_p, cur_p, tot_p = calculate_pagination('page_pending', len(df_p), 5)
-                h1, h2, h3, h4 = st.columns([2.5, 2, 3, 1.5])
-                h1.markdown("**เลขที่รับแจ้ง**"); h2.markdown("**วันเวลา**"); h3.markdown("**ประเภทเหตุ**"); h4.markdown("**สถานะ**")
-                st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
-                
-                # --- ส่วนที่แก้ไข: แยกสีสถานะตามประเภท ---
-                if df_p.empty: st.caption("ไม่มีรายการ")
-                for i, row in df_p.iloc[start_p:end_p].iterrows():
-                    cc1, cc2, cc3, cc4 = st.columns([2.5, 2, 3, 1.5])
-                    with cc1: st.button(f"📝 {row['Report_ID']}", key=f"p_{i}", use_container_width=True, on_click=lambda r=row['Report_ID']: st.session_state.update({'selected_case_id': r, 'view_mode': 'detail', 'unlock_password': ""}))
-                    cc2.write(row['Timestamp'])
-                    cc3.write(row['Incident_Type'])
+            # กรองข้อมูลเบื้องต้น
+            filtered = df_display.copy()
+            if search_q: 
+                filtered = filtered[filtered.apply(lambda r: r.astype(str).str.contains(search_q, case=False).any(), axis=1)]
+            
+            # --- แยกกลุ่มข้อมูล ---
+            # df_p = เฉพาะเคสที่ยังไม่จบ (Active)
+            df_p = filtered[filtered['Status'].isin(["รอดำเนินการ", "อยู่ระหว่างการดำเนินการ"])][::-1]
+            # df_f = เฉพาะเคสที่จบแล้วหรือยกเลิก (Archive)
+            df_f = filtered[filtered['Status'].isin(["ดำเนินการเรียบร้อย", "ยกเลิก"])][::-1]
+
+            # 2. สร้าง Tabs ใหม่ 3 ช่อง
+            tab_active, tab_archive, tab_dash = st.tabs(["⚡ เคสปัจจุบัน (Active)", "📂 คลังคดีเก่า (Archive)", "📊 สถิติรวม"])
+
+            # --- [Tab 1: เคสปัจจุบัน] ---
+            with tab_active:
+                st.markdown(f"<h4 style='color:#1E3A8A; background-color:#f0f2f6; padding:10px; border-radius:5px;'>⏳ รายการที่ต้องจัดการ ({len(df_p)} รายการ)</h4>", unsafe_allow_html=True)
+                if df_p.empty:
+                    st.info("✅ ยอดเยี่ยม! ไม่มีเคสค้างในระบบ")
+                else:
+                    start_p, end_p, cur_p, tot_p = calculate_pagination('page_pending', len(df_p), 5)
+                    h1, h2, h3, h4 = st.columns([2.5, 2, 3, 1.5])
+                    h1.markdown("**เลขที่รับแจ้ง**"); h2.markdown("**วันเวลา**"); h3.markdown("**ประเภทเหตุ**"); h4.markdown("**สถานะ**")
+                    st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
                     
-                    # 1. ดึงค่าสถานะมาเช็ค
-                    status_text = str(row['Status']).strip()
+                    for i, row in df_p.iloc[start_p:end_p].iterrows():
+                        cc1, cc2, cc3, cc4 = st.columns([2.5, 2, 3, 1.5])
+                        with cc1: st.button(f"📝 {row['Report_ID']}", key=f"p_{i}", use_container_width=True, on_click=lambda r=row['Report_ID']: st.session_state.update({'selected_case_id': r, 'view_mode': 'detail', 'unlock_password': ""}))
+                        cc2.write(row['Timestamp'])
+                        cc3.write(row['Incident_Type'])
+                        status_text = str(row['Status']).strip()
+                        color_code = "#dc2626" if status_text == "รอดำเนินการ" else "#2563eb"
+                        icon = "⏳" if status_text == "รอดำเนินการ" else "🔵"
+                        with cc4: st.markdown(f"<span style='color:{color_code}; font-weight:bold'>{icon} {status_text}</span>", unsafe_allow_html=True)
+                        st.divider()
                     
-                    # 2. กำหนดสีและไอคอนตามสถานะ
-                    if status_text == "รอดำเนินการ":
-                        color_code = "#dc2626"  # สีแดง
-                        icon = "⏳"
-                    elif status_text == "อยู่ระหว่างการดำเนินการ":
-                        color_code = "#2563eb"  # สีน้ำเงิน
-                        icon = "🔵"
-                    else:
-                        color_code = "orange"   # สีส้ม (เผื่อกรณีอื่น)
-                        icon = "⏳"
+                    if tot_p > 1:
+                        cp1, cp2, cp3 = st.columns([1, 2, 1])
+                        if cp1.button("⬅️ ย้อนกลับ", disabled=st.session_state.page_pending==1, key="pp"): st.session_state.page_pending-=1; st.rerun()
+                        cp2.markdown(f"<div style='text-align:center;'>{st.session_state.page_pending} / {tot_p}</div>", unsafe_allow_html=True)
+                        if cp3.button("ถัดไป ➡️", disabled=st.session_state.page_pending==tot_p, key="pn"): st.session_state.page_pending+=1; st.rerun()
 
-                    with cc4: 
-                        # 3. นำสีที่ได้มาใส่ในสไตล์
-                        st.markdown(f"<span style='color:{color_code}; font-weight:bold'>{icon} {status_text}</span>", unsafe_allow_html=True)
-                    st.divider()
-                
-                if tot_p > 1:
-                    cp1, cp2, cp3 = st.columns([1, 2, 1])
-                    if cp1.button("⬅️ ย้อนกลับ", disabled=st.session_state.page_pending==1, key="pp"): st.session_state.page_pending-=1; st.rerun()
-                    cp2.markdown(f"<div style='text-align:center;'>{st.session_state.page_pending} / {tot_p}</div>", unsafe_allow_html=True)
-                    if cp3.button("ถัดไป ➡️", disabled=st.session_state.page_pending==tot_p, key="pn"): st.session_state.page_pending+=1; st.rerun()
+            # --- [Tab 2: คลังคดีเก่า (Archive)] ---
+            with tab_archive:
+                st.markdown(f"<h4 style='color:#2e7d32; background-color:#e8f5e9; padding:10px; border-radius:5px;'>✅ คดีที่ยุติแล้ว/เก็บเข้าคลัง ({len(df_f)} รายการ)</h4>", unsafe_allow_html=True)
+                if df_f.empty:
+                    st.caption("ยังไม่มีรายการในคลัง")
+                else:
+                    # คลังโชว์ได้เยอะหน่อย หน้าละ 10 รายการ
+                    start_f, end_f, cur_f, tot_f = calculate_pagination('page_finished', len(df_f), 10)
+                    for i, row in df_f.iloc[start_f:end_f].iterrows():
+                        cc1, cc2, cc3, cc4 = st.columns([2.5, 2, 3, 1.5])
+                        with cc1: st.button(f"📂 {row['Report_ID']}", key=f"f_{i}", use_container_width=True, on_click=lambda r=row['Report_ID']: st.session_state.update({'selected_case_id': r, 'view_mode': 'detail', 'unlock_password': ""}))
+                        cc2.write(row['Timestamp'])
+                        cc3.write(row['Incident_Type'])
+                        status_text = str(row['Status']).strip()
+                        color = "green" if status_text == "ดำเนินการเรียบร้อย" else "gray"
+                        with cc4: st.markdown(f"<span style='color:{color}; font-weight:bold'>✅ {status_text}</span>", unsafe_allow_html=True)
+                        st.divider()
 
-                st.markdown("<h4 style='color:#2e7d32; background-color:#e8f5e9; padding:10px; border-radius:5px;'>✅ รายการที่ดำเนินการเรียบร้อย</h4>", unsafe_allow_html=True)
-                start_f, end_f, cur_f, tot_f = calculate_pagination('page_finished', len(df_f), 5)
-                for i, row in df_f.iloc[start_f:end_f].iterrows():
-                    cc1, cc2, cc3, cc4 = st.columns([2.5, 2, 3, 1.5])
-                    with cc1: st.button(f"✅ {row['Report_ID']}", key=f"f_{i}", use_container_width=True, on_click=lambda r=row['Report_ID']: st.session_state.update({'selected_case_id': r, 'view_mode': 'detail', 'unlock_password': ""}))
-                    cc2.write(row['Timestamp']); cc3.write(row['Incident_Type'])
-                    cc4.markdown("<span style='color:green;font-weight:bold'>✅ ดำเนินการเรียบร้อย</span>", unsafe_allow_html=True); st.divider()
-
+            # --- [Tab 3: แดชบอร์ดสถิติ] ---
             with tab_dash:
+                # ส่วนสถิติเดิมของคุณครู
                 tc = len(df_display)
                 if tc > 0:
                     m1, m2, m3 = st.columns(3)
                     m1.metric("แจ้งเหตุทั้งหมด", f"{tc} ครั้ง")
-                    m2.metric("สถานที่เกิดเหตุบ่อยสุด", df_display['Location'].mode()[0] if not df_display.empty else "-")
+                    m2.metric("สถานที่บ่อยสุด", df_display['Location'].mode()[0] if not df_display.empty else "-")
                     m3.metric("เหตุที่เกิดบ่อยสุด", df_display['Incident_Type'].mode()[0] if not df_display.empty else "-")
                     st.markdown("---")
-                    c_text1, c_text2 = st.columns(2)
-                    with c_text1:
-                        st.markdown("**📌 สรุปยอดตามสถานที่ (Top 5)**")
-                        for l, c in df_display['Location'].value_counts().head(5).items():
-                            p = (c/tc)*100; st.markdown(f"- **{l}**: {c} ครั้ง <span style='color:red; font-size:0.8em;'>({p:.1f}%)</span>", unsafe_allow_html=True)
-                    with c_text2:
-                        st.markdown("**📌 สรุปยอดตามประเภทเหตุ**")
-                        for t, c in df_display['Incident_Type'].value_counts().head(5).items():
-                            p = (c/tc)*100; st.markdown(f"- **{t}**: {c} ครั้ง <span style='color:red; font-size:0.8em;'>({p:.1f}%)</span>", unsafe_allow_html=True)
-                    st.divider()
                     col1, col2 = st.columns(2)
                     with col1: st.markdown("**🔹 ประเภทเหตุ**"); st.bar_chart(df_display['Incident_Type'].value_counts(), color="#FF4B4B")
                     with col2: st.markdown("**🔹 สถานที่เกิดเหตุ**"); st.bar_chart(df_display['Location'].value_counts(), color="#1E3A8A")
+
+        # ==========================================
+        # 🚩 หลังจากนี้คือบล็อก Detail เดิมของคุณครู (ไม่ต้องแก้)
+        # ==========================================
+        elif st.session_state.view_mode == "detail":
 
         elif st.session_state.view_mode == "detail":
             st.button("⬅️ กลับหน้ารายการ", on_click=lambda: st.session_state.update({'view_mode': 'list'}), use_container_width=True)
