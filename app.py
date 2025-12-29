@@ -910,7 +910,7 @@ def investigation_module():
                 if user_role in ["admin", "super_admin"]:
                     if case_status == "อยู่ระหว่างการดำเนินการ":
                         st.markdown("---")
-                        st.subheader("⚖️ ออกหมายเรียกตัวผู้ถูกกล่าวหา")
+                        st.subheader("⚖️ ออกหมายนัด")
                         
                         # 1. ช่องกรอกวันเวลานัดหมาย
                         appt_val = st.text_input(
@@ -922,7 +922,7 @@ def investigation_module():
                         # 2. เช็คเงื่อนไขการแสดงปุ่ม
                         if not appt_val:
                             # กรณี "ยังไม่ได้กรอกข้อมูล" -> แสดงปุ่มธรรมดาที่กดแล้วขึ้นเตือน
-                            if st.button("⚖️ ออกหมายเรียกตัวผู้ถูกกล่าวหา ( Summon Notice )", 
+                            if st.button("⚖️ ออกหมายนัด ( Summon Notice )", 
                                          use_container_width=True, type="secondary", key=f"btn_fake_{sid}"):
                                 st.warning("⚠️ กรุณาระบุวันและเวลานัดหมายในช่องด้านบนก่อน จึงจะสามารถดาวน์โหลดหมายเรียกได้")
                         else:
@@ -930,7 +930,7 @@ def investigation_module():
                             try:
                                 summon_pdf = create_summon_pdf(row, appt_val)
                                 st.download_button(
-                                    label="⚖️ ออกหมายเรียกตัวผู้ถูกกล่าวหา (พร้อมดาวน์โหลด)",
+                                    label="⚖️ ออกหมายนัด (พร้อมดาวน์โหลด)",
                                     data=summon_pdf,
                                     file_name=f"Summon_{sid}.pdf",
                                     mime="application/pdf",
