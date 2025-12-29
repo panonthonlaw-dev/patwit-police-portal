@@ -210,10 +210,10 @@ import plotly.express as px
 # ==========================================
 st.set_page_config(page_title="ศูนย์ปฏิบัติการกลางฯ", page_icon="👮‍♂️", layout="wide", initial_sidebar_state="collapsed")
 
-# --- 1.1 CSS ปรับแต่ง (✅ แก้ไข Syntax Error และรวมโค้ดให้สมบูรณ์) ---
+# --- 1.1 CSS ปรับแต่ง (✅ แก้ไข: รวมโค้ดให้สมบูรณ์และลบส่วนที่ทำให้ Syntax Error ออกแล้ว) ---
 st.markdown("""
 <style>
-    /* 1. พื้นฐานและ Animation */
+    /* 1. ตั้งค่าพื้นฐานและ Animation */
     *, *::before, *::after {
         scroll-behavior: auto !important;
     }
@@ -226,7 +226,7 @@ st.markdown("""
     [data-testid="stSidebar"] {display: none;}
     [data-testid="collapsedControl"] {display: none;}
     
-    /* 3. ปรับแต่ง Card และ Metric */
+    /* 3. ปรับแต่ง Card และ Metric ให้เบาและสวยงาม */
     .metric-card { 
         background: white; 
         padding: 10px; 
@@ -244,7 +244,7 @@ st.markdown("""
     /* 5. บีบหน้ารายการเคสสอบสวนให้ชิดกัน (Compact View) */
     [data-testid="stVerticalBlock"] > div:has(div[data-testid="stHorizontalBlock"]) {
         gap: 0.1rem !important;
-        margin-bottom: -15px !important; /* ดึงแถวถัดไปขึ้นมาให้ชิดขึ้น */
+        margin-bottom: -15px !important;
     }
 
     div.stButton > button {
@@ -269,40 +269,9 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 1.2 Session & Timeout Logic ต่อตรงนี้ได้เลย ---
-# --- 1.2 Session & Timeout Logic (ต่อด้านล่างตามปกติ) ---
-<style>
-    /* 1. ลบคำสั่งปิด Animation ออก เพื่อให้ War Room กะพริบได้ */
-    *, *::before, *::after {
-        scroll-behavior: auto !important;
-    }
-
-    /* 2. ซ่อนส่วนประกอบระบบที่ไม่จำเป็น */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;} 
-    .stDeployButton {display:none;}
-    [data-testid="stSidebar"] {display: none;}
-    [data-testid="collapsedControl"] {display: none;}
-    
-    /* 3. ปรับแต่ง Card ให้เบา */
-    .metric-card { 
-        background: white; 
-        padding: 10px; 
-        border-radius: 8px; 
-        border: 1px solid #d1d5db; 
-        text-align: center; 
-        box-shadow: none !important; 
-    }
-    .metric-value { font-size: 2.2rem; font-weight: 800; color: #1e293b; } 
-    .metric-label { font-size: 0.9rem; color: #64748b; }
-    
-    /* 4. บังคับแสดงผลภาพแบบเร็ว */
-    img { opacity: 1 !important; image-rendering: -webkit-optimize-contrast; }
-</style>
-""", unsafe_allow_html=True)
-
-# --- 1.2 Session & Timeout Logic (60 นาที + กัน Refresh หลุด) ---
+# ==========================================
+# 1.2 Session & Timeout Logic (60 นาที + กัน Refresh หลุด)
+# ==========================================
 TIMEOUT_SECONDS = 60 * 60  # ตั้งเวลา 60 นาที
 
 def check_inactivity():
