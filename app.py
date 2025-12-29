@@ -879,26 +879,26 @@ def investigation_module():
         st.error(f"❌ Error ในการดึงข้อมูล: {e}")
     # --- [วางโค้ดนี้ในส่วนแสดง Detail ของ Investigation Module] ---
 
-# 1. ตรวจสอบสิทธิ์ว่าเป็น Admin หรือ Super Admin
-# 2. ตรวจสอบสถานะว่าต้องเป็น "อยู่ระหว่างการดำเนินการ"
-if st.session_state.user_info.get('role') in ["admin", "super_admin"]:
-    if clean_val(row['Status']) == "อยู่ระหว่างการดำเนินการ":
-        st.markdown("---")
-        st.warning("⚖️ **ส่วนงานออกหมายเรียก:** เฉพาะเจ้าหน้าที่ระดับ Admin เท่านั้นที่สามารถออกหมายได้")
-        
-        # สร้าง PDF หมายเรียก
-        try:
-            summon_pdf = create_summon_pdf(row)
-            st.download_button(
-                label="⚖️ ออกหมายเรียกตัวผู้ถูกกล่าวหา ( Summon Notice )",
-                data=summon_pdf,
-                file_name=f"Summon_{sid}.pdf",
-                mime="application/pdf",
-                use_container_width=True,
-                type="secondary" # ปรับเป็นสีเทาเข้มเพื่อให้เด่นกว่าปุ่มเดิม
-            )
-        except Exception as e:
-            st.error(f"❌ ไม่สามารถสร้างหมายเรียกได้: {e}")
+                # 1. ตรวจสอบสิทธิ์ว่าเป็น Admin หรือ Super Admin
+                # 2. ตรวจสอบสถานะว่าต้องเป็น "อยู่ระหว่างการดำเนินการ"
+                if st.session_state.user_info.get('role') in ["admin", "super_admin"]:
+                    if clean_val(row['Status']) == "อยู่ระหว่างการดำเนินการ":
+                        st.markdown("---")
+                        st.warning("⚖️ **ส่วนงานออกหมายเรียก:** เฉพาะเจ้าหน้าที่ระดับ Admin เท่านั้นที่สามารถออกหมายได้")
+                        
+                        # สร้าง PDF หมายเรียก
+                        try:
+                            summon_pdf = create_summon_pdf(row)
+                            st.download_button(
+                                label="⚖️ ออกหมายเรียกตัวผู้ถูกกล่าวหา ( Summon Notice )",
+                                data=summon_pdf,
+                                file_name=f"Summon_{sid}.pdf",
+                                mime="application/pdf",
+                                use_container_width=True,
+                                type="secondary" # ปรับเป็นสีเทาเข้มเพื่อให้เด่นกว่าปุ่มเดิม
+                            )
+                        except Exception as e:
+                            st.error(f"❌ ไม่สามารถสร้างหมายเรียกได้: {e}")
 
 # ==========================================
 # 3. MODULE: TRAFFIC (ต้นฉบับ 100% - บังคับค้นหา)
