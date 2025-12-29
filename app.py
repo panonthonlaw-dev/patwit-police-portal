@@ -712,31 +712,34 @@ def investigation_module():
         # ... (หลังจากนี้เป็นโค้ด if st.session_state.view_mode == "list": ของเดิม ปล่อยไว้เหมือนเดิม) ...
 
         # ==========================================
-        # 📂 [ส่วนแสดงรายการแบบแยกคลัง Archive - ฉบับแก้ไข Error]
+        # 📂 [ส่วนแสดงรายการแบบจำสถานะหน้า - Fix Pagination]
         # ==========================================
         if st.session_state.view_mode == "list":
             # 1. ส่วนค้นหา
             c_search, c_btn_search, c_btn_clear = st.columns([3, 1, 1])
             search_q = c_search.text_input("🔍 ค้นหาคดี", placeholder="เลขเคส, ชื่อ, หรือเหตุการณ์...", key="search_query_main", label_visibility="collapsed")
             c_btn_search.button("ค้นหา", use_container_width=True)
-            if c_btn_clear.button("❌ ล้าง", use_container_width=True): st.rerun()
+            if c_btn_clear.button("❌ ล้าง", use_container_width=True): 
+                st.rerun()
 
             filtered = df_display.copy()
             if search_q: 
                 filtered = filtered[filtered.apply(lambda r: r.astype(str).str.contains(search_q, case=False).any(), axis=1)]
             
-            # --- 🚩 กำหนดชื่อตัวแปรให้ชัดเจนตรงนี้ ---
-            # เคสปัจจุบัน (Active)
             df_active = filtered[filtered['Status'].isin(["รอดำเนินการ", "อยู่ระหว่างการดำเนินการ"])][::-1]
-            # เคสที่จบแล้ว (Archive)
             df_archive = filtered[filtered['Status'].isin(["ดำเนินการเรียบร้อย", "ยกเลิก"])][::-1]
 
-            # 2. สร้าง Tabs
-            tab_active, tab_archive, tab_dash = st.tabs(["⚡ เคสปัจจุบัน", "📂 คลังคดีเก่า", "📊 สถิติรวม"])
+            # 🚩 [จุดสำคัญ] เปลี่ยน st.tabs เป็นการใช้ Radio สไตล์ Tab เพื่อให้จำหน้าได้
+            st.markdown("""<style> div[data-testid="stHorizontalBlock"] > div:has(div.stRadio) { background: #f1f5f9; padding: 5px; border-radius: 10px; } </style>""", unsafe_allow_html=True)
+            
+            # สร้างตัวเลือก Tab และเก็บไว้ใน Session State (active_inv_tab)
+            menu_options = [f"⚡ เคสปัจจุบัน ({len(df_active)})", f"📂 คลังคดีเก่า ({len(df_archive)})", "📊 สถิติรวม"]
+            sel_tab = st.radio("เมนูนำทาง", menu_options, horizontal=True, label_visibility="collapsed", key="active_inv_tab")
 
-            # --- [Tab 1: เคสปัจจุบัน] ---
-            with tab_active:
-                st.markdown(f"**⏳ รายการที่ต้องจัดการ ({len(df_active)} รายการ)**")
+            # --- [แสดงเนื้อหาตามเมนูที่เลือก] ---
+            
+            if "⚡ เคสปัจจุบัน" in sel_tab:
+                st.markdown(f"<h4 style='color:#1E3A8A;'>⏳ รายการที่ต้องจัดการ</h4>", unsafe_allow_html=True)
                 if df_active.empty:
                     st.info("✅ ยอดเยี่ยม! ไม่มีเคสค้างในระบบ")
                 else:
@@ -746,24 +749,24 @@ def investigation_module():
                         with cc1: st.button(f"📝 {row['Report_ID']}", key=f"p_{i}", use_container_width=True, on_click=lambda r=row['Report_ID']: st.session_state.update({'selected_case_id': r, 'view_mode': 'detail', 'unlock_password': ""}))
                         cc2.write(row['Timestamp'])
                         cc3.write(row['Incident_Type'])
-                        status_text = str(row['Status']).strip()
-                        color = "#dc2626" if status_text == "รอดำเนินการ" else "#2563eb"
-                        with cc4: st.markdown(f"<span style='color:{color}; font-weight:bold'>{status_text}</span>", unsafe_allow_html=True)
+                        st_text = str(row['Status']).strip()
+                        color = "#dc2626" if st_text == "รอดำเนินการ" else "#2563eb"
+                        with cc4: st.markdown(f"<span style='color:{color}; font-weight:bold'>{st_text}</span>", unsafe_allow_html=True)
                         st.divider()
                     
                     if tot_p > 1:
                         cp1, cp2, cp3 = st.columns([1, 2, 1])
-                        if cp1.button("⬅️ ย้อนกลับ", disabled=st.session_state.page_pending==1, key="btn_p_prev"): st.session_state.page_pending-=1; st.rerun()
+                        if cp1.button("⬅️ ย้อนกลับ", disabled=st.session_state.page_pending==1, key="btn_p_prev"): 
+                            st.session_state.page_pending-=1; st.rerun()
                         cp2.markdown(f"<div style='text-align:center;'>{st.session_state.page_pending} / {tot_p}</div>", unsafe_allow_html=True)
-                        if cp3.button("ถัดไป ➡️", disabled=st.session_state.page_pending==tot_p, key="btn_p_next"): st.session_state.page_pending+=1; st.rerun()
+                        if cp3.button("ถัดไป ➡️", disabled=st.session_state.page_pending==tot_p, key="btn_p_next"): 
+                            st.session_state.page_pending+=1; st.rerun()
 
-            # --- [Tab 2: คลังคดีเก่า (Archive)] ---
-            with tab_archive:
-                st.markdown(f"**📂 คดีที่ยุติแล้ว ({len(df_archive)} รายการ)**")
+            elif "📂 คลังคดีเก่า" in sel_tab:
+                st.markdown(f"<h4 style='color:#2e7d32;'>✅ คดีที่ยุติแล้ว/เก็บเข้าคลัง</h4>", unsafe_allow_html=True)
                 if df_archive.empty:
                     st.caption("ยังไม่มีรายการในคลัง")
                 else:
-                    # ใช้ตัวแปร df_archive ให้ตรงกัน
                     start_f, end_f, cur_f, tot_f = calculate_pagination('page_finished', len(df_archive), 10)
                     for i, row in df_archive.iloc[start_f:end_f].iterrows():
                         cc1, cc2, cc3, cc4 = st.columns([2.5, 2, 3, 1.5])
@@ -781,11 +784,15 @@ def investigation_module():
                         if af3.button("ถัดไป ➡️", disabled=st.session_state.page_finished == tot_f, key="btn_arch_next"):
                             st.session_state.page_finished += 1; st.rerun()
 
-            # --- [Tab 3: สถิติ] ---
-            with tab_dash:
-                st.write("### 📊 สรุปสถิติปีปัจจุบัน")
-                st.bar_chart(filtered['Incident_Type'].value_counts())
-
+            elif "📊 สถิติรวม" in sel_tab:
+                tc = len(df_display)
+                if tc > 0:
+                    m1, m2, m3 = st.columns(3)
+                    m1.metric("แจ้งเหตุทั้งหมด", f"{tc} ครั้ง")
+                    m2.metric("สถานที่บ่อยสุด", df_display['Location'].mode()[0] if not df_display.empty else "-")
+                    m3.metric("เหตุที่เกิดบ่อยสุด", df_display['Incident_Type'].mode()[0] if not df_display.empty else "-")
+                    st.divider()
+                    st.bar_chart(df_display['Incident_Type'].value_counts())
         # ==========================================
         # 🚩 หลังจากนี้คือบล็อก Detail เดิมของคุณครู (ไม่ต้องแก้)
         # ========================================= 
