@@ -469,9 +469,14 @@ def create_pdf_inv(row):
     if audit_log:
         try:
             lines = [l for l in audit_log.split('\n') if l.strip()]
-            if lines and '[' in lines[-1] and ']' in lines[-1]: latest_date = lines[-1][lines[-1].find('[')+1:lines[-1].find(']')]
+            if lines and '[' in lines[-1] and ']' in lines[-1]:
+                # 🚩 จุดที่ 1: นำวันที่จาก Audit Log มาแปลงเป็นเดือนเต็ม
+                raw_log_date = lines[-1][lines[-1].find('[')+1:lines[-1].find(']')]
+                latest_date = get_thai_date_full(raw_log_date)
         except: pass
-    p_name = st.session_state.user_info.get('name', 'System'); p_time = get_now_th().strftime("%d/%m/%Y %H:%M:%S")
+    now = get_now_th()
+    p_name = st.session_state.user_info.get('name', 'System')
+    p_time = f"{get_thai_date_full(now)} เวลา {now.strftime('%H:%M:%S')} น."
     qr = qrcode.make(rid); qi = io.BytesIO(); qr.save(qi, format="PNG"); qr_b64 = base64.b64encode(qi.getvalue()).decode()
     
     img_html = ""
