@@ -797,8 +797,7 @@ def investigation_module():
 
         # ==========================================
         # 🚩 หลังจากนี้คือบล็อก Detail เดิมของคุณครู (ไม่ต้องแก้)
-        # ==========================================
-        elif st.session_state.view_mode == "detail":
+        # ========================================= 
 
         elif st.session_state.view_mode == "detail":
             st.button("⬅️ กลับหน้ารายการ", on_click=lambda: st.session_state.update({'view_mode': 'list'}), use_container_width=True)
