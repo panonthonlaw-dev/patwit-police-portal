@@ -884,9 +884,7 @@ def investigation_module():
                 if st.session_state.user_info.get('role') in ["admin", "super_admin"]:
                     if clean_val(row['Status']) == "อยู่ระหว่างการดำเนินการ":
                         st.markdown("---")
-                        st.warning("⚖️ **ส่วนงานออกหมายเรียก:** เฉพาะเจ้าหน้าที่ระดับ Admin เท่านั้นที่สามารถออกหมายได้")
-                        
-                        # สร้าง PDF หมายเรียก
+                        st.warning("⚖️ **ส่วนงานออกหมายเรียก:** ตรวจสอบชื่อผู้ถูกกล่าวหาให้ถูกต้อง")
                         try:
                             summon_pdf = create_summon_pdf(row)
                             st.download_button(
@@ -895,7 +893,7 @@ def investigation_module():
                                 file_name=f"Summon_{sid}.pdf",
                                 mime="application/pdf",
                                 use_container_width=True,
-                                type="secondary" # ปรับเป็นสีเทาเข้มเพื่อให้เด่นกว่าปุ่มเดิม
+                                type="secondary"
                             )
                         except Exception as e:
                             st.error(f"❌ ไม่สามารถสร้างหมายเรียกได้: {e}")
