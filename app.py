@@ -765,15 +765,18 @@ def investigation_module():
 
             # --- [Tab 2: คลังคดีเก่า (Archive)] ---
             with tab_archive:
-                st.markdown(f"<h4 style='color:#2e7d32; background-color:#e8f5e9; padding:10px; border-radius:5px;'>✅ คดีที่ยุติแล้ว/เก็บเข้าคลัง ({len(df_f)} รายการ)</h4>", unsafe_allow_html=True)
-                if df_f.empty:
+                st.markdown(f"<h4 style='color:#2e7d32; background-color:#e8f5e9; padding:10px; border-radius:5px;'>✅ คดีที่ยุติแล้ว/เก็บเข้าคลัง ({len(df_archive)} รายการ)</h4>", unsafe_allow_html=True)
+                
+                if df_archive.empty:
                     st.caption("ยังไม่มีรายการในคลัง")
                 else:
-                    # คลังโชว์ได้เยอะหน่อย หน้าละ 10 รายการ
-                    start_f, end_f, cur_f, tot_f = calculate_pagination('page_finished', len(df_f), 10)
-                    for i, row in df_f.iloc[start_f:end_f].iterrows():
+                    # 1. คำนวณหน้า (แบ่งหน้าละ 10 รายการ)
+                    start_f, end_f, cur_f, tot_f = calculate_pagination('page_finished', len(df_archive), 10)
+                    
+                    # 2. วนลูปแสดงผลเฉพาะรายการในหน้านั้นๆ
+                    for i, row in df_archive.iloc[start_f:end_f].iterrows():
                         cc1, cc2, cc3, cc4 = st.columns([2.5, 2, 3, 1.5])
-                        with cc1: st.button(f"📂 {row['Report_ID']}", key=f"f_{i}", use_container_width=True, on_click=lambda r=row['Report_ID']: st.session_state.update({'selected_case_id': r, 'view_mode': 'detail', 'unlock_password': ""}))
+                        with cc1: st.button(f"📂 {row['Report_ID']}", key=f"f_arch_{i}", use_container_width=True, on_click=lambda r=row['Report_ID']: st.session_state.update({'selected_case_id': r, 'view_mode': 'detail', 'unlock_password': ""}))
                         cc2.write(row['Timestamp'])
                         cc3.write(row['Incident_Type'])
                         status_text = str(row['Status']).strip()
@@ -781,6 +784,20 @@ def investigation_module():
                         with cc4: st.markdown(f"<span style='color:{color}; font-weight:bold'>✅ {status_text}</span>", unsafe_allow_html=True)
                         st.divider()
 
+                    # 3. 🚩 [เพิ่มตรงนี้] ส่วนปุ่มควบคุมการเปลี่ยนหน้า (Previous / Next)
+                    if tot_f > 1:
+                        st.write("") # เว้นวรรคนิดหน่อย
+                        af1, af2, af3 = st.columns([1, 2, 1])
+                        
+                        if af1.button("⬅️ ย้อนกลับ", disabled=st.session_state.page_finished == 1, key="btn_arch_prev"):
+                            st.session_state.page_finished -= 1
+                            st.rerun()
+                            
+                        af2.markdown(f"<div style='text-align:center; font-weight:bold; padding-top:10px;'>หน้า {st.session_state.page_finished} / {tot_f}</div>", unsafe_allow_html=True)
+                        
+                        if af3.button("ถัดไป ➡️", disabled=st.session_state.page_finished == tot_f, key="btn_arch_next"):
+                            st.session_state.page_finished += 1
+                            st.rerun()
             # --- [Tab 3: แดชบอร์ดสถิติ] ---
             with tab_dash:
                 # ส่วนสถิติเดิมของคุณครู
