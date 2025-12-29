@@ -537,25 +537,25 @@ def create_summon_pdf(row, appointment_info):
         .signature-section {{ margin-top: 50px; float: right; width: 300px; text-align: center; }}
     </style></head><body>
         <div class="garuda"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Garuda_Emblem_of_Thailand.svg/1200px-Garuda_Emblem_of_Thailand.svg.png"></div>
-        <div class="header">หมายเรียก (สถานีตำรวจนักเรียน)</div>
+        <div class="header">หนังสือนัดสอบถาม (สถานีตำรวจนักเรียน)</div>
         <div style="text-align: right;">สถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</div>
         <div style="text-align: right;">วันที่ {get_now_th().strftime("%d เดือน %m พ.ศ. ") + str(get_now_th().year + 543)}</div>
         
-        <p><b>เรื่อง:</b> ขอเชิญพบเพื่อรับทราบข้อกล่าวหาและให้ปากคำ</p>
+        <p><b>เรื่อง:</b> ขอเชิญพบเพื่อสอบถาม</p>
         <p><b>เรียน:</b> {accused_name} (ผู้ถูกกล่าวหา)</p>
         
         <div style="text-align: justify;">
-            <p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ด้วยทางงานป้องกันและปราบปรามความประพฤตินักเรียน (สถานีตำรวจนักเรียน) ได้รับแจ้งเหตุ <b>{incident_type}</b> ซึ่งเกิดขึ้นเมื่อวันที่ <b>{incident_date}</b> ตามเลขคดีที่ <b>{rid}</b></p>
+            <p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ด้วยทางงานป้องกันและปราบปราม(สถานีตำรวจนักเรียน) ได้รับแจ้งเหตุ <b>{incident_type}</b> ซึ่งเกิดขึ้นเมื่อวันที่ <b>{incident_date}</b> ตามเลขแจ้งเหตุที่ <b>{rid}</b></p>
             
-            <p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;อาศัยอำนาจหน้าที่ตามระเบียบโรงเรียน จึงขอให้ท่านมาพบเจ้าหน้าที่ผู้สอบสวน 
+            <p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;อาศัยอำนาจหน้าที่ตามระเบียบโรงเรียน จึงขอให้ท่านมาพบคุณครู
             <span style="color: blue; text-decoration: underline;"><b>ในวันที่ {appointment_info}</b></span> 
-            ณ ห้องปกครอง (สถานีตำรวจนักเรียน) เพื่อดำเนินการสอบสวนข้อเท็จจริงในกรณี: <i>{incident_details[:100]}...</i> ให้เกิดความเป็นธรรมแก่ทุกฝ่าย</p>
+            ณ ห้องปกครอง (สถานีตำรวจนักเรียน) เพื่อดำเนินการสอบถามข้อเท็จจริงในกรณี: <i>{incident_details[:100]}...</i> ให้เกิดความเป็นธรรมแก่ทุกฝ่าย</p>
         </div>
 
-        <p>จึงเรียนมาเพื่อโปรดปฏิบัติหน้าที่และมาพบเจ้าหน้าที่ตามกำหนดเวลา</p>
+        <p>จึงเรียนมาเพื่อโปรดปฏิบัติหน้าที่และมาพบตำรวจนักเรียนตามกำหนดเวลา</p>
 
         <div class="signature-section">
-            <p>ลงชื่อ..........................................................<br>({teacher})<br>ครูผู้สอบสวน / ผู้ออกหมาย</p>
+            <p>ลงชื่อ..........................................................<br>({teacher})<br>ครูผู้สอบสวน/ครูผู้ออกหมายนัด</p>
             <br>
             <p>ลงชื่อ..........................................................<br>({student_police})<br>ตำรวจนักเรียนเจ้าของคดี</p>
         </div>
