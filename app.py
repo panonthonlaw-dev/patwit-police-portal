@@ -210,14 +210,15 @@ import plotly.express as px
 # ==========================================
 st.set_page_config(page_title="ศูนย์ปฏิบัติการกลางฯ", page_icon="👮‍♂️", layout="wide", initial_sidebar_state="collapsed")
 
-# --- 1.1 CSS ปรับแต่ง (✅ แก้ไข: รวมส่วนที่ซ้ำและแก้ไข Syntax Error แล้ว) ---
+# --- 1.1 CSS ปรับแต่ง (✅ แก้ไข Syntax Error และรวมโค้ดให้สมบูรณ์) ---
 st.markdown("""
 <style>
-    /* 1. ตั้งค่าพื้นฐานและ Animation */
+    /* 1. พื้นฐานและ Animation */
     *, *::before, *::after {
         scroll-behavior: auto !important;
     }
 
+    /* 2. ซ่อนส่วนประกอบระบบที่ไม่จำเป็น */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;} 
@@ -225,7 +226,7 @@ st.markdown("""
     [data-testid="stSidebar"] {display: none;}
     [data-testid="collapsedControl"] {display: none;}
     
-    /* 2. ปรับแต่ง Card และ Metric */
+    /* 3. ปรับแต่ง Card และ Metric */
     .metric-card { 
         background: white; 
         padding: 10px; 
@@ -236,12 +237,14 @@ st.markdown("""
     }
     .metric-value { font-size: 2.2rem; font-weight: 800; color: #1e293b; } 
     .metric-label { font-size: 0.9rem; color: #64748b; }
+    
+    /* 4. บังคับแสดงผลภาพแบบเร็ว */
     img { opacity: 1 !important; image-rendering: -webkit-optimize-contrast; }
 
-    /* 3. บีบหน้ารายการเคสให้ชิดกัน (Compact View) */
+    /* 5. บีบหน้ารายการเคสสอบสวนให้ชิดกัน (Compact View) */
     [data-testid="stVerticalBlock"] > div:has(div[data-testid="stHorizontalBlock"]) {
         gap: 0.1rem !important;
-        margin-bottom: -15px !important;
+        margin-bottom: -15px !important; /* ดึงแถวถัดไปขึ้นมาให้ชิดขึ้น */
     }
 
     div.stButton > button {
@@ -266,6 +269,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# --- 1.2 Session & Timeout Logic ต่อตรงนี้ได้เลย ---
 # --- 1.2 Session & Timeout Logic (ต่อด้านล่างตามปกติ) ---
 <style>
     /* 1. ลบคำสั่งปิด Animation ออก เพื่อให้ War Room กะพริบได้ */
