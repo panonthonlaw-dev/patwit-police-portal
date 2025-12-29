@@ -464,7 +464,7 @@ def safe_decode_image(img_str):
 # 2. MODULE: INVESTIGATION
 # ==========================================
 def create_pdf_inv(row):
-    rid = str(row.get('Report_ID', '')); date_str = str(row.get('Timestamp', ''))
+    rid = str(row.get('Report_ID', '')); date_str = get_thai_date_full(str(row.get('Timestamp', '')))
     audit_log = str(row.get('Audit_Log', '')); latest_date = "-"
     if audit_log:
         try:
