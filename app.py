@@ -210,10 +210,10 @@ import plotly.express as px
 # ==========================================
 st.set_page_config(page_title="ศูนย์ปฏิบัติการกลางฯ", page_icon="👮‍♂️", layout="wide", initial_sidebar_state="collapsed")
 
-# --- 1.1 CSS ปรับแต่ง (✅ อัปเดต: รวมส่วนกระชับหน้ารายการเคส) ---
+# --- 1.1 CSS ปรับแต่ง (✅ แก้ไข: รวมส่วนที่ซ้ำและแก้ไข Syntax Error แล้ว) ---
 st.markdown("""
 <style>
-    /* 1. ส่วนเดิมของคุณครู (Animation และพื้นฐาน) */
+    /* 1. ตั้งค่าพื้นฐานและ Animation */
     *, *::before, *::after {
         scroll-behavior: auto !important;
     }
@@ -225,6 +225,7 @@ st.markdown("""
     [data-testid="stSidebar"] {display: none;}
     [data-testid="collapsedControl"] {display: none;}
     
+    /* 2. ปรับแต่ง Card และ Metric */
     .metric-card { 
         background: white; 
         padding: 10px; 
@@ -237,17 +238,12 @@ st.markdown("""
     .metric-label { font-size: 0.9rem; color: #64748b; }
     img { opacity: 1 !important; image-rendering: -webkit-optimize-contrast; }
 
-    /* ------------------------------------------------------- */
-    /* 2. ส่วนที่เพิ่มใหม่: บีบให้ชิดกัน (ใส่ต่อท้ายตรงนี้ได้เลย) */
-    /* ------------------------------------------------------- */
-    
-    /* บีบระยะห่างระหว่างแถวรายการเคส */
+    /* 3. บีบหน้ารายการเคสให้ชิดกัน (Compact View) */
     [data-testid="stVerticalBlock"] > div:has(div[data-testid="stHorizontalBlock"]) {
         gap: 0.1rem !important;
-        margin-bottom: -15px !important; /* ดึงแถวถัดไปขึ้นมาให้ชิดขึ้น */
+        margin-bottom: -15px !important;
     }
 
-    /* ปรับปุ่มเลขเคสให้เพรียวบาง */
     div.stButton > button {
         height: 30px !important;
         min-height: 30px !important;
@@ -256,14 +252,12 @@ st.markdown("""
         font-size: 14px !important;
     }
 
-    /* จัดการเส้นคั่น (Divider) ให้จางและชิดบรรทัดที่สุด */
     hr {
         margin-top: 2px !important;
         margin-bottom: 2px !important;
         opacity: 0.15;
     }
 
-    /* ลดขนาดตัวอักษร Timestamp และ ประเภทเหตุ */
     div[data-testid="stMarkdownContainer"] p {
         font-size: 14px !important;
         margin-bottom: 0px !important;
@@ -271,6 +265,8 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
+# --- 1.2 Session & Timeout Logic (ต่อด้านล่างตามปกติ) ---
 <style>
     /* 1. ลบคำสั่งปิด Animation ออก เพื่อให้ War Room กะพริบได้ */
     *, *::before, *::after {
