@@ -877,7 +877,7 @@ def investigation_module():
 
     except Exception as e:
         st.error(f"❌ Error ในการดึงข้อมูล: {e}")
-# --- [วางโค้ดนี้ในส่วนแสดง Detail ของ Investigation Module] ---
+    # --- [วางโค้ดนี้ในส่วนแสดง Detail ของ Investigation Module] ---
 
 # 1. ตรวจสอบสิทธิ์ว่าเป็น Admin หรือ Super Admin
 # 2. ตรวจสอบสถานะว่าต้องเป็น "อยู่ระหว่างการดำเนินการ"
@@ -899,6 +899,7 @@ if st.session_state.user_info.get('role') in ["admin", "super_admin"]:
             )
         except Exception as e:
             st.error(f"❌ ไม่สามารถสร้างหมายเรียกได้: {e}")
+
 # ==========================================
 # 3. MODULE: TRAFFIC (ต้นฉบับ 100% - บังคับค้นหา)
 # ==========================================
