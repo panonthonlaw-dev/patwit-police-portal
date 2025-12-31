@@ -1477,17 +1477,17 @@ def monitor_center_module():
                 col1, col2, col3 = st.columns(3)
                 
                 # --- แก้ไขบรรทัดใน Section 3 ตรงส่วนสร้าง cards ---
-with col1:
-    st.markdown('<div class="header-badge" style="background:#ef4444;">🚨 รอดำเนินการ</div>', unsafe_allow_html=True)
-    df_new = df_raw[df_raw['Status'].str.contains("รอดำเนินการ", na=False)].iloc[::-1]
-    
-    # ✅ เปลี่ยนจาก df_new.values เป็น df_new.to_dict('records') เพื่อให้เรียกชื่อคอลัมน์ได้
-    cards = "".join([
-        f'<div class="incident-card card-new {"new-incident-active" if is_new_alert and i==0 else ""}"><b>🆔 {r["Report_ID"]}</b><br>📍 {r["Location"]}<br>{r["Incident_Type"]}</div>' 
-        for i, r in enumerate(df_new.to_dict('records'))
-    ])
-    
-    st.markdown(f'<div class="marquee-viewport"><div class="marquee-content">{cards}{cards}</div></div>', unsafe_allow_html=True)
+                with col1:
+                    st.markdown('<div class="header-badge" style="background:#ef4444;">🚨 รอดำเนินการ</div>', unsafe_allow_html=True)
+                    df_new = df_raw[df_raw['Status'].str.contains("รอดำเนินการ", na=False)].iloc[::-1]
+                    
+                    # ✅ เปลี่ยนจาก df_new.values เป็น df_new.to_dict('records') เพื่อให้เรียกชื่อคอลัมน์ได้
+                    cards = "".join([
+                        f'<div class="incident-card card-new {"new-incident-active" if is_new_alert and i==0 else ""}"><b>🆔 {r["Report_ID"]}</b><br>📍 {r["Location"]}<br>{r["Incident_Type"]}</div>' 
+                        for i, r in enumerate(df_new.to_dict('records'))
+                    ])
+                    
+                    st.markdown(f'<div class="marquee-viewport"><div class="marquee-content">{cards}{cards}</div></div>', unsafe_allow_html=True)
 
                 with col2:
                     st.markdown('<div class="header-badge" style="background:#3b82f6;">⚙️ กำลังดำเนินการ</div>', unsafe_allow_html=True)
