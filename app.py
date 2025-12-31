@@ -210,44 +210,36 @@ import plotly.express as px
 # ==========================================
 st.set_page_config(page_title="ศูนย์ปฏิบัติการกลางฯ", page_icon="👮‍♂️", layout="wide", initial_sidebar_state="collapsed")
 
-# --- 1.1 CSS ปรับแต่ง (✅ แก้ปัญหา Ghosting + ตัวหนังสือทับโลโก้) ---
+# --- 1.1 CSS ปรับแต่ง (✅ แก้ไขล่าสุด: เปิดให้ Animation ทำงานได้แล้ว) ---
 st.markdown("""
 <style>
-    /* 1. รีเซ็ตพื้นฐานและจัดการหน้าจอ */
-    *, *::before, *::after { scroll-behavior: auto !important; }
-    #MainMenu, footer, header, .stDeployButton, [data-testid="stSidebar"] { visibility: hidden; display: none; }
-
-    /* 2. ล็อกพื้นหลังและลดความวูบวาบของ Layout */
-    .main .block-container {
-        transition: none !important; 
-        padding-top: 2rem !important;
+    /* 1. ลบคำสั่งปิด Animation ออก เพื่อให้ War Room กะพริบได้ */
+    *, *::before, *::after {
+        scroll-behavior: auto !important;
     }
 
-    /* 3. จัดการ Header ให้แยกจากโลโก้ชัดเจน (แก้รูปที่ 3) */
-    .header-wrapper {
-        display: flex;
-        align-items: center;
-        gap: 20px;
-        margin-bottom: 30px;
+    /* 2. ซ่อนส่วนประกอบระบบที่ไม่จำเป็น */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;} 
+    .stDeployButton {display:none;}
+    [data-testid="stSidebar"] {display: none;}
+    [data-testid="collapsedControl"] {display: none;}
+    
+    /* 3. ปรับแต่ง Card ให้เบา */
+    .metric-card { 
+        background: white; 
+        padding: 10px; 
+        border-radius: 8px; 
+        border: 1px solid #d1d5db; 
+        text-align: center; 
+        box-shadow: none !important; 
     }
-    .logo-img { width: 100px; height: auto; flex-shrink: 0; }
-    .title-text { flex-grow: 1; }
-
-    /* 4. แก้ไขคอลัมน์ใน War Room ให้คงที่ (แก้รูปที่ 4) */
-    [data-testid="stHorizontalBlock"] {
-        align-items: flex-start !important;
-        gap: 1rem !important;
-    }
-
-    /* 5. สไตล์ Minimal List สำหรับหน้าเลือกแผนก */
-    .dept-list-btn {
-        text-align: left !important;
-        padding: 20px !important;
-        border-radius: 15px !important;
-        border: 1px solid #f1f5f9 !important;
-        background: white !important;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05) !important;
-    }
+    .metric-value { font-size: 2.2rem; font-weight: 800; color: #1e293b; } 
+    .metric-label { font-size: 0.9rem; color: #64748b; }
+    
+    /* 4. บังคับแสดงผลภาพแบบเร็ว */
+    img { opacity: 1 !important; image-rendering: -webkit-optimize-contrast; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -1403,113 +1395,210 @@ def monitor_center_module():
     # --- 1. เตรียม State ---
     if "last_row_count" not in st.session_state:
         st.session_state.last_row_count = 0
+    
     is_new_alert = False 
 
-    # --- 2. CSS & JavaScript (ฉบับนิ่งที่สุด) ---
+    # --- 2. CSS & JavaScript ---
     st.markdown("""
         <script>
             function toggleFullScreen() {
                 var doc = window.document;
                 var docEl = doc.documentElement;
                 var requestFullScreen = docEl.requestFullscreen || docEl.mozRequestFullScreen || docEl.webkitRequestFullScreen || docEl.msRequestFullscreen;
-                if(!doc.fullscreenElement) { requestFullScreen.call(docEl); }
-                else { if(doc.exitFullscreen) { doc.exitFullscreen(); } }
+                var cancelFullScreen = doc.exitFullscreen || doc.mozCancelFullScreen || doc.webkitExitFullscreen || doc.msExitFullscreen;
+
+                if(!doc.fullscreenElement && !doc.mozFullScreenElement && !doc.webkitFullscreenElement && !doc.msFullscreenElement) {
+                    requestFullScreen.call(docEl);
+                } else {
+                    cancelFullScreen.call(doc);
+                }
             }
         </script>
         <style>
-            @keyframes pulse_red {
-                0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
-                70% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
-                100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+            /* Pulse Effect: กระพริบต่อเนื่อง (Infinite) */
+            @keyframes pulse_soft {
+                0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); border-color: #ef4444; }
+                50% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); border-color: #ef4444; }
+                100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); border-color: #ef4444; }
             }
-            .new-incident-active { animation: pulse_red 1.5s infinite; border: 2px solid #dc2626 !important; background-color: #fff1f2 !important; }
-            .fs-button { height: 40px; background-color: #1e293b; color: white; border-radius: 8px; border: none; cursor: pointer; width: 100%; font-weight: bold; }
-            .alert-card-minimal { background: white; padding: 12px; border-radius: 12px; border: 1px solid #e2e8f0; border-left: 5px solid #ef4444; height: 100%; }
-            .marquee-viewport { height: 500px; overflow: hidden; position: relative; background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; }
-            .marquee-content { display: flex; flex-direction: column; animation: scroll_up 60s linear infinite; }
+            .new-incident-active { 
+                animation: pulse_soft 1.5s ease-in-out infinite !important; 
+                border-left: 6px solid #dc2626 !important;
+                background-color: #fff1f2 !important; 
+            }
+
+            /* ปุ่ม Full Screen (ปรับให้เข้ากับปุ่ม Streamlit) */
+            .fs-button {
+                display: flex; align-items: center; justify-content: center;
+                width: 100%; height: 42px; /* ความสูงใกล้เคียงปุ่มมาตรฐาน */
+                background-color: #1e293b; color: white;
+                border-radius: 8px; border: none; cursor: pointer;
+                font-weight: bold; font-size: 0.9em;
+                transition: background 0.2s;
+            }
+            .fs-button:hover { background-color: #334155; }
+
+            /* การ์ดแบบ Minimal (Compact) */
+            .alert-card-minimal {
+                background-color: white; color: #1e293b; padding: 10px; 
+                border-radius: 10px; border: 1px solid #e2e8f0;
+                border-left: 5px solid #ef4444; 
+                box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+                height: 100%; min-height: 90px; transition: transform 0.2s;
+            }
+            
+            /* Marquee */
+            .marquee-viewport { 
+                height: 650px; overflow: hidden; position: relative; 
+                background: #fff; border-radius: 12px; border: 1px solid #e2e8f0;
+                pointer-events: auto !important; z-index: 1; cursor: pointer; 
+            }
+            .marquee-content { display: flex; flex-direction: column; animation: scroll_up 150s linear infinite; }
             @keyframes scroll_up { 0% { transform: translateY(0); } 100% { transform: translateY(-50%); } }
-            .marquee-viewport:hover .marquee-content { animation-play-state: paused !important; }
-            .incident-card { padding: 12px; border-radius: 8px; margin: 8px; background: white; border: 1px solid #e2e8f0; }
-            .card-new { border-left: 5px solid #dc2626; }
-            .card-progress { border-left: 5px solid #3b82f6; background-color: #eff6ff; }
-            .card-done { border-left: 5px solid #22c55e; background-color: #f0fdf4; }
-            .header-badge { padding: 10px; border-radius: 8px; text-align: center; font-weight: bold; margin-bottom: 10px; color: white; }
+            
+            /* หยุดเลื่อนเมื่อ Hover */
+            .marquee-viewport:hover .marquee-content, .marquee-content:hover { 
+                animation-play-state: paused !important;
+                -webkit-animation-play-state: paused !important;
+            }
+            
+            .incident-card { padding: 15px; border-radius: 10px; margin: 10px; background: white; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+            .card-new { border-left: 8px solid #dc2626 !important; }
+            .card-progress { border-left: 6px solid #3b82f6 !important; background-color: #eff6ff !important; margin-bottom:12px; }
+            .card-done { border-left: 6px solid #22c55e !important; background-color: #f0fdf4 !important; margin-bottom:12px; }
+            .header-badge { padding: 12px; border-radius: 8px; text-align: center; font-weight: bold; margin-bottom: 10px; color: white; font-size: 1.1em; }
         </style>
     """, unsafe_allow_html=True)
 
-    header_area = st.empty()
-    top_alerts_area = st.empty()
-    main_area = st.empty()
+    # --- 3. ส่วนปุ่มควบคุมด้านบน (ซ้ายสุด) ---
+    # แบ่งคอลัมน์: [เต็มจอ] [กลับ] [ว่าง................]
+    c_fs, c_back, c_space = st.columns([0.15, 0.15, 0.7])
+    
+    with c_fs:
+        # ปุ่ม HTML เรียก JavaScipt
+        st.markdown('<button onclick="toggleFullScreen()" class="fs-button">🖥️ เต็มจอ</button>', unsafe_allow_html=True)
+        
+    with c_back:
+        # ปุ่ม Streamlit (ลดข้อความให้สั้นลง)
+        if st.button("⬅️ กลับเมนู", use_container_width=True):
+            st.session_state.current_dept = None
+            st.rerun()
 
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         now_th = get_now_th()
         cur_year = (now_th.year + 543) if now_th.month >= 5 else (now_th.year + 542)
         df_raw = conn.read(worksheet=f"Investigation_{cur_year}", ttl=0).fillna("")
-
-        # 1. วาด Header
-        with header_area.container():
-            c1, c2, c3 = st.columns([1.5, 1.5, 7])
-            c1.markdown('<button onclick="toggleFullScreen()" class="fs-button">🖥️ เต็มจอ</button>', unsafe_allow_html=True)
-            if c2.button("🏠 กลับเมนู", use_container_width=True):
-                st.session_state.current_dept = None
-                st.rerun()
-            c3.markdown(f"<h3 style='text-align:right; margin:0;'>📡 War Room | {now_th.strftime('%H:%M:%S')}</h3>", unsafe_allow_html=True)
+        st.caption(f"🔄 Last Update: {now_th.strftime('%H:%M:%S')}")
 
         if not df_raw.empty:
-            if len(df_raw) > st.session_state.last_row_count:
+            current_row_count = len(df_raw)
+            
+            # --- ตรวจจับเหตุใหม่ ---
+            if current_row_count > st.session_state.last_row_count:
                 if st.session_state.last_row_count > 0:
                     is_new_alert = True
-                    st.toast("🚨 มีเหตุใหม่!", icon="🔊")
-                st.session_state.last_row_count = len(df_raw)
+                    
+                    # Hidden Audio Player (alet.wav)
+                    sound_file = "alet.wav"
+                    if os.path.exists(sound_file):
+                        with open(sound_file, "rb") as f:
+                            audio_bytes = f.read()
+                        b64_audio = base64.b64encode(audio_bytes).decode()
+                        
+                        audio_html = f"""
+                            <audio autoplay style="display:none;">
+                                <source src="data:audio/wav;base64,{b64_audio}" type="audio/wav">
+                            </audio>
+                        """
+                        st.markdown(audio_html, unsafe_allow_html=True)
+                        st.toast("🚨 พบเหตุแจ้งใหม่!", icon="🔊")
 
+                st.session_state.last_row_count = current_row_count
+            
             df_new_all = df_raw[df_raw['Status'].str.contains("รอดำเนินการ", na=False)].iloc[::-1]
 
-            # 2. วาดส่วนแจ้งเหตุล่าสุด 3 รายการ (กลับมาแล้วครับ)
-            with top_alerts_area.container():
-                if not df_new_all.empty:
-                    st.markdown("<div style='margin-bottom:5px; font-weight:bold; color:#ef4444;'>🔥 แจ้งเหตุล่าสุด:</div>", unsafe_allow_html=True)
-                    top_3 = df_new_all.head(3).to_dict('records')
-                    cols = st.columns(3)
-                    for i, (row, col) in enumerate(zip(top_3, cols)):
-                        pulse_class = "new-incident-active" if is_new_alert and i == 0 else ""
-                        col.markdown(f"""
-                            <div class="alert-card-minimal {pulse_class}">
-                                <div style="color:#ef4444; font-weight:bold; font-size:0.8em;">🆔 {row['Report_ID']}</div>
-                                <div style="font-weight:bold; font-size:1em; margin:2px 0;">📍 {row['Location']}</div>
-                                <div style="font-size:0.9em; color:#475569;">⚠️ {row['Incident_Type']}</div>
-                            </div>
-                        """, unsafe_allow_html=True)
-                    st.write("")
+            # --- หัวข้อ ---
+            st.markdown(f"""
+                <div style="text-align:center; margin-bottom:15px; margin-top:-20px;">
+                    <h2 style="color:#1e293b; margin:0; display:inline-block; font-weight:800;">🚨 War Room: ระบบเฝ้าระวังเหตุอัจฉริยะสถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</h2>
+                </div>
+            """, unsafe_allow_html=True)
+            
+            # --- 📌 แสดงผล 3 กล่องบน ---
+            if not df_new_all.empty:
+                st.markdown('<div style="color:#64748b; font-weight:600; margin-bottom:5px; font-size:0.9em;">🔥 แจ้งเหตุล่าสุด (3 รายการ):</div>', unsafe_allow_html=True)
+                top_3 = df_new_all.head(3)
+                cols = st.columns(3) 
 
-            # 3. วาดเนื้อหาหลัก 3 คอลัมน์
-            with main_area.container():
-                col_left, col_mid, col_right = st.columns(3)
-                
-                with col_left:
-                    st.markdown('<div class="header-badge" style="background:#ef4444;">🚨 รอดำเนินการ</div>', unsafe_allow_html=True)
-                    cards_list = df_new_all.to_dict('records')
-                    cards_html = "".join([f'<div class="incident-card card-new"><b>🆔 {r["Report_ID"]}</b><br>📍 {r["Location"]}<br>{r["Incident_Type"]}</div>' for r in cards_list])
+                for i, ((idx, row), col) in enumerate(zip(top_3.iterrows(), cols)):
+                    with col:
+                        # กระพริบ Infinite
+                        pulse_cls = "new-incident-active" if (i == 0 and is_new_alert) else ""
+                        
+                        itype = str(row['Incident_Type'])
+                        icon = "⚠️"
+                        if "อาวุธ" in itype: icon = "🔪"
+                        elif "ทะเลาะ" in itype or "ทำร้าย" in itype: icon = "🥊"
+                        elif "ยาเสพติด" in itype or "บุหรี่" in itype: icon = "🚭"
+                        elif "อุบัติเหตุ" in itype: icon = "🚑"
+                        
+                        t_show = row['Timestamp'].split(' ')[1] if ' ' in row['Timestamp'] else row['Timestamp']
+
+                        st.markdown(f"""
+                        <div class="alert-card-minimal {pulse_cls}">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px; border-bottom:1px solid #f1f5f9; padding-bottom:2px;">
+                                <b style="color:#ef4444; font-size:0.95em;">🆔 {row['Report_ID']}</b>
+                                <span style="font-size:0.8em; color:#94a3b8; font-weight:500;">⏱️ {t_show}</span>
+                            </div>
+                            <div style="font-weight:bold; font-size:1.05em; color:#1e293b; margin-bottom:0px; line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                                📍 {row['Location']}
+                            </div>
+                            <div style="color:#475569; font-size:0.9em; display:flex; align-items:center; gap:5px; line-height:1.3;">
+                                <span style="font-size:1.1em;">{icon}</span> {itype}
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+            st.divider()
+
+            # --- 3 คอลัมน์ด้านล่าง ---
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                st.markdown('<div class="header-badge" style="background:#ef4444;">รอดำเนินการ</div>', unsafe_allow_html=True)
+                if df_new_all.empty: st.info("✅ เหตุการณ์ปกติ")
+                else:
+                    cards_html = ""
+                    for i, (_, row) in enumerate(df_new_all.iterrows()):
+                        cards_html += f"""
+                        <div class="incident-card card-new">
+                            <div style="display:flex; justify-content:space-between;">
+                                <b style="color:#dc2626;">📝 {row['Report_ID']}</b>
+                                <small style="color:#64748b;">{row['Timestamp']}</small>
+                            </div>
+                            <div style="font-size:1.1em; font-weight:bold; margin-top:5px; color:#1e293b;">📍 {row['Location']}</div>
+                            <div style="color:#475569;">{row['Incident_Type']}</div>
+                        </div>"""
                     st.markdown(f'<div class="marquee-viewport"><div class="marquee-content">{cards_html}{cards_html}</div></div>', unsafe_allow_html=True)
 
-                with col_mid:
-                    st.markdown('<div class="header-badge" style="background:#3b82f6;">⚙️ กำลังดำเนินการ</div>', unsafe_allow_html=True)
-                    df_prog = df_raw[df_raw['Status'].str.contains("อยู่ระหว่าง", na=False)].iloc[::-1].head(10)
-                    for _, r in df_prog.iterrows():
-                        st.markdown(f'<div class="incident-card card-progress"><b>📝 {r["Report_ID"]}</b><br>📍 {r["Location"]}<br><small>ผู้ตรวจ: {r["Student_Police_Investigator"]}</small></div>', unsafe_allow_html=True)
+            with c2:
+                st.markdown('<div class="header-badge" style="background:#3b82f6;">กำลังดำเนินการ</div>', unsafe_allow_html=True)
+                df_prog = df_raw[df_raw['Status'].str.contains("อยู่ระหว่าง", na=False)].iloc[::-1].head(10)
+                for _, row in df_prog.iterrows():
+                    st.markdown(f'<div class="incident-card card-progress"><b>📝 {row["Report_ID"]}</b><br>📍 {row["Location"]}<br><small style="color:#64748b;">ผู้เข้าเหตุ: {row["Student_Police_Investigator"]}</small></div>', unsafe_allow_html=True)
 
-                with col_right:
-                    st.markdown('<div class="header-badge" style="background:#22c55e;">✅ เสร็จสิ้น</div>', unsafe_allow_html=True)
-                    df_done = df_raw[df_raw['Status'].str.contains("เรียบร้อย", na=False)].iloc[::-1].head(10)
-                    for _, r in df_done.iterrows():
-                        st.markdown(f'<div class="incident-card card-done"><b>✅ {r["Report_ID"]}</b><br>📍 {r["Location"]}<br><small>{r["Incident_Type"]}</small></div>', unsafe_allow_html=True)
+            with c3:
+                st.markdown('<div class="header-badge" style="background:#22c55e;">ดำเนินการเรียบร้อย</div>', unsafe_allow_html=True)
+                df_done = df_raw[df_raw['Status'].str.contains("เรียบร้อย", na=False)].iloc[::-1].head(10)
+                for _, row in df_done.iterrows():
+                    st.markdown(f'<div class="incident-card card-done"><b>✅ {row["Report_ID"]}</b><br>📍 {row["Location"]}<br><small style="color:#64748b;">{row["Incident_Type"]}</small></div>', unsafe_allow_html=True)
 
         time.sleep(10)
         st.rerun()
-
+        
     except Exception as e:
-        st.error(f"⚠️ การเชื่อมต่อขัดข้อง: {e}")
-        time.sleep(5)
+        st.error(f"⚠️ Connection Error: {e}")
+        time.sleep(10)
         st.rerun()
 # ==========================================
 # 4. MAIN ENTRY (แก้ไขย่อหน้าให้ถูกต้อง)
@@ -1544,127 +1633,117 @@ def main():
         del st.session_state.timeout_msg
 
     if not st.session_state.logged_in:
-        # ใช้แนวทางเว้นระยะเพื่อให้กล่องล็อกอินอยู่กลางหน้าจอ
-        _, col_login, _ = st.columns([1, 1.5, 1])
-        
-        with col_login:
-            st.markdown("<br><br><br>", unsafe_allow_html=True)
-            
-            # เริ่มต้น Container แบบ Glassmorphism
-            st.markdown('<div class="glass-container">', unsafe_allow_html=True)
-            
-            # แสดงโลโก้ (ถ้ามี)
-            if LOGO_PATH and os.path.exists(LOGO_PATH):
-                # ใช้เทคนิค Center รูปภาพผ่าน CSS
-                st.markdown(f"""
-                    <div style="display: flex; justify-content: center; margin-bottom: 20px;">
-                        <img src="data:image/png;base64,{LOGO_BASE64}" width="120">
-                    </div>
-                """, unsafe_allow_html=True)
-            
-            st.markdown("""
-                <div style="margin-bottom: 30px;">
-                    <h2 style="color: white; margin: 0; font-weight: 800; letter-spacing: -1px;">POLICE PORTAL</h2>
-                    <p style="color: rgba(255, 255, 255, 0.6); font-size: 14px;">สถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</p>
-                </div>
-            """, unsafe_allow_html=True)
-
-            # ส่วนฟอร์มกรอกข้อมูล
-            with st.form("glass_login_form", clear_on_submit=False):
-                u_input = st.text_input("ชื่อผู้ใช้งาน (Username)", placeholder="กรอกชื่อผู้ใช้...")
-                p_input = st.text_input("รหัสผ่าน (Password)", type="password", placeholder="กรอกรหัสผ่าน...")
+        _, col, _ = st.columns([1, 1.2, 1])
+        with col:
+            st.markdown("<br><br>", unsafe_allow_html=True)
+            with st.container(border=True):
+                if LOGO_PATH and os.path.exists(LOGO_PATH):
+                    st.image(LOGO_PATH, width=120)
+                st.markdown("<h3 style='text-align:center;'>ศูนย์ปฏิบัติการกลาง<br>สถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</h3>", unsafe_allow_html=True)
                 
-                st.write("") # เว้นช่องไฟ
+                # --- ส่วนที่แก้ไข: เปลี่ยนเป็น 2 ช่องกรอกข้อมูล ---
+                input_user = st.text_input("ชื่อผู้ใช้งาน (Username)")
+                input_pass = st.text_input("รหัสผ่าน (Password)", type="password")
                 
-                if st.form_submit_button("เข้าสู่ระบบปฏิบัติการ", use_container_width=True, type="primary"):
+                if st.button("เข้าสู่ระบบ", use_container_width=True, type='primary'):
                     accs = st.secrets.get("OFFICER_ACCOUNTS", {})
                     found_acc = None
+                    
+                    # วนลูปเช็ค Username และ Password ให้ตรงกัน
                     for key in accs:
-                        if accs[key].get("user") == u_input and accs[key].get("password") == p_input:
+                        if accs[key].get("user") == input_user and accs[key].get("password") == input_pass:
                             found_acc = accs[key]
+                            # ✅ แก้จุดนี้: ให้เก็บ "key" (ซึ่งเป็นรหัสผ่านจาก secrets) 
+                            # แทนการเก็บจาก input_pass โดยตรง เพื่อให้ฟังก์ชัน sync_login_state ทำงานได้
                             st.session_state.current_user_pwd = key 
                             break
                     
                     if found_acc:
                         st.session_state.logged_in = True
                         st.session_state.user_info = found_acc
+                        
+                        # ✅ เพิ่ม: เขียนลง URL ทันทีหลังจากล็อกอินสำเร็จ
                         st.query_params["auth"] = "true"
                         st.query_params["u"] = st.session_state.current_user_pwd
+                        
                         st.success(f"ยินดีต้อนรับ: {found_acc['name']}")
                         time.sleep(0.5)
                         st.rerun()
-                    else:
-                        st.error("❌ ข้อมูลไม่ถูกต้อง")
-            
-            st.markdown('</div>', unsafe_allow_html=True) # ปิด glass-container
-            st.markdown("<p style='text-align: center; color: rgba(255,255,255,0.4); font-size: 12px; margin-top: 20px;'>Authorized Personnel Only</p>", unsafe_allow_html=True)
+                    else: 
+                        st.error("❌ ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
     else:
         if st.session_state.current_dept is None:
-            # ✅ แก้ปัญหาโลโก้: ใช้สัดส่วน [2, 8] และใส่ Padding เว้นระยะข้อความ
-            st.markdown('<div class="header-box">', unsafe_allow_html=True)
-            c_logo, c_title = st.columns([1.5, 8.5])
+            c_brand, c_nav = st.columns([7, 2.5])
+            with c_brand:
+                c_logo, c_text = st.columns([1, 6])
+                with c_logo:
+                    if LOGO_PATH: st.image(LOGO_PATH, use_column_width=True)
+                with c_text:
+                    st.markdown("""
+                    <div style="display: flex; flex-direction: column; justify-content: center; height: 100%;">
+                        <div style="font-size: 22px; font-weight: bold; color: #1E3A8A; line-height: 1.2;">ศูนย์ปฏิบัติการกลางสถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</div>
+                        <div style="font-size: 16px; color: #475569; margin-top: 4px;">🏢 เลือกแผนกปฏิบัติงาน</div>
+                    </div>
+                    """, unsafe_allow_html=True)
             
-            with c_logo:
-                if LOGO_PATH and os.path.exists(LOGO_PATH):
-                    st.image(LOGO_PATH, width=110) # กำหนดขนาดให้เล็กลงเพื่อความ Minimal
+            # --- จุดที่เคย Error (แก้ไขแล้ว) ---
+            with c_nav:
+                st.write("")
+                st.write("")
+                # สังเกตการย่อหน้าใต้ if ต้องขยับเข้ามา
+                if st.button("🚪 ออกจากระบบ", key="main_logout", use_container_width=True):
+                    st.query_params.clear() 
+                    st.session_state.clear()
+                    st.rerun()
+            # --------------------------------
             
-            with c_title:
-                # ใช้คลาส main-title และ sub-title จาก CSS ด้านบน
-                st.markdown('<div style="padding-left: 15px;">', unsafe_allow_html=True)
-                st.markdown('<div class="main-title">ศูนย์ปฏิบัติการกลาง</div>', unsafe_allow_html=True)
-                st.markdown('<div class="main-title">สถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</div>', unsafe_allow_html=True)
-                st.markdown('<div class="sub-title">🕵️ ระบบสารสนเทศความปลอดภัยและงานสอบสวนดิจิทัล</div>', unsafe_allow_html=True)
-                st.markdown('</div>', unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
+            # --- เริ่มต้นส่วนที่แก้ไข ---
+            st.markdown("---")
+            c1, c2, c3, c4 = st.columns(4) 
+            
+            with c1:
+                with st.container(border=True):
+                    st.subheader("🕵️ งานสอบสวน")
+                    if st.button("เข้าใช้งานสอบสวน", use_container_width=True, type='primary', key="btn_to_inv"):
+                        st.session_state.current_dept = "inv"
+                        st.session_state.view_mode = "list"
+                        st.query_params["dept"] = "inv"
+                        st.rerun()
+            
+            with c2:
+                with st.container(border=True):
+                    st.subheader("🚦 งานจราจร")
+                    if st.button("เข้าใช้งานจราจร", use_container_width=True, type='primary', key="btn_to_tra"):
+                        st.session_state.current_dept = "tra"
+                        st.session_state.traffic_page = 'teacher'
+                        st.session_state.search_results_df = None
+                        st.query_params["dept"] = "tra"
+                        st.rerun()
 
-            # --- แถวตัวเลือกปีและออกจากระบบ (จัดตำแหน่งให้นิ่ง) ---
-            c_y, c_s, c_l = st.columns([2.5, 5, 2.5])
-            with c_y:
-                now = get_now_th()
-                cur_ac = (now.year + 543) if now.month >= 5 else (now.year + 542)
-                st.selectbox("🗓️ ปีการศึกษา", [str(cur_ac), str(cur_ac-1)], key="main_year_minimal")
-            with c_l:
-                st.write("") # ปรับระดับปุ่มให้ตรงกับ Selectbox
-                if st.button("🚪 ออกจากระบบ", key="main_logout_minimal", use_container_width=True):
-                    st.query_params.clear(); st.session_state.clear(); st.rerun()
+            with c3:
+                with st.container(border=True):
+                    st.subheader("🖥️ War Room")
+                    if st.button("เปิดจอเฝ้าระวังเหตุ", use_container_width=True, type='primary', key="btn_to_monitor"):
+                        st.session_state.current_dept = "monitor_view"
+                        st.query_params["dept"] = "monitor_view"
+                        st.rerun()
 
-            st.divider()
-
-            # --- รายการแผนกแบบ Minimal List ---
-            # ข้อมูลแผนก
-            depts = [
-                {"id": "inv", "name": "งานสอบสวน", "desc": "บันทึกคดี, ออกหมายนัด และรายงานผลสอบสวน", "icon": "📝", "color": "#1E3A8A"},
-                {"id": "tra", "name": "งานจราจร", "desc": "ฐานข้อมูลจราจร, ตัดแต้ม และวินัยนักเรียน", "icon": "🚦", "color": "#059669"},
-                {"id": "monitor_view", "name": "War Room", "desc": "เฝ้าระวังเหตุ Real-time และระบบเสียงแจ้งเตือน", "icon": "📡", "color": "#dc2626"},
-                {"id": "hazard_map", "name": "แผนที่จุดเสี่ยง", "desc": "วิเคราะห์ความถี่เหตุการณ์และจุดเสี่ยงรายอาคาร", "icon": "📍", "color": "#ca8a04"}
-            ]
-
-            for d in depts:
-                # ใช้ Container ครอบเพื่อความสวยงาม
-                with st.container():
-                    # แบ่ง 3 ส่วน: [ชื่อแผนก | คำอธิบาย | ปุ่ม]
-                    col_name, col_desc, col_btn = st.columns([3, 5, 2])
-                    
-                    with col_name:
-                        st.markdown(f"<div style='font-weight: 700; font-size: 1.15rem; color: {d['color']}; padding-top: 5px;'>{d['icon']} {d['name']}</div>", unsafe_allow_html=True)
-                    
-                    with col_desc:
-                        st.markdown(f"<div style='color: #64748b; font-size: 0.95rem; padding-top: 8px;'>{d['desc']}</div>", unsafe_allow_html=True)
-                    
-                    with col_btn:
-                        # ใช้ปุ่ม Type Primary เพื่อความเด่น
-                        if st.button("เปิดแผนก", key=f"go_{d['id']}", use_container_width=True, type="primary"):
-                            st.session_state.current_dept = d['id']
-                            if d['id'] == "inv": st.session_state.view_mode = "list"
-                            if d['id'] == "tra": st.session_state.traffic_page = "teacher"
-                            st.query_params["dept"] = d['id']
-                            st.rerun()
-                    
-                    # เส้นคั่นจางๆ สไตล์ Minimal
-                    st.markdown("<hr style='margin: 12px 0; opacity: 0.05;'>", unsafe_allow_html=True)
-
-            # Footer
-            st.markdown("<br><p style='text-align: center; color: #cbd5e1; font-size: 0.8rem;'>Smart Security Platform v3.0 | 2025</p>", unsafe_allow_html=True)
+            with c4: # ✅ แก้ไขการย่อหน้าตรงนี้
+                with st.container(border=True):
+                    st.subheader("📍 แผนที่จุดเสี่ยง")
+                    if st.button("ดูแผนที่วิเคราะห์", use_container_width=True, type="primary", key="btn_to_hazard"):
+                        st.session_state.current_dept = "hazard_map" 
+                        st.query_params["dept"] = "hazard_map"
+                        st.rerun()
+            # --- จบส่วนที่แก้ไข ---
+            # ปุ่มออกจากระบบ (วางไว้ข้างล่างสุดของบล็อกนี้)
+            st.write("")
+            # ✅ แก้ key="main_logout" เป็น key="main_logout_fixed"
+            if st.button("🚪 ออกจากระบบ", use_container_width=True, key="main_logout_fixed"):
+                st.query_params.clear()
+                st.session_state.clear()
+                st.rerun()
+            # --- จบส่วนที่วางทับ ---
         else:
             # ต้องดูย่อหน้าให้ตรงกับ if/elif ด้านบนนะครับ
             if st.session_state.current_dept == "inv": 
