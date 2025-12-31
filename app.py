@@ -210,35 +210,57 @@ import plotly.express as px
 # ==========================================
 st.set_page_config(page_title="ศูนย์ปฏิบัติการกลางฯ", page_icon="👮‍♂️", layout="wide", initial_sidebar_state="collapsed")
 
-# --- 1.1 CSS ปรับแต่ง (✅ รวมสไตล์ List แผนก และความกระชับ) ---
+# --- 1.1 CSS ปรับแต่ง (✅ สไตล์ Modern Minimal: ป้องกันการทับซ้อน 100%) ---
 st.markdown("""
 <style>
-    /* 1. พื้นฐานและ Animation */
+    /* 1. รีเซ็ตพื้นฐานและปิดส่วนเกิน */
     *, *::before, *::after { scroll-behavior: auto !important; }
-    #MainMenu, footer, header, .stDeployButton, [data-testid="stSidebar"], [data-testid="collapsedControl"] { visibility: hidden; display: none; }
-    
-    /* 2. สไตล์รายการเลือกแผนก (Department List Style) */
-    .dept-item {
-        background: white;
-        padding: 15px;
-        border-radius: 12px;
-        border: 1px solid #e2e8f0;
-        margin-bottom: 10px;
-        transition: all 0.2s;
-    }
-    .dept-title { font-size: 1.2rem; font-weight: bold; color: #1E3A8A; }
-    .dept-desc { font-size: 0.9rem; color: #64748b; }
-    .dept-status { font-size: 0.8rem; color: #16a34a; font-weight: bold; text-align: right; }
+    #MainMenu, footer, header, .stDeployButton, [data-testid="stSidebar"] { visibility: hidden; display: none; }
 
-    /* 3. สไตล์ความกระชับหน้า List เคส */
-    [data-testid="stVerticalBlock"] > div:has(div[data-testid="stHorizontalBlock"]) { gap: 0.1rem !important; margin-bottom: -15px !important; }
-    div.stButton > button { height: 32px !important; font-size: 14px !important; }
-    hr { margin: 5px 0 !important; opacity: 0.15; }
-    
-    /* 4. การ์ดสถิติ (Metric) */
-    .metric-card { background: white; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db; text-align: center; }
-    .metric-value { font-size: 2rem; font-weight: 800; color: #1e293b; }
-    .metric-label { font-size: 0.9rem; color: #64748b; }
+    /* 2. จัดระเบียบ Header ให้โปร่งและเว้นระยะจากโลโก้ */
+    .header-box {
+        padding: 20px 0px;
+        margin-bottom: 25px;
+    }
+    .main-title {
+        font-size: 26px !important;
+        font-weight: 800 !important;
+        color: #1E3A8A !important;
+        letter-spacing: -0.5px;
+        line-height: 1.2;
+    }
+    .sub-title {
+        font-size: 15px !important;
+        color: #64748b !important;
+        margin-top: 5px;
+    }
+
+    /* 3. รายการแผนกสไตล์ Modern List (Apple Style) */
+    .dept-card-minimal {
+        background: #ffffff;
+        padding: 18px 25px;
+        border-radius: 16px;
+        border: 1px solid #f1f5f9;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .dept-card-minimal:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        border-color: #3b82f6;
+    }
+
+    /* 4. ปรับแต่งความกระชับในหน้าสอบสวน (Compact Mode) */
+    [data-testid="stVerticalBlock"] > div:has(div[data-testid="stHorizontalBlock"]) { gap: 0rem !important; margin-bottom: -18px !important; }
+    div.stButton > button { 
+        border-radius: 10px !important;
+        height: 35px !important;
+        font-weight: 600 !important;
+        transition: all 0.2s !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -1672,74 +1694,71 @@ def main():
                         st.error("❌ ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
     else:
         if st.session_state.current_dept is None:
-            # --- ส่วนหัวและปุ่มออกจากระบบ ---
-            c_brand, c_nav = st.columns([7, 2.5])
-            with c_brand:
-                c_logo, c_text = st.columns([1, 6])
-                with c_logo:
-                    if LOGO_PATH: st.image(LOGO_PATH, use_column_width=True)
-                with c_text:
-                    st.markdown("""
-                    <div style="display: flex; flex-direction: column; justify-content: center; height: 100%;">
-                        <div style="font-size: 22px; font-weight: bold; color: #1E3A8A; line-height: 1.2;">ศูนย์ปฏิบัติการกลางสถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</div>
-                        <div style="font-size: 16px; color: #475569; margin-top: 4px;">🏢 กรุณาเลือกแผนกปฏิบัติงาน</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+            # ✅ แก้ปัญหาโลโก้: ใช้สัดส่วน [2, 8] และใส่ Padding เว้นระยะข้อความ
+            st.markdown('<div class="header-box">', unsafe_allow_html=True)
+            c_logo, c_title = st.columns([1.5, 8.5])
             
-            with c_nav:
-                st.write("")
-                if st.button("🚪 ออกจากระบบ", key="main_logout_fixed", use_container_width=True):
-                    st.query_params.clear() 
-                    st.session_state.clear()
-                    st.rerun()
+            with c_logo:
+                if LOGO_PATH and os.path.exists(LOGO_PATH):
+                    st.image(LOGO_PATH, width=110) # กำหนดขนาดให้เล็กลงเพื่อความ Minimal
+            
+            with c_title:
+                # ใช้คลาส main-title และ sub-title จาก CSS ด้านบน
+                st.markdown('<div style="padding-left: 15px;">', unsafe_allow_html=True)
+                st.markdown('<div class="main-title">ศูนย์ปฏิบัติการกลาง</div>', unsafe_allow_html=True)
+                st.markdown('<div class="main-title">สถานีตำรวจภูธรโรงเรียนโพนทองพัฒนาวิทยา</div>', unsafe_allow_html=True)
+                st.markdown('<div class="sub-title">🕵️ ระบบสารสนเทศความปลอดภัยและงานสอบสวนดิจิทัล</div>', unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
-            st.markdown("---")
+            # --- แถวตัวเลือกปีและออกจากระบบ (จัดตำแหน่งให้นิ่ง) ---
+            c_y, c_s, c_l = st.columns([2.5, 5, 2.5])
+            with c_y:
+                now = get_now_th()
+                cur_ac = (now.year + 543) if now.month >= 5 else (now.year + 542)
+                st.selectbox("🗓️ ปีการศึกษา", [str(cur_ac), str(cur_ac-1)], key="main_year_minimal")
+            with c_l:
+                st.write("") # ปรับระดับปุ่มให้ตรงกับ Selectbox
+                if st.button("🚪 ออกจากระบบ", key="main_logout_minimal", use_container_width=True):
+                    st.query_params.clear(); st.session_state.clear(); st.rerun()
 
-            # --- [ส่วนที่แก้ไข: รายการแผนกแบบ List View] ---
+            st.divider()
+
+            # --- รายการแผนกแบบ Minimal List ---
             # ข้อมูลแผนก
             depts = [
-                {
-                    "id": "inv", "name": "งานสอบสวน (Investigation)", "icon": "🕵️", 
-                    "desc": "บันทึกสำนวนคดี, จัดการสถานะเหตุการณ์ และออกเอกสารหมายเรียก", "color": "#1E3A8A"
-                },
-                {
-                    "id": "tra", "name": "งานจราจร (Traffic)", "icon": "🚦", 
-                    "desc": "ตรวจสอบข้อมูลรถจักรยานยนต์นักเรียน, ตัดแต้มวินัย และรายงานสถิติจราจร", "color": "#16a34a"
-                },
-                {
-                    "id": "monitor_view", "name": "War Room (Monitor Center)", "icon": "🖥️", 
-                    "desc": "ระบบเฝ้าระวังเหตุแบบ Real-time พร้อมการแจ้งเตือนเหตุใหม่ด้วยเสียง", "color": "#dc2626"
-                },
-                {
-                    "id": "hazard_map", "name": "แผนที่จุดเสี่ยง (Hazard Analytics)", "icon": "📍", 
-                    "desc": "วิเคราะห์ความถี่ของเหตุการณ์ตามอาคารและจุดเสี่ยงต่างๆ ในโรงเรียน", "color": "#ca8a04"
-                }
+                {"id": "inv", "name": "งานสอบสวน", "desc": "บันทึกคดี, ออกหมายนัด และรายงานผลสอบสวน", "icon": "📝", "color": "#1E3A8A"},
+                {"id": "tra", "name": "งานจราจร", "desc": "ฐานข้อมูลจราจร, ตัดแต้ม และวินัยนักเรียน", "icon": "🚦", "color": "#059669"},
+                {"id": "monitor_view", "name": "War Room", "desc": "เฝ้าระวังเหตุ Real-time และระบบเสียงแจ้งเตือน", "icon": "📡", "color": "#dc2626"},
+                {"id": "hazard_map", "name": "แผนที่จุดเสี่ยง", "desc": "วิเคราะห์ความถี่เหตุการณ์และจุดเสี่ยงรายอาคาร", "icon": "📍", "color": "#ca8a04"}
             ]
 
             for d in depts:
-                # สร้างแถวรายการ [ไอคอน | รายละเอียด | ปุ่มเข้าใช้งาน]
-                with st.container(border=True):
-                    col_icon, col_info, col_btn = st.columns([1, 6, 2])
+                # ใช้ Container ครอบเพื่อความสวยงาม
+                with st.container():
+                    # แบ่ง 3 ส่วน: [ชื่อแผนก | คำอธิบาย | ปุ่ม]
+                    col_name, col_desc, col_btn = st.columns([3, 5, 2])
                     
-                    with col_icon:
-                        st.markdown(f"<div style='font-size: 40px; text-align: center; padding-top: 5px;'>{d['icon']}</div>", unsafe_allow_html=True)
+                    with col_name:
+                        st.markdown(f"<div style='font-weight: 700; font-size: 1.15rem; color: {d['color']}; padding-top: 5px;'>{d['icon']} {d['name']}</div>", unsafe_allow_html=True)
                     
-                    with col_info:
-                        st.markdown(f"<div style='font-weight: bold; font-size: 18px; color: {d['color']};'>{d['name']}</div>", unsafe_allow_html=True)
-                        st.markdown(f"<div style='font-size: 14px; color: #64748b;'>{d['desc']}</div>", unsafe_allow_html=True)
+                    with col_desc:
+                        st.markdown(f"<div style='color: #64748b; font-size: 0.95rem; padding-top: 8px;'>{d['desc']}</div>", unsafe_allow_html=True)
                     
                     with col_btn:
-                        st.write("") # เว้นช่องไฟให้กึ่งกลาง
-                        if st.button("เข้าใช้งานแผนก", key=f"btn_go_{d['id']}", use_container_width=True, type="primary"):
+                        # ใช้ปุ่ม Type Primary เพื่อความเด่น
+                        if st.button("เปิดแผนก", key=f"go_{d['id']}", use_container_width=True, type="primary"):
                             st.session_state.current_dept = d['id']
                             if d['id'] == "inv": st.session_state.view_mode = "list"
-                            if d['id'] == "tra": st.session_state.traffic_page = 'teacher'
+                            if d['id'] == "tra": st.session_state.traffic_page = "teacher"
                             st.query_params["dept"] = d['id']
                             st.rerun()
-                # เว้นระยะห่างเล็กน้อยระหว่างรายการ
-                st.write("") 
+                    
+                    # เส้นคั่นจางๆ สไตล์ Minimal
+                    st.markdown("<hr style='margin: 12px 0; opacity: 0.05;'>", unsafe_allow_html=True)
 
-            st.markdown("<p style='text-align: center; color: #94a3b8; font-size: 12px;'>ระบบสารสนเทศความปลอดภัยโรงเรียนโพนทองพัฒนาวิทยา © 2025</p>", unsafe_allow_html=True)
+            # Footer
+            st.markdown("<br><p style='text-align: center; color: #cbd5e1; font-size: 0.8rem;'>Smart Security Platform v3.0 | 2025</p>", unsafe_allow_html=True)
         else:
             # ต้องดูย่อหน้าให้ตรงกับ if/elif ด้านบนนะครับ
             if st.session_state.current_dept == "inv": 
