@@ -1308,9 +1308,9 @@ def traffic_module():
             total_all = len(df)
             avg_all = df['Score'].mean()
             at_risk = len(df[df['Score'] < 60])
-            lic_total = (df['C7'].str.contains("มี", na=False)).sum()
+            lic_total = (df['C7'] == "✅ มี").sum()
             tax_total = (df['C8'].str.contains("ปกติ|✅", na=False)).sum()
-            hel_total = (df['C9'].str.contains("มี", na=False)).sum()
+            hel_total = (df['C9'] == "✅ มี").sum()
 
             lic_p = (lic_total / total_all * 100) if total_all > 0 else 0
             tax_p = (tax_total / total_all * 100) if total_all > 0 else 0
