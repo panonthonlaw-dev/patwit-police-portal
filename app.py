@@ -1079,12 +1079,15 @@ def traffic_module():
         if st.session_state.df_tra is not None:
             df = st.session_state.df_tra
             total = len(df)
-            # นับจำนวน
-            has_lic = len(df[df['C7'].str.contains("มี", na=False)])
-            has_tax = len(df[df['C8'].str.contains("ปกติ|✅", na=False)])
-            has_hel = len(df[df['C9'].str.contains("มี", na=False)])
+
+            # ✅ แก้ไข: ใช้ == เพื่อเช็คค่าที่ตรงกับ "✅ มี" เท่านั้น
+            has_lic = len(df[df['C7'] == "✅ มี"])
+            has_hel = len(df[df['C9'] == "✅ มี"])
             
-            # คำนวณ % เป็นจำนวนเต็ม
+            # ส่วนภาษี ใช้ contains ได้เหมือนเดิม เพราะ "ขาด" ไม่มีคำว่า "ปกติ" ผสมอยู่
+            has_tax = len(df[df['C8'].str.contains("ปกติ|✅", na=False)])
+            
+            # คำนวณ % เป็นจำนวนเต็ม (เหมือนเดิม)
             p_lic = int((has_lic / total * 100)) if total > 0 else 0
             p_tax = int((has_tax / total * 100)) if total > 0 else 0
             p_hel = int((has_hel / total * 100)) if total > 0 else 0
@@ -1358,9 +1361,9 @@ def traffic_module():
             
             def calc_detailed(group):
                 n = len(group)
-                lic = (group['C7'].str.contains("มี", na=False)).sum()
+                lic = (group['C7'] == "✅ มี").sum()
                 tax = (group['C8'].str.contains("ปกติ|✅", na=False)).sum()
-                hel = (group['C9'].str.contains("มี", na=False)).sum()
+                hel = (group['C9'] == "✅ มี").sum()
                 return pd.Series({
                     'จำนวนรถ': n,
                     'คะแนนเฉลี่ย': group['Score'].mean(),
