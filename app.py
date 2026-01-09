@@ -1088,9 +1088,9 @@ def traffic_module():
             has_tax = len(df[df['C8'].str.contains("ปกติ|✅", na=False)])
             
             # คำนวณ % เป็นจำนวนเต็ม (เหมือนเดิม)
-            p_lic = int((has_lic / total * 100)) if total > 0 else 0
-            p_tax = int((has_tax / total * 100)) if total > 0 else 0
-            p_hel = int((has_hel / total * 100)) if total > 0 else 0
+            p_lic = round((has_lic / total * 100), 1) if total > 0 else 0
+            p_tax = round((has_tax / total * 100), 1) if total > 0 else 0
+            p_hel = round((has_hel / total * 100), 1) if total > 0 else 0
 
             # แสดงผล: ใช้ <div> เพื่อแยกบรรทัด และ style บังคับสีเขียว/ขนาด
             c1, c2, c3, c4 = st.columns(4)
